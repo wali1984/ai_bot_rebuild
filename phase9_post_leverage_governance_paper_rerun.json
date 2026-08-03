@@ -1,0 +1,97 @@
+{
+  "marker": "PHASE9_POST_LEVERAGE_GOVERNANCE_PAPER_RERUN",
+  "generated_utc": "2026-07-11T23:15:23Z",
+  "rerun_type": "ACTIVE_SYSTEMD_PAPER_LOOP_RUNTIME_RECHECK",
+  "paper_loop_service": {
+    "unit": "ai-bot-v2-trade-management-paper-loop.service",
+    "active": true,
+    "mode": "paper_only_no_exchange_mutation"
+  },
+  "strict_governance_after_patch": {
+    "performance_status": "ACTIVE",
+    "new_entries_allowed": true,
+    "source_closed_rows": 31,
+    "strict_governed_rows": 3,
+    "non_strict_rows_govern_strict_circuit": false,
+    "strict_profit_factor": 5.182660485863975,
+    "strict_expectancy_bps": 72.17320559725019,
+    "bucket_quarantine_count": 7
+  },
+  "paper_cycle": {
+    "paper_loop_intents_built": 339,
+    "strategy_supply_rows_seen": 0,
+    "inventory_supply_rows_seen": 339,
+    "eligible_rows": 2,
+    "paper_prefill_pass_rows": 2,
+    "materialized_positions": 0,
+    "open_positions": 0,
+    "closed_positions": 31,
+    "counterfactual_rows": 5,
+    "queue_rows_seen": 2,
+    "same_cycle_candidate_count": 2,
+    "same_cycle_materialized_count": 0
+  },
+  "recommended_leverage_distribution": {
+    "runtime_allowed_rows_after": 0,
+    "queued_candidate_leverage_min": 1.0,
+    "queued_candidate_leverage_max": 1.0,
+    "fixture_paper_leverage_max": 3.0,
+    "fixture_rows_gt_1x": 1,
+    "leverage_static": false
+  },
+  "recommended_margin_distribution": {
+    "queued_candidate_modes": [
+      "isolated"
+    ],
+    "fixture_margin_modes": [
+      "cross_simulated",
+      "isolated_paper_simulated"
+    ],
+    "allocated_margin_derived_from_notional_over_leverage": true
+  },
+  "utilization": {
+    "utilization_pct_before": null,
+    "utilization_pct_after": 0.08,
+    "notional_usd_before": null,
+    "notional_usd_after_fixture": 80.0,
+    "runtime_materialized_notional_usd_after": 0.0
+  },
+  "exact_no_fill_reason": "MIXED_TRUE_PREQUEUE_AND_AFTER_QUEUE_BLOCKERS",
+  "row_level_no_fill_reasons": {
+    "prequeue": {
+      "MATERIALIZATION_PREQUEUE_ENTRY_GATE:SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:TRUMPUSDT": 1
+    },
+    "after_queue": {
+      "TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION": 2
+    }
+  },
+  "sample_after_queue_blockers": [
+    {
+      "symbol": "RAREUSDT",
+      "timeframe": "4h",
+      "side": "long",
+      "allocator_decision": "BLOCK_INSUFFICIENT_LIQUIDITY",
+      "runtime_revalidated_preemptive_decision": "NO_TRADE",
+      "materialization_no_fill_reason": "TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION",
+      "routes_to_live": false,
+      "places_real_order": false
+    }
+  ],
+  "contamination_check": {
+    "exploration_counts_as_strict_governance": false,
+    "bootstrap_reduced_size_counts_as_strict_governance": false,
+    "reconstructed_counts_as_strict_governance": false,
+    "non_strict_rows_feed_trainer_feedback": true,
+    "non_strict_rows_show_in_paper_analytics": true,
+    "materialized_positions_zero_due_to_non_strict_governance_contamination": false
+  },
+  "safety": {
+    "production_live_enabled": false,
+    "orders_submitted": false,
+    "test_orders_submitted": false,
+    "leverage_mutated": false,
+    "margin_mutated": false,
+    "live_gate": "blocked_human_only"
+  },
+  "status": "PASSED_GOVERNANCE_FIX_TRUE_ROW_LEVEL_BLOCKERS_REMAIN"
+}

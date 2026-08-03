@@ -1,0 +1,220 @@
+{
+  "schema_version": "audit_gaps_tracker_v1",
+  "source_audit": "INDEPENDENT_FULL_AUDIT.md",
+  "tracker_started_utc": "2026-05-20",
+  "rules": [
+    "Append-mostly: rows are never deleted; incorrect rows move to WontFix.",
+    "Done requires a corresponding V2_*_READY packet to ship and Codex to pass.",
+    "Codex reviewers must consult this tracker before any live-canary or production-equivalence approval."
+  ],
+  "active_lanes": [
+    {
+      "lane": 1,
+      "name": "V2_LIVE_CANARY_DRY_RUN_APPROVAL_BINDING_REMEDIATION_READY",
+      "status": "Done",
+      "completed_utc": "2026-05-20",
+      "closes_findings": ["AUD-013"]
+    },
+    {
+      "lane": 2,
+      "name": "V2_PUBLIC_WEBSITE_BACKEND_ONLINE_READY",
+      "status": "Done",
+      "completed_utc": "2026-05-20",
+      "closes_findings": ["AUD-008", "AUD-009"]
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-001",
+      "title": "Zero live ingestors running",
+      "detail": "13 legacy ingestors (Binance/KuCoin/CoinAPI/CoinAnk/LunarCrush/TokenMetrics/AlphaVantage/realtime_price_provider/coinank global aggregator/coinank pipeline monitor/live_technical_analysis/feature_pipeline) have no running V2 native equivalent.",
+      "priority": "P0",
+      "status": "Open",
+      "closing_gate": "V2_NATIVE_LIVE_INGESTORS_PARITY_READY (suite)",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#2-q1-what-is-missing-ingestors"]
+    },
+    {
+      "id": "AUD-002",
+      "title": "RL trainer not ported",
+      "detail": "hybrid_trainer.py 57k LOC has no V2 native loop; rl_core/service.py declares itself SUBPROJECT_1_RL_CORE_PARTIALLY_MIGRATED_PAPER_ONLY.",
+      "priority": "P0",
+      "status": "Open",
+      "closing_gate": "V2_RL_TRAINER_PORT_PHASE_*_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#3-q1-what-is-missing-trainer"]
+    },
+    {
+      "id": "AUD-003",
+      "title": "Live trader not ported",
+      "detail": "trading/trader.py (24k LOC) and 34 other trading files have no V2 live-capable port; V2 has paper canary only.",
+      "priority": "P0",
+      "status": "Open",
+      "closing_gate": "V2_LIVE_TRADER_NATIVE_LANE_PHASE_*_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#4-q1-what-is-missing-trader"]
+    },
+    {
+      "id": "AUD-004",
+      "title": "AI model not loaded in paper loop",
+      "detail": "V2 paper loop uses heuristic/rule-based decisions, not the trained PPO+MASA policy. checkpoint_metadata.py parses filenames only.",
+      "priority": "P0",
+      "status": "Open",
+      "closing_gate": "V2_RL_CHECKPOINT_PROMOTION_PIPELINE_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#8-q5-other-missing-incorrectly-setup-items"]
+    },
+    {
+      "id": "AUD-005",
+      "title": "Live-canary scaffold remains dry-run only",
+      "detail": "No real order has shipped; live_gate stays blocked_human_only and live_symbols=[].",
+      "priority": "P0",
+      "status": "Open by design",
+      "closing_gate": "V2_LIVE_CANARY_FIRST_REAL_ORDER_READY (requires explicit operator + Codex final approval)",
+      "evidence_pointers": ["claude_worklog/final_readiness/v2_live_canary_dry_run_service/latest/V2_LIVE_CANARY_DRY_RUN_SERVICE_REPORT.md"]
+    },
+    {
+      "id": "AUD-006",
+      "title": "Trader sub-components missing",
+      "detail": "Stealth stops, dynamic TP, hedge engines, smart entry gate, market regime detector, maker execution etc. have no V2 port.",
+      "priority": "P1",
+      "status": "Open",
+      "closing_gate": "V2_TRADER_COMPONENTS_NATIVE_LANE_PHASE_*_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#4-q1-what-is-missing-trader"]
+    },
+    {
+      "id": "AUD-007",
+      "title": "Feature pipeline reads snapshots not live feeds",
+      "detail": "V2 feature snapshot builder reads from paper data files, not live Redis feeds.",
+      "priority": "P1",
+      "status": "Open",
+      "closing_gate": "blocked by AUD-001 (live ingestors must exist first)",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#5-q2-features-functions-wrappers-dependencies"]
+    },
+    {
+      "id": "AUD-008",
+      "title": "FastAPI backend not running",
+      "detail": "uvicorn process was absent; frontend /api/v1 and /api/v2 calls were failing.",
+      "priority": "P1",
+      "status": "Done",
+      "completed_utc": "2026-05-20",
+      "closing_gate": "V2_PUBLIC_WEBSITE_BACKEND_ONLINE_READY",
+      "evidence_pointers": ["claude_worklog/final_readiness/v2_public_website_backend_online/latest/V2_PUBLIC_WEBSITE_BACKEND_ONLINE_REPORT.md"]
+    },
+    {
+      "id": "AUD-009",
+      "title": "REDIS_URL / LEGACY_REDIS_URL not set",
+      "detail": "v2/backend/app/settings.py has env_file=None; no .env existed; V2 workers relied on shell env that was unset.",
+      "priority": "P1",
+      "status": "Done",
+      "completed_utc": "2026-05-20",
+      "closing_gate": "V2_PUBLIC_WEBSITE_BACKEND_ONLINE_READY (backend systemd unit injects REDIS_URL=redis://localhost:6379/0 and LEGACY_REDIS_URL=redis://localhost:6379/0)",
+      "evidence_pointers": ["claude_worklog/systemd/user/ai-bot-v2-public-website-backend.service"]
+    },
+    {
+      "id": "AUD-010",
+      "title": "No auto-restart watchdog for V2 services",
+      "detail": "Legacy auto_recovery.sh was removed; V2 has no equivalent. v2_production_replacement_runtime_guard.py monitors but does not restart.",
+      "priority": "P1",
+      "status": "Open",
+      "closing_gate": "V2_CONTROL_PLANE_WATCHDOG_AUTORESTART_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#8-q5-other-missing-incorrectly-setup-items"]
+    },
+    {
+      "id": "AUD-011",
+      "title": "No Telegram alerts in V2",
+      "detail": "Legacy telegram_alerts.py (2,243 lines) has no V2 equivalent. Operators would receive no alerts from V2.",
+      "priority": "P1",
+      "status": "Open",
+      "closing_gate": "V2_TELEGRAM_ALERTS_NATIVE_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#8-q5-other-missing-incorrectly-setup-items"]
+    },
+    {
+      "id": "AUD-012",
+      "title": "No database set up; alembic migrations not run",
+      "detail": "pyproject.toml declares SQLAlchemy+alembic but DATABASE_URL is blank and no SQLite/Postgres exists.",
+      "priority": "P1",
+      "status": "Open",
+      "closing_gate": "V2_PERSISTENCE_DB_SETUP_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#8-q5-other-missing-incorrectly-setup-items"]
+    },
+    {
+      "id": "AUD-013",
+      "title": "Dry-run approval binding broken on operator's prose file",
+      "detail": "parse_approval_file used strict KEY: VALUE matching; operator's actual approval file uses natural-language prose, so the envelope fell back to closed_default. Intent records mis-reported approval_file_present=False.",
+      "priority": "P1",
+      "status": "Done",
+      "completed_utc": "2026-05-20",
+      "closing_gate": "V2_LIVE_CANARY_DRY_RUN_APPROVAL_BINDING_REMEDIATION_READY",
+      "evidence_pointers": ["claude_worklog/final_readiness/v2_live_canary_dry_run_approval_binding_remediation/latest/V2_LIVE_CANARY_DRY_RUN_APPROVAL_BINDING_REMEDIATION_REPORT.md"]
+    },
+    {
+      "id": "AUD-014",
+      "title": "Critical missing pip packages in V2 venv",
+      "detail": "torchaudio, torchvision, pytorch_triton, grpcio, pynvml, nvidia_ml_py, trio, trio_websocket, nest_asyncio, tzdata, retrying — 11+ critical packages absent.",
+      "priority": "P2",
+      "status": "Open",
+      "closing_gate": "V2_VENV_PARITY_PHASE_1_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#6-q3-package-comparison-pip"]
+    },
+    {
+      "id": "AUD-015",
+      "title": "Pandas 3.0 in V2 vs 2.3.3 in legacy",
+      "detail": "Pandas 3.0 is mandatory Copy-on-Write; many deprecated APIs removed. Any V2 code reading legacy DataFrames is at risk.",
+      "priority": "P2",
+      "status": "Open",
+      "closing_gate": "V2_PANDAS_PIN_DOWNGRADE_OR_AUDIT_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#6-q3-package-comparison-pip"]
+    },
+    {
+      "id": "AUD-016",
+      "title": "Pydantic 2.9.2 (V2) vs 2.12.5 (legacy)",
+      "detail": "Breaking changes between 2.9 and 2.12 may surface if V2 imports legacy models.",
+      "priority": "P2",
+      "status": "Open",
+      "closing_gate": "bundled with AUD-014",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#6-q3-package-comparison-pip"]
+    },
+    {
+      "id": "AUD-017",
+      "title": "redis-py 5.0.8 (V2) vs 7.1.0 (legacy)",
+      "detail": "Async API differences across the 5→7 jump; client.json() response shapes differ.",
+      "priority": "P2",
+      "status": "Open",
+      "closing_gate": "bundled with AUD-014",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#6-q3-package-comparison-pip"]
+    },
+    {
+      "id": "AUD-018",
+      "title": "fastapi 0.115.0 (V2) vs 0.128.0 (legacy)",
+      "detail": "Older fastapi in V2 may miss security fixes / Starlette features.",
+      "priority": "P2",
+      "status": "Open",
+      "closing_gate": "bundled with AUD-014",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#6-q3-package-comparison-pip"]
+    },
+    {
+      "id": "AUD-019",
+      "title": "uvicorn 0.30.6 (V2) vs 0.40.0 (legacy)",
+      "detail": "Older uvicorn in V2; bundled with the fastapi upgrade work.",
+      "priority": "P2",
+      "status": "Open",
+      "closing_gate": "bundled with AUD-014",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#6-q3-package-comparison-pip"]
+    },
+    {
+      "id": "AUD-020",
+      "title": "Torch nightly-dev (legacy) vs stable (V2)",
+      "detail": "Legacy uses 2.10.0.dev20250930+cu128; V2 uses 2.10.0+cu128. If V2 ever loads legacy checkpoints, nightly-only APIs may fail.",
+      "priority": "P2",
+      "status": "Open",
+      "closing_gate": "V2_RL_CHECKPOINT_TORCH_PARITY_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#8-q5-other-missing-incorrectly-setup-items"]
+    },
+    {
+      "id": "AUD-021",
+      "title": "Legacy config.py (6,006 lines) has no V2 equivalent",
+      "detail": "V2 settings.py is 26 lines. Many tunable parameters (LEVERAGE, MARGIN_TYPE, INTELLIGENCE_STEALTH_TP_GATE_ENABLED, POST_CASCADE_*, LOSS_REALIZATION_*, HEDGE_*) have no V2 counterpart.",
+      "priority": "P2",
+      "status": "Open",
+      "closing_gate": "V2_RUNTIME_CONFIG_PARITY_PHASE_*_READY",
+      "evidence_pointers": ["INDEPENDENT_FULL_AUDIT.md#8-q5-other-missing-incorrectly-setup-items"]
+    }
+  ]
+}

@@ -1,0 +1,1328 @@
+{
+  "high_confidence_min_score": 0.7,
+  "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+  "rows": [
+    {
+      "MAE": 0.0,
+      "MFE": 0.0,
+      "bucket": {
+        "confidence_bucket": "0.7-0.8",
+        "regime": "BREAKOUT,HIGH_VOLATILITY,TREND",
+        "side": "long",
+        "strategy_id": "breakout_mode",
+        "symbol": "AEROUSDT",
+        "timeframe": "5m"
+      },
+      "composite_microstructure_trust_score": 0.49440608,
+      "confidence_calibrated": 0.7413922643899495,
+      "confidence_raw": null,
+      "continuous_edge_guardian_allowed_runtime_actions": [
+        "reduce",
+        "close",
+        "emergency_de_risk"
+      ],
+      "continuous_edge_guardian_block_reasons": [
+        {
+          "observed": 5000,
+          "reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+          "required": 50000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+          "required": 1000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SYMBOL_COVERAGE",
+          "required": 50
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_LONG_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SHORT_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_STRATEGY_REGIME_COVERAGE",
+          "required": 10
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "eligibility_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_STRATEGY_ELIGIBILITY",
+          "reason": "ADAPTIVE_STRATEGY_BRAIN_BLOCKED",
+          "required": "ACTIVE_A_GRADE_STRATEGY_BRAIN",
+          "state_counts": {
+            "ACTIVE": 0,
+            "B_GRADE_ONLY": 0,
+            "COOLDOWN": 0,
+            "QUARANTINED": 0,
+            "REDUCED_SIZE": 0,
+            "REEVALUATION": 0,
+            "SHADOW_ONLY": 0
+          }
+        },
+        {
+          "a_grade_candidate_count": 0,
+          "blocker_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED",
+          "passed_a_grade_candidate_count": 0,
+          "reason": "ZERO_LIQUIDATION_STRESS_SUITE_BLOCKED",
+          "required": "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE"
+        }
+      ],
+      "continuous_edge_guardian_new_entries_allowed": false,
+      "continuous_edge_guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+      "depth_imbalance": 0.06585849811052029,
+      "entry_feature_available_at": "2026-07-07T05:29:00.239Z",
+      "entry_feature_candle_closed_confirmed": true,
+      "entry_feature_cutoff": "2026-07-07T05:24:59.999Z",
+      "entry_feature_decision_time": "2026-07-07T05:30:21.075Z",
+      "entry_feature_unavailable_reason": null,
+      "exit_price_utc": "2026-07-07T05:34:10.918Z",
+      "exit_reason": "TIER_3_MODEL_REVERSAL_NETTING",
+      "expected_funding_bps": 0.5,
+      "expected_move_after_cost_bps": 26.416820526123047,
+      "expected_slippage_bps": 0.874661,
+      "feature_snapshot_id": "v2_fsnap_5665ab265cab59546e28a6ddfcee90aefc4e25143d60929f9733c75f0721a900",
+      "fee_bps": 4.0,
+      "fees": 0.012196983224724907,
+      "funding": -5.293829524620186e-07,
+      "funding_rate": 5e-05,
+      "gross_notional_usd": 31.153512645824772,
+      "hold_time_seconds": 10.0,
+      "liquidation_context": {
+        "missing_feature_names": [],
+        "source": "V2_PREDICTION_SOURCE_LINEAGE",
+        "source_labels": []
+      },
+      "liquidity_state": true,
+      "live_order": false,
+      "long_short_ratio": "REJECTED_PIT_TELEMETRY_ONLY_NO_ADMISSION_CHANGE",
+      "long_short_ratio_status": "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION",
+      "market_regime_at_entry": "BREAKOUT,HIGH_VOLATILITY,TREND",
+      "market_state_integrity": "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT",
+      "microstructure_trust_score": 0.49440608,
+      "open_interest_change": null,
+      "orchestrator_decision_id": "paper_orch_v2h_c20106d57cbd8999f5a5fe0fd1311164",
+      "orderbook_trust_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_fill_allowed_source": "A_PLUS_REDUCED_SIZE_BOOTSTRAP_PAPER_LOCAL_GATE",
+      "paper_opportunity_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+      "places_real_order": false,
+      "position_id": "paper_pos_AEROUSDT",
+      "prediction_id": "v2h_c20106d57cbd8999f5a5fe0fd1311164",
+      "production_grade_cost_flag": true,
+      "public_orderbook_trust_score": 0.51,
+      "realized_net_pnl_usd": -0.01485341872514081,
+      "realized_pnl_bps": 0.0,
+      "realized_pnl_usd": 0.0,
+      "risk_decision_id": "paper_risk_v2h_c20106d57cbd8999f5a5fe0fd1311164",
+      "routes_to_live": false,
+      "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+      "side": "long",
+      "signal_id": "sig_v2h_c20106d57cbd8999f5a5fe0fd1311164",
+      "slippage": 0.0026559061174634413,
+      "spread_bps": 1.74170513,
+      "strategy_id": "breakout_mode",
+      "symbol": "AEROUSDT",
+      "test_order": false,
+      "timeframe": "5m"
+    },
+    {
+      "MAE": 38.46153846153957,
+      "MFE": 0.0,
+      "bucket": {
+        "confidence_bucket": "0.7-0.8",
+        "regime": "HIGH_VOLATILITY",
+        "side": "short",
+        "strategy_id": "scalp_mode",
+        "symbol": "CRVUSDT",
+        "timeframe": "4h"
+      },
+      "composite_microstructure_trust_score": null,
+      "confidence_calibrated": 0.7837114736238603,
+      "confidence_raw": null,
+      "continuous_edge_guardian_allowed_runtime_actions": [
+        "reduce",
+        "close",
+        "emergency_de_risk"
+      ],
+      "continuous_edge_guardian_block_reasons": [
+        {
+          "observed": 5000,
+          "reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+          "required": 50000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+          "required": 1000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SYMBOL_COVERAGE",
+          "required": 50
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_LONG_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SHORT_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_STRATEGY_REGIME_COVERAGE",
+          "required": 10
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "eligibility_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_STRATEGY_ELIGIBILITY",
+          "reason": "ADAPTIVE_STRATEGY_BRAIN_BLOCKED",
+          "required": "ACTIVE_A_GRADE_STRATEGY_BRAIN",
+          "state_counts": {
+            "ACTIVE": 0,
+            "B_GRADE_ONLY": 0,
+            "COOLDOWN": 0,
+            "QUARANTINED": 0,
+            "REDUCED_SIZE": 0,
+            "REEVALUATION": 0,
+            "SHADOW_ONLY": 0
+          }
+        },
+        {
+          "a_grade_candidate_count": 0,
+          "blocker_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED",
+          "passed_a_grade_candidate_count": 0,
+          "reason": "ZERO_LIQUIDATION_STRESS_SUITE_BLOCKED",
+          "required": "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE"
+        }
+      ],
+      "continuous_edge_guardian_new_entries_allowed": false,
+      "continuous_edge_guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+      "depth_imbalance": -0.026793572468059225,
+      "entry_feature_available_at": "2026-07-07T05:27:41.672Z",
+      "entry_feature_candle_closed_confirmed": true,
+      "entry_feature_cutoff": "2026-07-07T03:59:59.999Z",
+      "entry_feature_decision_time": "2026-07-07T05:30:22.722Z",
+      "entry_feature_unavailable_reason": null,
+      "exit_price_utc": "2026-07-07T05:35:48.170Z",
+      "exit_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "expected_funding_bps": 1.0,
+      "expected_move_after_cost_bps": -17.40422248840332,
+      "expected_slippage_bps": 2.417211,
+      "feature_snapshot_id": "v2_fsnap_d7126291ddfcc9a81d83b8846a01178f4e40ad50cdb1b8d5996cf76d63beb7ee",
+      "fee_bps": 4.0,
+      "fees": 0.013777145112255565,
+      "funding": 1.2985721732696185e-05,
+      "funding_rate": 0.0001,
+      "gross_notional_usd": 34.31089778914221,
+      "hold_time_seconds": 109.0,
+      "liquidation_context": null,
+      "liquidity_state": true,
+      "live_order": false,
+      "long_short_ratio": "REJECTED_PIT_TELEMETRY_ONLY_NO_ADMISSION_CHANGE",
+      "long_short_ratio_status": "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION",
+      "market_regime_at_entry": "HIGH_VOLATILITY",
+      "market_state_integrity": "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT",
+      "microstructure_trust_score": null,
+      "open_interest_change": null,
+      "orchestrator_decision_id": "dec_v2h_f51e2e71e4a0b00944ee6bbcd4ab309f",
+      "orderbook_trust_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_fill_allowed_source": "A_PLUS_REDUCED_SIZE_BOOTSTRAP_PAPER_LOCAL_GATE",
+      "paper_opportunity_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+      "places_real_order": false,
+      "position_id": "paper_pos_CRVUSDT",
+      "prediction_id": "v2h_d320c1d3435267ea3513a783d5c2895f",
+      "production_grade_cost_flag": true,
+      "public_orderbook_trust_score": null,
+      "realized_net_pnl_usd": -0.1539908114170378,
+      "realized_pnl_bps": -38.46153846153957,
+      "realized_pnl_usd": -0.1319649914967046,
+      "risk_decision_id": "rd_v2h_f51e2e71e4a0b00944ee6bbcd4ab309f",
+      "routes_to_live": false,
+      "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+      "side": "short",
+      "signal_id": "sig_v2h_d320c1d3435267ea3513a783d5c2895f",
+      "slippage": 0.008261660529810328,
+      "spread_bps": 4.79271507,
+      "strategy_id": "scalp_mode",
+      "symbol": "CRVUSDT",
+      "test_order": false,
+      "timeframe": "4h"
+    },
+    {
+      "MAE": 48.12563323201653,
+      "MFE": 0.0,
+      "bucket": {
+        "confidence_bucket": "0.7-0.8",
+        "regime": "HIGH_VOLATILITY,TREND",
+        "side": "short",
+        "strategy_id": "trend_mode",
+        "symbol": "WLDUSDT",
+        "timeframe": "1h"
+      },
+      "composite_microstructure_trust_score": null,
+      "confidence_calibrated": 0.7892262359744957,
+      "confidence_raw": 0.999999725271347,
+      "continuous_edge_guardian_allowed_runtime_actions": [
+        "reduce",
+        "close",
+        "emergency_de_risk"
+      ],
+      "continuous_edge_guardian_block_reasons": [
+        {
+          "observed": 5000,
+          "reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+          "required": 50000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+          "required": 1000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SYMBOL_COVERAGE",
+          "required": 50
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_LONG_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SHORT_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_STRATEGY_REGIME_COVERAGE",
+          "required": 10
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "eligibility_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_STRATEGY_ELIGIBILITY",
+          "reason": "ADAPTIVE_STRATEGY_BRAIN_BLOCKED",
+          "required": "ACTIVE_A_GRADE_STRATEGY_BRAIN",
+          "state_counts": {
+            "ACTIVE": 0,
+            "B_GRADE_ONLY": 0,
+            "COOLDOWN": 0,
+            "QUARANTINED": 0,
+            "REDUCED_SIZE": 0,
+            "REEVALUATION": 0,
+            "SHADOW_ONLY": 0
+          }
+        },
+        {
+          "a_grade_candidate_count": 0,
+          "blocker_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED",
+          "passed_a_grade_candidate_count": 0,
+          "reason": "ZERO_LIQUIDATION_STRESS_SUITE_BLOCKED",
+          "required": "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE"
+        }
+      ],
+      "continuous_edge_guardian_new_entries_allowed": false,
+      "continuous_edge_guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+      "depth_imbalance": -0.025551749284500738,
+      "entry_feature_available_at": "2026-07-07T05:29:27.359Z",
+      "entry_feature_candle_closed_confirmed": true,
+      "entry_feature_cutoff": "2026-07-07T04:59:59.999Z",
+      "entry_feature_decision_time": "2026-07-07T05:30:26.970Z",
+      "entry_feature_unavailable_reason": null,
+      "exit_price_utc": "2026-07-07T05:39:06.128Z",
+      "exit_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "expected_funding_bps": 0.3137,
+      "expected_move_after_cost_bps": -10.028894424438477,
+      "expected_slippage_bps": 1.274697,
+      "feature_snapshot_id": "v2_fsnap_58a992823fa21316442c5fc385024c8c6b94aaefa5283c9bc6f4d023f634eb20",
+      "fee_bps": 4.0,
+      "fees": 0.012309011440213909,
+      "funding": 1.0240909634142399e-05,
+      "funding_rate": 3.137e-05,
+      "gross_notional_usd": 30.62514315979614,
+      "hold_time_seconds": 307.0,
+      "liquidation_context": null,
+      "liquidity_state": true,
+      "live_order": false,
+      "long_short_ratio": "REJECTED_PIT_TELEMETRY_ONLY_NO_ADMISSION_CHANGE",
+      "long_short_ratio_status": "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION",
+      "market_regime_at_entry": "HIGH_VOLATILITY,TREND",
+      "market_state_integrity": "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT",
+      "microstructure_trust_score": null,
+      "open_interest_change": null,
+      "orchestrator_decision_id": "dec_v2h_c801432ba6c28c0e1f9608fb9c46f4d8",
+      "orderbook_trust_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_fill_allowed_source": "A_PLUS_REDUCED_SIZE_BOOTSTRAP_PAPER_LOCAL_GATE",
+      "paper_opportunity_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+      "places_real_order": false,
+      "position_id": "paper_pos_WLDUSDT",
+      "prediction_id": "v2h_a328d49aabc5f8111794bff749d364aa",
+      "production_grade_cost_flag": true,
+      "public_orderbook_trust_score": null,
+      "realized_net_pnl_usd": -0.16356130949327485,
+      "realized_pnl_bps": -48.12563323201653,
+      "realized_pnl_usd": -0.14738544073863488,
+      "risk_decision_id": "rd_v2h_c801432ba6c28c0e1f9608fb9c46f4d8",
+      "routes_to_live": false,
+      "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+      "side": "short",
+      "signal_id": "sig_v2h_a328d49aabc5f8111794bff749d364aa",
+      "slippage": 0.0038770982240602186,
+      "spread_bps": 2.53132515,
+      "strategy_id": "trend_mode",
+      "symbol": "WLDUSDT",
+      "test_order": false,
+      "timeframe": "1h"
+    },
+    {
+      "MAE": 38.38101884159071,
+      "MFE": 0.0,
+      "bucket": {
+        "confidence_bucket": "0.7-0.8",
+        "regime": "BREAKOUT,HIGH_VOLATILITY,TREND",
+        "side": "short",
+        "strategy_id": "breakout_mode",
+        "symbol": "AEROUSDT",
+        "timeframe": "4h"
+      },
+      "composite_microstructure_trust_score": null,
+      "confidence_calibrated": 0.7674745107896369,
+      "confidence_raw": null,
+      "continuous_edge_guardian_allowed_runtime_actions": [
+        "reduce",
+        "close",
+        "emergency_de_risk"
+      ],
+      "continuous_edge_guardian_block_reasons": [
+        {
+          "observed": 5000,
+          "reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+          "required": 50000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+          "required": 1000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SYMBOL_COVERAGE",
+          "required": 50
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_LONG_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SHORT_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_STRATEGY_REGIME_COVERAGE",
+          "required": 10
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "eligibility_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_STRATEGY_ELIGIBILITY",
+          "reason": "ADAPTIVE_STRATEGY_BRAIN_BLOCKED",
+          "required": "ACTIVE_A_GRADE_STRATEGY_BRAIN",
+          "state_counts": {
+            "ACTIVE": 0,
+            "B_GRADE_ONLY": 0,
+            "COOLDOWN": 0,
+            "QUARANTINED": 0,
+            "REDUCED_SIZE": 0,
+            "REEVALUATION": 0,
+            "SHADOW_ONLY": 0
+          }
+        },
+        {
+          "a_grade_candidate_count": 0,
+          "blocker_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED",
+          "passed_a_grade_candidate_count": 0,
+          "reason": "ZERO_LIQUIDATION_STRESS_SUITE_BLOCKED",
+          "required": "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE"
+        }
+      ],
+      "continuous_edge_guardian_new_entries_allowed": false,
+      "continuous_edge_guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+      "depth_imbalance": -0.13849382381051759,
+      "entry_feature_available_at": "2026-07-07T05:27:39.193Z",
+      "entry_feature_candle_closed_confirmed": true,
+      "entry_feature_cutoff": "2026-07-07T03:59:59.999Z",
+      "entry_feature_decision_time": "2026-07-07T05:30:21.124Z",
+      "entry_feature_unavailable_reason": null,
+      "exit_price_utc": "2026-07-07T05:40:36.152Z",
+      "exit_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "expected_funding_bps": 0.5,
+      "expected_move_after_cost_bps": -20.907711029052734,
+      "expected_slippage_bps": 0.875274,
+      "feature_snapshot_id": "v2_fsnap_44cd923731aca0c3797ceff7ff419bb4502daf355236b1ef0af9ab4726f5750a",
+      "fee_bps": 4.0,
+      "fees": 0.012243796489020782,
+      "funding": 2.069887344126493e-05,
+      "funding_rate": 5e-05,
+      "gross_notional_usd": 30.49245806181227,
+      "hold_time_seconds": 391.0,
+      "liquidation_context": null,
+      "liquidity_state": true,
+      "live_order": false,
+      "long_short_ratio": "REJECTED_PIT_TELEMETRY_ONLY_NO_ADMISSION_CHANGE",
+      "long_short_ratio_status": "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION",
+      "market_regime_at_entry": "BREAKOUT,HIGH_VOLATILITY,TREND",
+      "market_state_integrity": "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT",
+      "microstructure_trust_score": null,
+      "open_interest_change": null,
+      "orchestrator_decision_id": "paper_orch_v2h_93268fcbbf93d521946135394e847e1a",
+      "orderbook_trust_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_fill_allowed_source": "A_PLUS_REDUCED_SIZE_BOOTSTRAP_PAPER_LOCAL_GATE",
+      "paper_opportunity_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+      "places_real_order": false,
+      "position_id": "paper_pos_AEROUSDT",
+      "prediction_id": "v2h_93268fcbbf93d521946135394e847e1a",
+      "production_grade_cost_flag": true,
+      "public_orderbook_trust_score": null,
+      "realized_net_pnl_usd": -0.1319181847211379,
+      "realized_pnl_bps": -38.38101884159071,
+      "realized_pnl_usd": -0.11703316073968312,
+      "risk_decision_id": "paper_risk_v2h_93268fcbbf93d521946135394e847e1a",
+      "routes_to_live": false,
+      "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+      "side": "short",
+      "signal_id": "sig_v2h_93268fcbbf93d521946135394e847e1a",
+      "slippage": 0.0026619263658752704,
+      "spread_bps": 1.74200854,
+      "strategy_id": "breakout_mode",
+      "symbol": "AEROUSDT",
+      "test_order": false,
+      "timeframe": "4h"
+    },
+    {
+      "MAE": 37.43916136278524,
+      "MFE": 0.0,
+      "bucket": {
+        "confidence_bucket": "0.7-0.8",
+        "regime": "BREAKOUT,HIGH_VOLATILITY,TREND",
+        "side": "short",
+        "strategy_id": "breakout_mode",
+        "symbol": "XPLUSDT",
+        "timeframe": "1h"
+      },
+      "composite_microstructure_trust_score": null,
+      "confidence_calibrated": 0.7864624522113096,
+      "confidence_raw": 0.999999887302781,
+      "continuous_edge_guardian_allowed_runtime_actions": [
+        "reduce",
+        "close",
+        "emergency_de_risk"
+      ],
+      "continuous_edge_guardian_block_reasons": [
+        {
+          "observed": 5000,
+          "reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+          "required": 50000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+          "required": 1000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SYMBOL_COVERAGE",
+          "required": 50
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_LONG_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SHORT_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_STRATEGY_REGIME_COVERAGE",
+          "required": 10
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "eligibility_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_STRATEGY_ELIGIBILITY",
+          "reason": "ADAPTIVE_STRATEGY_BRAIN_BLOCKED",
+          "required": "ACTIVE_A_GRADE_STRATEGY_BRAIN",
+          "state_counts": {
+            "ACTIVE": 0,
+            "B_GRADE_ONLY": 0,
+            "COOLDOWN": 0,
+            "QUARANTINED": 0,
+            "REDUCED_SIZE": 0,
+            "REEVALUATION": 0,
+            "SHADOW_ONLY": 0
+          }
+        },
+        {
+          "a_grade_candidate_count": 0,
+          "blocker_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED",
+          "passed_a_grade_candidate_count": 0,
+          "reason": "ZERO_LIQUIDATION_STRESS_SUITE_BLOCKED",
+          "required": "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE"
+        }
+      ],
+      "continuous_edge_guardian_new_entries_allowed": false,
+      "continuous_edge_guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+      "depth_imbalance": 0.442786720211293,
+      "entry_feature_available_at": "2026-07-07T05:29:27.686Z",
+      "entry_feature_candle_closed_confirmed": true,
+      "entry_feature_cutoff": "2026-07-07T04:59:59.999Z",
+      "entry_feature_decision_time": "2026-07-07T05:30:27.239Z",
+      "entry_feature_unavailable_reason": null,
+      "exit_price_utc": "2026-07-07T05:43:52.750Z",
+      "exit_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "expected_funding_bps": 0.5,
+      "expected_move_after_cost_bps": -21.675758361816406,
+      "expected_slippage_bps": 0.470212,
+      "feature_snapshot_id": "v2_fsnap_818b71b0a62da2eb46b8eff25e4e5c5f7561f05698121cd8d31ae41390aa3faf",
+      "fee_bps": 4.0,
+      "fees": 0.012347227346339284,
+      "funding": 3.1126665515834336e-05,
+      "funding_rate": 5e-05,
+      "gross_notional_usd": 30.75293196761677,
+      "hold_time_seconds": 583.0,
+      "liquidation_context": null,
+      "liquidity_state": true,
+      "live_order": false,
+      "long_short_ratio": "REJECTED_PIT_TELEMETRY_ONLY_NO_ADMISSION_CHANGE",
+      "long_short_ratio_status": "REJECTED_LONG_SHORT_AVAILABLE_AFTER_DECISION",
+      "market_regime_at_entry": "BREAKOUT,HIGH_VOLATILITY,TREND",
+      "market_state_integrity": "ATTACHED_PIT_VALID_FEATURE_SNAPSHOT",
+      "microstructure_trust_score": null,
+      "open_interest_change": null,
+      "orchestrator_decision_id": "dec_v2h_fc1974beb832ba542303c3c0c97a2e2b",
+      "orderbook_trust_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_fill_allowed_source": "A_PLUS_REDUCED_SIZE_BOOTSTRAP_PAPER_LOCAL_GATE",
+      "paper_opportunity_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+      "places_real_order": false,
+      "position_id": "paper_pos_XPLUSDT",
+      "prediction_id": "v2h_7e2ebdb5abaaae54fd293a85c89bb204",
+      "production_grade_cost_flag": true,
+      "public_orderbook_trust_score": null,
+      "realized_net_pnl_usd": -0.1288911002223888,
+      "realized_pnl_bps": -37.43916136278524,
+      "realized_pnl_usd": -0.1151363982314361,
+      "risk_decision_id": "rd_v2h_fc1974beb832ba542303c3c0c97a2e2b",
+      "routes_to_live": false,
+      "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+      "side": "short",
+      "signal_id": "sig_v2h_7e2ebdb5abaaae54fd293a85c89bb204",
+      "slippage": 0.0014386013101292464,
+      "spread_bps": 0.93532245,
+      "strategy_id": "breakout_mode",
+      "symbol": "XPLUSDT",
+      "test_order": false,
+      "timeframe": "1h"
+    },
+    {
+      "MAE": 44.238466399831275,
+      "MFE": 19.661540622148273,
+      "bucket": {
+        "confidence_bucket": "0.7-0.8",
+        "regime": "BREAKOUT,HIGH_VOLATILITY,TREND",
+        "side": "long",
+        "strategy_id": "breakout_mode",
+        "symbol": "CAKEUSDT",
+        "timeframe": "5m"
+      },
+      "composite_microstructure_trust_score": null,
+      "confidence_calibrated": 0.70713652271798,
+      "confidence_raw": 0.9999993518506718,
+      "continuous_edge_guardian_allowed_runtime_actions": [
+        "reduce",
+        "close",
+        "emergency_de_risk"
+      ],
+      "continuous_edge_guardian_block_reasons": [
+        {
+          "observed": 5000,
+          "reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+          "required": 50000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+          "required": 1000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SYMBOL_COVERAGE",
+          "required": 50
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_LONG_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SHORT_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_STRATEGY_REGIME_COVERAGE",
+          "required": 10
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "eligibility_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_STRATEGY_ELIGIBILITY",
+          "reason": "ADAPTIVE_STRATEGY_BRAIN_BLOCKED",
+          "required": "ACTIVE_A_GRADE_STRATEGY_BRAIN",
+          "state_counts": {
+            "ACTIVE": 0,
+            "B_GRADE_ONLY": 0,
+            "COOLDOWN": 0,
+            "QUARANTINED": 0,
+            "REDUCED_SIZE": 0,
+            "REEVALUATION": 0,
+            "SHADOW_ONLY": 0
+          }
+        },
+        {
+          "a_grade_candidate_count": 0,
+          "blocker_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED",
+          "passed_a_grade_candidate_count": 0,
+          "reason": "ZERO_LIQUIDATION_STRESS_SUITE_BLOCKED",
+          "required": "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE"
+        }
+      ],
+      "continuous_edge_guardian_new_entries_allowed": false,
+      "continuous_edge_guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+      "depth_imbalance": -0.41838688687335546,
+      "entry_feature_available_at": "2026-07-07T05:29:01.466Z",
+      "entry_feature_candle_closed_confirmed": true,
+      "entry_feature_cutoff": "2026-07-07T05:24:59.999Z",
+      "entry_feature_decision_time": "2026-07-07T05:30:22.459Z",
+      "entry_feature_unavailable_reason": null,
+      "exit_price_utc": "2026-07-07T06:20:16.828Z",
+      "exit_reason": "TIER_1_ATR_VOLATILITY_STOP",
+      "expected_funding_bps": 0.3518,
+      "expected_move_after_cost_bps": 29.95911407470703,
+      "expected_slippage_bps": 0.35215,
+      "feature_snapshot_id": "v2_fsnap_c27e0c38c2a00fdb6d3eed46a3810420641c56188ced66e96b339b1e45c735f0",
+      "fee_bps": 4.0,
+      "fees": 0.01026156433422099,
+      "funding": -8.712615100409041e-05,
+      "funding_rate": 3.518e-05,
+      "gross_notional_usd": 25.767904091487008,
+      "hold_time_seconds": 2768.0,
+      "liquidation_context": null,
+      "liquidity_state": null,
+      "live_order": null,
+      "long_short_ratio": null,
+      "long_short_ratio_status": null,
+      "market_regime_at_entry": "BREAKOUT,HIGH_VOLATILITY,TREND",
+      "market_state_integrity": null,
+      "microstructure_trust_score": null,
+      "open_interest_change": null,
+      "orchestrator_decision_id": "paper_orch_v2h_7daeae629d4c5a6dfb132230b33a7e23",
+      "orderbook_trust_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_fill_allowed_source": "A_PLUS_REDUCED_SIZE_BOOTSTRAP_PAPER_LOCAL_GATE",
+      "paper_opportunity_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+      "places_real_order": false,
+      "position_id": "paper_pos_CAKEUSDT",
+      "prediction_id": "v2h_7daeae629d4c5a6dfb132230b33a7e23",
+      "production_grade_cost_flag": true,
+      "public_orderbook_trust_score": null,
+      "realized_net_pnl_usd": -0.12524662290152433,
+      "realized_pnl_bps": -44.238466399831275,
+      "realized_pnl_usd": -0.11399325593453229,
+      "risk_decision_id": "paper_risk_v2h_7daeae629d4c5a6dfb132230b33a7e23",
+      "routes_to_live": false,
+      "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+      "side": "long",
+      "signal_id": "sig_v2h_7daeae629d4c5a6dfb132230b33a7e23",
+      "slippage": 0.0009046764817669402,
+      "spread_bps": 0.70187752,
+      "strategy_id": "breakout_mode",
+      "symbol": "CAKEUSDT",
+      "test_order": null,
+      "timeframe": "5m"
+    },
+    {
+      "MAE": 31.347962382446042,
+      "MFE": 31.34796238244459,
+      "bucket": {
+        "confidence_bucket": "0.7-0.8",
+        "regime": "HIGH_VOLATILITY",
+        "side": "short",
+        "strategy_id": "scalp_mode",
+        "symbol": "AVNTUSDT",
+        "timeframe": "4h"
+      },
+      "composite_microstructure_trust_score": null,
+      "confidence_calibrated": 0.7755353689159331,
+      "confidence_raw": null,
+      "continuous_edge_guardian_allowed_runtime_actions": [
+        "reduce",
+        "close",
+        "emergency_de_risk"
+      ],
+      "continuous_edge_guardian_block_reasons": [
+        {
+          "observed": 5000,
+          "reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+          "required": 50000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+          "required": 1000
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SYMBOL_COVERAGE",
+          "required": 50
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_LONG_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_SHORT_OUTCOMES",
+          "required": 250
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_REALTIME_STRATEGY_REGIME_COVERAGE",
+          "required": 10
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+          "required": 100
+        },
+        {
+          "observed": 0,
+          "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+          "required": 300
+        },
+        {
+          "observed": null,
+          "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+          "required": 0.9
+        },
+        {
+          "observed": null,
+          "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+          "required": "> 0"
+        },
+        {
+          "observed": null,
+          "reason": "PROFIT_FACTOR_BELOW_2",
+          "required": 2.0
+        },
+        {
+          "eligibility_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_STRATEGY_ELIGIBILITY",
+          "reason": "ADAPTIVE_STRATEGY_BRAIN_BLOCKED",
+          "required": "ACTIVE_A_GRADE_STRATEGY_BRAIN",
+          "state_counts": {
+            "ACTIVE": 0,
+            "B_GRADE_ONLY": 0,
+            "COOLDOWN": 0,
+            "QUARANTINED": 0,
+            "REDUCED_SIZE": 0,
+            "REEVALUATION": 0,
+            "SHADOW_ONLY": 0
+          }
+        },
+        {
+          "a_grade_candidate_count": 0,
+          "blocker_counts": {},
+          "observed": "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED",
+          "passed_a_grade_candidate_count": 0,
+          "reason": "ZERO_LIQUIDATION_STRESS_SUITE_BLOCKED",
+          "required": "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE"
+        }
+      ],
+      "continuous_edge_guardian_new_entries_allowed": false,
+      "continuous_edge_guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+      "depth_imbalance": 0.22419438295375477,
+      "entry_feature_available_at": "2026-07-07T05:27:38.356Z",
+      "entry_feature_candle_closed_confirmed": true,
+      "entry_feature_cutoff": "2026-07-07T03:59:59.999Z",
+      "entry_feature_decision_time": "2026-07-07T05:30:19.530Z",
+      "entry_feature_unavailable_reason": null,
+      "exit_price_utc": "2026-07-07T06:20:16.828Z",
+      "exit_reason": "TIER_2_MFE_BREAKEVEN_PROTECTION",
+      "expected_funding_bps": 0.5,
+      "expected_move_after_cost_bps": -17.23355484008789,
+      "expected_slippage_bps": 5.238345,
+      "feature_snapshot_id": "v2_fsnap_e9121dd1c0bbcf27fe9467df0114d0bfdcd68a800a8fd6a5fdb25cea67b4632b",
+      "fee_bps": 4.0,
+      "fees": 0.015051506954369092,
+      "funding": 0.00018057311779550808,
+      "funding_rate": 5e-05,
+      "gross_notional_usd": 37.58948892309817,
+      "hold_time_seconds": 2767.0,
+      "liquidation_context": null,
+      "liquidity_state": null,
+      "live_order": null,
+      "long_short_ratio": null,
+      "long_short_ratio_status": null,
+      "market_regime_at_entry": "HIGH_VOLATILITY",
+      "market_state_integrity": null,
+      "microstructure_trust_score": null,
+      "open_interest_change": null,
+      "orchestrator_decision_id": "dec_v2h_ef25285e6358420078e9996adf738ff0",
+      "orderbook_trust_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_fill_allowed_source": "A_PLUS_REDUCED_SIZE_BOOTSTRAP_PAPER_LOCAL_GATE",
+      "paper_opportunity_tier": "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY",
+      "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+      "places_real_order": false,
+      "position_id": "paper_pos_AVNTUSDT",
+      "prediction_id": "v2h_d0592475244d067e77123eabb2e9a5f5",
+      "production_grade_cost_flag": true,
+      "public_orderbook_trust_score": null,
+      "realized_net_pnl_usd": -0.07377838330062639,
+      "realized_pnl_bps": -10.449320794148681,
+      "realized_pnl_usd": -0.039278462824555126,
+      "risk_decision_id": "rd_v2h_ef25285e6358420078e9996adf738ff0",
+      "routes_to_live": false,
+      "runtime_cost_capture_status": "PRODUCTION_GRADE_COST_CAPTURE",
+      "side": "short",
+      "signal_id": "sig_v2h_d0592475244d067e77123eabb2e9a5f5",
+      "slippage": 0.019628986639497678,
+      "spread_bps": 10.45478306,
+      "strategy_id": "scalp_mode",
+      "symbol": "AVNTUSDT",
+      "test_order": null,
+      "timeframe": "4h"
+    }
+  ],
+  "schema_version": "high_confidence_loss_cluster_current_session_fixture_v1",
+  "source": "sanitized_current_session_runtime_freeze"
+}

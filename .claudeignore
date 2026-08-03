@@ -1,0 +1,69 @@
+# Claude Code context exclusions — prevents extension from indexing large/runtime dirs
+# This mirrors the heavy directories already in .gitignore and .vscode/settings.json
+
+legacy_reference/
+audits/
+raw_evidence/
+replay_data/
+claude_worklog/
+.claude/worktrees/
+.codex/test_*/
+logs/
+screenshots/
+ollama/outputs/
+ollama/evidence_packets/
+goal_state/
+pipeline_trust_evidence/
+pipeline_trust_evidence_*/
+pipeline_trust_quarantine/
+quarantine_pipeline_trust_stale_records/
+recorded_state_verification_*/
+
+# ML artifacts
+.local_models/
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.pkl
+*.joblib
+*.h5
+*.hdf5
+*.npz
+*.npy
+*.jsonl
+*.ndjson
+*.log
+CLAUDE_FULL_*
+operator_dashboard_payload.json
+worker_pool_status.json
+*_runtime_status.json
+*_parity_status.json
+legacy_hybrid_trainer_*_inventory.json
+legacy_hybrid_trainer_*_call_graph.json
+trainer_related_markdown_inventory.json
+trainer_feature_function_parity_status.json
+pass4a_realtime_trainer_signal_observation_*.json
+
+# Frontend build/runtime outputs
+v2/frontend/dist/
+v2/frontend/public/
+v2/frontend/node_modules/
+v2/frontend/test-results/
+v2/frontend/tsconfig.tsbuildinfo
+v2/runtime/
+
+# Python caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.local_data/
+.local_scratch/
+.venv/
+v2/.venv-control-plane/
+
+# Legacy runtime
+legacy_owned_runtime/
+v2/legacy_owned_runtime/
+v2/legacy_preserved/

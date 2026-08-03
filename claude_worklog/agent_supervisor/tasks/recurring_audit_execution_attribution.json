@@ -3,16 +3,25 @@
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_execution_attribution/"
   ],
+  "completed_at": "2026-05-13T04:36:38.286569+00:00",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "lane": "primary_claude_lane",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "next_gate": "recurring_audit_execution_attribution",
   "prompt": "Run non-live recurring monitor `audit_execution_attribution`. Work only in AI BOT REBUILD. Read legacy processes/logs/Redis read-only only. Do not mutate legacy, old Redis, exchange state, leverage, margin, or live trading. Write health evidence and create a remediation recommendation if blocked.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_execution_attribution/recurring_audit_execution_attribution_REPORT.md\n...report...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_execution_attribution/recurring_audit_execution_attribution_GO_NO_GO.md\nrecurring_audit_execution_attribution_READY\nEND_FILE\n",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_execution_attribution/recurring_audit_execution_attribution_REPORT.md",
     "claude_worklog/final_readiness/always_on_claude_codex_runtime/recurring/audit_execution_attribution/recurring_audit_execution_attribution_GO_NO_GO.md"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L1",
-  "status": "pending",
-  "task_id": "recurring_audit_execution_attribution"
+  "source_truth_completed_at": "2026-05-13T04:36:38.286569+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/recurring_audit_execution_attribution.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "recurring_audit_execution_attribution",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

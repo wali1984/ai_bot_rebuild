@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot V2 production replacement runtime governor every 15 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Persistent=true
+Unit=ai-bot-v2-production-replacement-runtime-governor.service
+
+[Install]
+WantedBy=timers.target

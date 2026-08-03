@@ -1,0 +1,39 @@
+# Deliberately-stopped units — the self-healing supervisor will NOT restart any
+# unit listed here (one systemd unit name per line). Use this to stop a component
+# on purpose without the supervisor fighting you. Lines starting with # are
+# ignored. You can also add units to the Redis set v2:self_healing:deliberately_stopped.
+#
+# Example:
+# ai-bot-v2-orchestrator-arbitration-loop.service
+
+# Codex containment 2026-07-18: keep the deprecated replacement guard stopped.
+# It is observer-only after 57dfaa9df9, but it still re-runs non-writer phases.
+ai-bot-v2-production-replacement-runtime-guard.service
+
+# Codex fail-closed repair holds 2026-07-19: these units have matching
+# 99-codex-repair-hold.conf drop-ins.  Keep the supervisor from repeatedly
+# attempting starts that systemd is explicitly configured to refuse.  Remove
+# each entry together with its drop-in only after that component's evidence
+# and bounded-resource release gate passes.
+ai-bot-v2-continuous-offline-gpu-trainer.service
+ai-bot-v2-adaptive-capital-productivity.service
+ai-bot-v2-edge-replay-factory.service
+ai-bot-v2-continuous-edge-guardian.service
+
+# Codex containment 2026-07-21: autonomous Claude/Codex execution is paused
+# while the operator-led recovery goal owns the dirty worktree.  These units
+# can dispatch headless model sessions or recreate their dispatch control
+# plane, consuming quota and racing reviewed changes.  This hold is scoped to
+# AI automation only; it does not stop trainer observers, ingestors, paper
+# trading, market-data services, or safety/health monitors.
+ai-bot-v2-worker-porting-orchestrator.service
+ai-bot-v2-agent-supervisor.service
+ai-bot-v2-parallel-scheduler.service
+ai-bot-v2-codex-watchdog.service
+
+# Codex containment 2026-07-21: the active cascade publisher directly consumed
+# legacy CoinGlass v1 bytes and could emit false fast-squeeze block/hedge advice.
+# Keep it held until the causal provider-loader gate is released and verified.
+ai-bot-v2-cascade-context-publisher.service
+ai-bot-v2-strategy-supply-publisher.service
+ai-bot-v2-microstructure-feed-quality-monitor.service

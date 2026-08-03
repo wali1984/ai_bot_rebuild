@@ -1,0 +1,1 @@
+{"minutes_observed": 13010.05, "observation_count": 3242, "soak_15m_ready": false, "soak_1h_ready": false, "soak_6h_ready": false}

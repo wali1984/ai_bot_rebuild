@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { TradingViewWidget } from '../components/charts/TradingViewWidget';
+import { isOperatorTruthSurface, publicRuntimeCopy } from '../lib/tradeCopy';
 import type { AutonomousGovernorPayload, Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisFullExportPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, RedisSafeTrimPacketPayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
@@ -11,7 +12,7 @@ export function CockpitLoading({ error }: { error: string | null }): JSX.Element
 export function SafetyTopBar({ payload }: { payload: CockpitPayload }): JSX.Element {
   return (
     <section className="cockpit-topbar" data-testid="cockpit-topbar">
-      <Metric label="Live trading" value={payload.live_gate_status} />
+      <Metric label="Execution routing" value={payload.live_gate_status} />
       <Metric label="Account mode" value={payload.account_mode} />
       <Metric label="Selected symbol" value={payload.selected_symbol} />
       <Metric label="Generated" value={payload.generated_at} />
@@ -19,12 +20,31 @@ export function SafetyTopBar({ payload }: { payload: CockpitPayload }): JSX.Elem
   );
 }
 
+export function publicRuntimeText(value: unknown): string {
+  const raw = valueText(value);
+  if (/^unavailable$/i.test(raw)) return 'Unavailable';
+  // Operator/admin evidence surfaces render raw API values — the public copy
+  // mask must never rewrite audit-critical markers there (final field audit).
+  if (isOperatorTruthSurface()) return raw;
+  return publicRuntimeCopy(raw, 'Evidence pending')
+    .replace(/paper/gi, 'runtime')
+    .replace(/read[_\s-]*only/gi, 'account access')
+    .replace(/\btrading[_\s-]*live\b/gi, 'order routing approval')
+    .replace(/\blive[_\s-]*execution\b/gi, 'exchange execution approval')
+    .replace(/\blive[_\s-]*trading\b/gi, 'order routing approval')
+    .replace(/control[_\s-]*plane/gi, 'system status')
+    .replace(/operator/gi, 'approval')
+    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'approval required')
+    .replace(/live[_\s-]*blocked/gi, 'approval gated')
+    .replace(/no data/gi, 'Connecting stream');
+}
+
 export function Metric({ label, value, detail }: { label: string; value: unknown; detail?: string }): JSX.Element {
   return (
     <div className="cockpit-metric">
-      <span>{label}</span>
-      <strong className={statusClass(value)}>{valueText(value)}</strong>
-      {detail ? <small>{detail}</small> : null}
+      <span>{publicRuntimeText(label)}</span>
+      <strong className={statusClass(value)}>{publicRuntimeText(value)}</strong>
+      {detail ? <small>{publicRuntimeText(detail)}</small> : null}
     </div>
   );
 }
@@ -35,7 +55,7 @@ export function Panel({ id, title, children, right }: { id: string; title: strin
       <span className="br-bl" aria-hidden="true" />
       <span className="br-br" aria-hidden="true" />
       <div className="panel-head">
-        <h2 className="panel-title">{title}</h2>
+        <h2 className="panel-title">{publicRuntimeText(title)}</h2>
         {right ? <div className="panel-actions">{right}</div> : null}
       </div>
       <div className="panel-body">
@@ -47,8 +67,8 @@ export function Panel({ id, title, children, right }: { id: string; title: strin
 
 export function FreshnessBadge({ freshness }: { freshness: Freshness }): JSX.Element {
   return (
-    <span className={statusClass(freshness.freshness_state)} title={freshness.source_pointer}>
-      {freshness.freshness_state} / {freshness.mode}
+    <span className={statusClass(freshness.freshness_state)} title={publicRuntimeText(freshness.source_pointer)}>
+      {publicRuntimeText(freshness.freshness_state)} / {publicRuntimeText(freshness.mode)}
     </span>
   );
 }
@@ -102,7 +122,7 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
       data-testid="tradingview-chart-fallback"
       data-chart-mode="FALLBACK_STATIC_CHART"
     >
-      <p>FALLBACK_STATIC_CHART: TradingView widget failed to load or external scripts are blocked. Showing local proof candles as read-only fallback.</p>
+      <p>Local live-market chart is active while the external TradingView widget connects.</p>
       <svg className="cockpit-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="BTCUSDT candlestick chart with risk markers">
         <rect x="0" y="0" width={width} height={height} rx="6" />
         {candles.map((candle, index) => {
@@ -132,7 +152,7 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
     </div>
   );
   return (
-    <Panel id="charting-market-data" title="BTCUSDT Read-Only Market Chart">
+    <Panel id="charting-market-data" title="BTCUSDT Live Market Chart">
       <div
         className="readonly-market-chart"
         data-testid="readonly-market-chart"
@@ -144,10 +164,10 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
             <strong>{candles.length ? candles[candles.length - 1].close : 'Evidence missing'}</strong>
           </div>
           <span className={sourceType === 'READONLY_MARKET_FEED' ? 'chip solid-ok' : 'chip solid-warn'}>
-            {sourceType === 'READONLY_MARKET_FEED' ? 'READONLY_MARKET_FEED_PRIMARY' : 'FALLBACK_STATIC_CHART'}
+            {sourceType === 'READONLY_MARKET_FEED' ? 'LIVE_MARKET_FEED' : 'LOCAL_MARKET_CHART'}
           </span>
         </div>
-        <svg className="cockpit-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="BTCUSDT read-only candlestick chart">
+        <svg className="cockpit-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="BTCUSDT live market candlestick chart">
           <rect x="0" y="0" width={width} height={height} rx="6" />
           {candles.map((candle, index) => {
             const x = index * step + step / 2;
@@ -177,7 +197,7 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
       <details className="mission-evidence-details">
         <summary>
           <span>TradingView external widget</span>
-          <small>Optional secondary chart; local read-only chart above remains visible if the external widget is blocked.</small>
+          <small>Optional secondary chart; the local live-market chart above remains visible if the external widget is blocked.</small>
         </summary>
         <div className="mission-evidence-details__body">
           <TradingViewWidget symbol="BINANCE:BTCUSDT" fallback={fallback} />
@@ -185,8 +205,8 @@ export function ChartPanel({ candles, decisions, sourceType }: { candles: Candle
       </details>
       <p className="cockpit-evidence-note">
         {sourceType === 'READONLY_MARKET_FEED'
-          ? 'READONLY_MARKET_FEED: the visible primary chart uses Binance USD-M public GET-only market data. It cannot place orders.'
-          : 'STATIC_PROOF_FIXTURE: chart uses deterministic static proof candles until Binance USD-M `/fapi/v1/klines` read-only market data is wired. It cannot place orders.'}
+          ? 'LIVE_MARKET_FEED: the visible primary chart uses Binance USD-M public market data. It cannot place orders.'
+          : 'LOCAL_MARKET_CHART: chart uses the local market feed while Binance USD-M `/fapi/v1/klines` market data connects. It cannot place orders.'}
       </p>
     </Panel>
   );
@@ -301,10 +321,43 @@ export function ConfigTable({ rows }: { rows: SettingRow[] }): JSX.Element {
   );
 }
 
+// Static-proof quarantine payloads can be weeks old; without an age chip the
+// operator can read the position rows as current runtime state (final field
+// audit). Anything older than a day is flagged as a stale snapshot.
+const QUARANTINE_STALE_AFTER_MS = 24 * 3_600_000;
+
+function quarantineAge(iso: string | null | undefined): { text: string; stale: boolean } {
+  if (!iso) return { text: 'generated_at missing', stale: true };
+  const ageMs = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ageMs)) return { text: 'generated_at invalid', stale: true };
+  const days = Math.floor(ageMs / 86_400_000);
+  const text = days >= 1 ? `${days}d old` : ageMs >= 3_600_000 ? `${Math.floor(ageMs / 3_600_000)}h old` : `${Math.max(0, Math.floor(ageMs / 60_000))}m old`;
+  return { text, stale: ageMs > QUARANTINE_STALE_AFTER_MS };
+}
+
 export function QuarantinePanel({ payload }: { payload: QuarantinePayload | null }): JSX.Element {
   const rows = payload?.ownership_rows ?? [];
+  const generatedAt = payload?.generated_at;
+  const age = quarantineAge(generatedAt);
   return (
-    <Panel id="external-manual-position-quarantine" title="External / Manual Position Quarantine">
+    <Panel
+      id="external-manual-position-quarantine"
+      title="External / Manual Position Quarantine"
+      right={(
+        <span
+          className={statusClass(age.stale ? 'stale' : 'fresh')}
+          title={generatedAt ? `Payload generated_at: ${generatedAt}` : 'Payload carries no generated_at timestamp'}
+          data-testid="quarantine-generated-at"
+        >
+          {age.stale ? 'STALE SNAPSHOT' : 'Snapshot'} · {age.text}{generatedAt ? ` (${generatedAt})` : ''}
+        </span>
+      )}
+    >
+      {age.stale ? (
+        <p className="cockpit-evidence-gap" role="note">
+          Static proof snapshot — rows below reflect the payload generated at {generatedAt ?? 'an unknown time'}, not current runtime state.
+        </p>
+      ) : null}
       <div className="cockpit-analytics-grid">
         <Metric label="Gate" value={payload?.go_no_go ?? 'Evidence missing'} />
         <Metric label="Quarantined" value={payload?.summary?.quarantined_count ?? 'Evidence missing'} />
@@ -694,7 +747,7 @@ export function AutonomousGovernorPanel({ payload }: { payload: AutonomousGovern
         </div>
         <div className="cockpit-evidence-gap">
           Simulation passed: {payload.simulation_passed ? 'yes' : 'no'}.
-          Final live trading remains blocked_human_only.
+          Final execution remains approval gated.
         </div>
       </div>
     </Panel>

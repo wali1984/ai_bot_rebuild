@@ -1,0 +1,60 @@
+{
+  "avg_loser_bps": -34.1143,
+  "avg_winner_bps": null,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 4,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -3.65133161,
+  "last_trade_ts": "2026-06-23T20:59:13.459Z",
+  "last_updated": "2026-06-23T22:29:41Z",
+  "loss_count": 4,
+  "max_drawdown_bps": 136.4574,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": true,
+  "recent_bps": [
+    -26.96628699948489,
+    -33.19650911593005,
+    -43.879940543035545,
+    -32.41465257197706
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "recent_pnl_usd": [
+    -0.5050689970681613,
+    -0.15179930173383177,
+    -1.2605068086743254,
+    -1.7339565029495891
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": -34.1143,
+  "rolling_win_rate": 0.0,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.0,
+  "soak_count": 4,
+  "symbol": "FIDAUSDT",
+  "timeframe": "4h",
+  "total_trades": 4,
+  "trade_count": 4,
+  "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+  "trusted_trade_count": 4,
+  "untrusted_trade_count": 0,
+  "win_count": 0
+}

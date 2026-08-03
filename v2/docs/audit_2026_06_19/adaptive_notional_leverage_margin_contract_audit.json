@@ -1,0 +1,60 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "finding": "NO_LEVERAGE_FIELD_STORED \u2014 ADAPTIVE_SIZING_UNVERIFIABLE_FROM_CLOSED_TRADES",
+  "severity": "MEDIUM",
+  "total_trades": 645,
+  "notional_distribution": {
+    "count": 645,
+    "min_usd": 7.6,
+    "p10_usd": 19.69,
+    "p25_usd": 37.73,
+    "median_usd": 72.12,
+    "mean_usd": 101.04,
+    "p75_usd": 123.37,
+    "p90_usd": 211.38,
+    "max_usd": 833.93,
+    "stdev_usd": 105.23
+  },
+  "leverage_field_audit": {
+    "leverage_field_in_closed_trades": false,
+    "entry_leverage_field": false,
+    "position_leverage_field": false,
+    "finding": "Closed trade records do NOT contain a leverage field. The system operates in paper mode with implied leverage from notional sizing. Actual leverage = notional / account_margin is unknown from closed trade records alone.",
+    "implied_leverage_estimate": "With $10,000 initial capital and median notional $72 per position, and ~83 concurrent open positions (per portfolio state), total open notional \u2248 $67,512 \u2192 implied leverage \u2248 6.75x at peak",
+    "open_position_evidence": "redis-cli get v2:portfolio:state | jq .open_position_notional => 67512.28 (83 positions)"
+  },
+  "drawdown_tracking": {
+    "drawdown_at_entry_always_zero": true,
+    "finding": "drawdown_at_entry=0.0 for all 645 trades. The adaptive capital reduction via drawdown_block_bps and drawdown_reduce_bps in strategy router is dead code \u2014 never triggers.",
+    "configured_thresholds": {
+      "drawdown_block_bps": 250.0,
+      "drawdown_reduce_bps": 125.0,
+      "source_file": "v2/backend/app/services/strategy_router/service.py:39-42"
+    },
+    "blocker": true
+  },
+  "size_multiplier_evidence": {
+    "reduce_size_mode_count": 32,
+    "reduce_size_mode_pct": 5.0,
+    "interpretation": "32/645 trades entered reduce_size_mode \u2014 meaning 32 trades had size_multiplier < 0.999. This confirms adaptive sizing triggers exist but fire rarely.",
+    "reduce_size_triggers": [
+      "EXECUTION_SUCCESS_SAMPLE_INSUFFICIENT_PAPER_SOFT_REDUCE (0.65x)",
+      "DRAWDOWN_REDUCE_SIZE (0.5x) \u2014 never fires due to zero drawdown",
+      "LOW_LIQUIDITY_REDUCE_SIZE (0.5x)",
+      "HIGH_VOLATILITY_REDUCE_SIZE (0.7x)",
+      "LOWER_TIMEFRAME_TIMING_CONFLICT (0.5x)"
+    ]
+  },
+  "margin_mode": {
+    "margin_mode_field_in_records": false,
+    "finding": "No margin_mode field in closed trade records. Paper mode does not track margin mode.",
+    "live_gate_requirement": "Any live trading must specify ISOLATED or CROSS margin per symbol before approval"
+  },
+  "capital_envelope": {
+    "initial_capital_usd": 10000.0,
+    "paper_only": true,
+    "places_real_order": false,
+    "live_gate": "blocked_human_only"
+  },
+  "confidence": "MEDIUM \u2014 notional computed from entry_price \u00d7 closed_quantity; leverage not stored"
+}

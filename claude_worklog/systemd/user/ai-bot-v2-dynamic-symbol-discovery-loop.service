@@ -1,0 +1,18 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI Bot V2 dynamic symbol discovery loop (free-tier, paper-shadow only)
+After=network-online.target ai-bot-v2-symbol-universe-publisher.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-dynamic-symbol-discovery-loop'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_dynamic_symbol_discovery_free_tier --once --max-symbols 80 --coingecko-market-rows 100 --surf-symbol-limit 3 >> v2/runtime/v2_dynamic_symbol_discovery_loop.log 2>&1 || true; sleep 21600; done'
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

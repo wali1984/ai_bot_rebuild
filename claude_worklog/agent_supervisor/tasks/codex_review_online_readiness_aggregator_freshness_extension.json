@@ -1,20 +1,22 @@
 {
-  "task_id": "codex_review_online_readiness_aggregator_freshness_extension",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "priority": 3210,
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/"
   ],
+  "completed_at": "2026-05-11T20:32:36.691502+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "If PASS, let the governor queue the next safe online-readiness follow-up before unrelated backlog. If FAIL, create a focused remediation task and keep unrelated safe work moving.",
+  "priority": 3210,
+  "prompt": "Run the required Codex review for the V2 online-readiness aggregator freshness extension. This is review-only: do not modify source code, task definitions, Redis, legacy bot files, or exchange state. Inspect v2/backend/app/proof/online_readiness_aggregator.py, v2/backend/tests/unit/proof/test_online_readiness_aggregator_freshness.py, claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/V2_ONLINE_READINESS_ACCELERATION_REPORT.md, claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/VALIDATION_EVIDENCE.md, and claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/NEXT_SAFE_TASKS.md. Challenge whether the gating predicate is unchanged, whether staleness cannot demote READY to BLOCKED, whether no live-runtime imports were introduced, whether marker_sha256 is computed over file bytes rather than stripped text, whether invalid now strings are safe, whether output stays caller-supplied/file-only, and whether live_gate_status remains blocked_human_only. Emit exactly two BEGIN_FILE blocks, and use exactly these paths: BEGIN_FILE: claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_REVIEW.md and BEGIN_FILE: claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_GO_NO_GO.md. Do not emit files under claude_worklog/final_readiness/online_readiness_codex_review/latest/. ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_GO_NO_GO.md must contain exactly one line: ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_PASS or ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_FAIL.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_REVIEW.md",
     "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_GO_NO_GO.md"
   ],
-  "prompt": "Run the required Codex review for the V2 online-readiness aggregator freshness extension. This is review-only: do not modify source code, task definitions, Redis, legacy bot files, or exchange state. Inspect v2/backend/app/proof/online_readiness_aggregator.py, v2/backend/tests/unit/proof/test_online_readiness_aggregator_freshness.py, claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/V2_ONLINE_READINESS_ACCELERATION_REPORT.md, claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/VALIDATION_EVIDENCE.md, and claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/NEXT_SAFE_TASKS.md. Challenge whether the gating predicate is unchanged, whether staleness cannot demote READY to BLOCKED, whether no live-runtime imports were introduced, whether marker_sha256 is computed over file bytes rather than stripped text, whether invalid now strings are safe, whether output stays caller-supplied/file-only, and whether live_gate_status remains blocked_human_only. Emit exactly two BEGIN_FILE blocks, and use exactly these paths: BEGIN_FILE: claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_REVIEW.md and BEGIN_FILE: claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_GO_NO_GO.md. Do not emit files under claude_worklog/final_readiness/online_readiness_codex_review/latest/. ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_GO_NO_GO.md must contain exactly one line: ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_PASS or ONLINE_READINESS_AGGREGATOR_FRESHNESS_CODEX_FAIL.",
-  "next_recommended_action": "If PASS, let the governor queue the next safe online-readiness follow-up before unrelated backlog. If FAIL, create a focused remediation task and keep unrelated safe work moving.",
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
   "safety_constraints": [
     "review-only",
     "do not modify /home/wali/Desktop/AI BOT",
@@ -27,5 +29,12 @@
   "source_requirements": [
     "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/NEXT_SAFE_TASKS.md",
     "claude_worklog/final_readiness/v2_online_readiness_acceleration/latest/GO_NO_GO.md"
-  ]
+  ],
+  "source_truth_completed_at": "2026-05-11T20:32:36.691502+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_online_readiness_aggregator_freshness_extension.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_review_online_readiness_aggregator_freshness_extension",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

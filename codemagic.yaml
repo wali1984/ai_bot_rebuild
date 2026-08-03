@@ -1,0 +1,125 @@
+workflows:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # iOS + iPadOS — TestFlight & App Store
+  #
+  # PREREQUISITES before this workflow can succeed:
+  #   1. Enroll Apple Developer Program (developer.apple.com, $99/yr)
+  #   2. Create App ID com.wali1984.aibot-v2 in developer portal
+  #   3. In App Store Connect → Users → Keys: create API key (role: App Manager)
+  #   4. In Codemagic → Teams → Integrations → App Store Connect:
+  #      upload that key and name it exactly: ASC_API_KEY
+  #   5. Create the app in App Store Connect → My Apps → New App
+  #
+  # Trigger: MANUAL ONLY until Apple Developer is set up.
+  # Run it from Codemagic dashboard → Start new build → ios-workflow
+  # ─────────────────────────────────────────────────────────────────────────
+  ios-workflow:
+    name: AI Bot V2 — iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    # App Store Connect API key — used for TestFlight upload only (not signing)
+    integrations:
+      app_store_connect: ASC_API_KEY
+
+    environment:
+      # Certificate (.p12) and profile (.mobileprovision) uploaded manually
+      # in Codemagic → Code signing. Codemagic matches by bundle ID + type.
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.wali1984.aibot-v2
+
+      vars:
+        BUNDLE_ID: "com.wali1984.aibot-v2"
+        XCODE_SCHEME: "AIBotV2"
+        PACKAGE_PATH: "v2/mobile"
+
+      xcode: latest
+
+    # Manual trigger only — no auto-run on push until Apple Developer is set up
+    triggering:
+      events: []
+
+    scripts:
+      - name: Install xcodegen
+        script: brew install xcodegen
+
+      - name: Generate Xcode project from project.yml
+        script: |
+          cd $PACKAGE_PATH
+          # Auto-increment CFBundleVersion: Codemagic's BUILD_NUMBER is
+          # monotonic per app; +20 offset keeps it above every historical
+          # manually-numbered TestFlight upload (last manual was 8).
+          if [ -n "${BUILD_NUMBER:-}" ]; then
+            CM_BUNDLE_VERSION=$((BUILD_NUMBER + 20))
+            sed -i '' "s/CURRENT_PROJECT_VERSION: \"[0-9]*\"/CURRENT_PROJECT_VERSION: \"$CM_BUNDLE_VERSION\"/" project.yml
+            echo "CFBundleVersion set to $CM_BUNDLE_VERSION (BUILD_NUMBER=$BUILD_NUMBER)"
+          fi
+          xcodegen generate
+          echo "Generated project:"
+          ls -la AIBotV2.xcodeproj/
+
+      - name: Set up code signing profiles
+        script: xcode-project use-profiles
+
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --project $PACKAGE_PATH/AIBotV2.xcodeproj \
+            --scheme $XCODE_SCHEME \
+            --config Release
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - build/AIBotV2.xcarchive
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      email:
+        recipients:
+          - wajidali1984@hotmail.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true    # Install on iPhone via TestFlight
+        submit_to_app_store: false    # Flip to true when ready for public release
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Linux CLI build + tests (runs on every push, no Apple credentials needed)
+  # ─────────────────────────────────────────────────────────────────────────
+  linux-cli-workflow:
+    name: AI Bot V2 — Linux CLI + Tests
+    max_build_duration: 20
+    instance_type: linux_x2
+
+    environment:
+      vars:
+        PACKAGE_PATH: "v2/mobile"
+
+    triggering:
+      events:
+        - push
+        - pull_request
+
+    scripts:
+      - name: Install Swift
+        script: |
+          # Codemagic Linux instances have Swift pre-installed on linux_x2
+          swift --version
+
+      - name: Build AIBotV2Core + CLI
+        script: |
+          cd $PACKAGE_PATH
+          swift build --target AIBotV2Core
+          swift build --target AIBotV2CLI
+
+      - name: Run unit tests
+        script: |
+          cd $PACKAGE_PATH
+          swift test --filter AIBotV2CoreTests
+
+    artifacts:
+      - v2/mobile/.build/release/aibot

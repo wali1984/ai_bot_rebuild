@@ -1,12 +1,13 @@
 {
-  "task_id": "parallel_capacity_readonly_review_codex_parallel_readonly_review_ready",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "lane": "codex_watchdog",
-  "mvp_relevance": "Parallel read-only review of the latest committed milestone while builder capacity continues on the paper/backtest MVP path.",
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/risk_gateway_impl/"
+  ],
   "blocked_by": [],
-  "next_gate": "CODEX_PARALLEL_READONLY_REVIEW_READY",
+  "completed_at": "2026-05-06T00:34:05.454346+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "codex_watchdog",
   "legacy_evidence_consulted": [
     "latest committed milestone evidence",
     "runtime task states",
@@ -16,15 +17,23 @@
     "serial review bottleneck",
     "late discovery of paper/backtest compatibility gaps"
   ],
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
-  "allowed_output_prefixes": [
-    "claude_worklog/phase2_core_rebuild/risk_gateway_impl/"
-  ],
+  "mvp_relevance": "Parallel read-only review of the latest committed milestone while builder capacity continues on the paper/backtest MVP path.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "CODEX_PARALLEL_READONLY_REVIEW_READY",
+  "next_recommended_action": "If READY, planner may consume recommendations without blocking current build. If BLOCKED, Codex watchdog may open a non-live autofix when no builder child is active.",
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Run a read-only parallel review of committed milestone CODEX_PARALLEL_READONLY_REVIEW_READY from claude_worklog/phase2_core_rebuild/risk_gateway_impl/parallel_capacity_readonly_review_phase2g_a_risk_gateway_domain_codex_pass_GO_NO_GO.md. Do not patch source files. Do not modify current dirty work. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Review for paper/backtest MVP compatibility, risk-gateway handoff completeness, lineage/explainability gaps, stale evidence, and missing test-hardening recommendations. Output exactly two BEGIN_FILE blocks using these exact paths: claude_worklog/phase2_core_rebuild/risk_gateway_impl/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready_REPORT.md and claude_worklog/phase2_core_rebuild/risk_gateway_impl/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready_GO_NO_GO.md. Do not emit any other file path. The GO/NO-GO file must contain exactly one line: CODEX_PARALLEL_READONLY_REVIEW_READY or CODEX_PARALLEL_READONLY_REVIEW_BLOCKED.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/risk_gateway_impl/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready_REPORT.md",
     "claude_worklog/phase2_core_rebuild/risk_gateway_impl/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready_GO_NO_GO.md"
   ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Run a read-only parallel review of committed milestone CODEX_PARALLEL_READONLY_REVIEW_READY from claude_worklog/phase2_core_rebuild/risk_gateway_impl/parallel_capacity_readonly_review_phase2g_a_risk_gateway_domain_codex_pass_GO_NO_GO.md. Do not patch source files. Do not modify current dirty work. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Review for paper/backtest MVP compatibility, risk-gateway handoff completeness, lineage/explainability gaps, stale evidence, and missing test-hardening recommendations. Output exactly two BEGIN_FILE blocks using these exact paths: claude_worklog/phase2_core_rebuild/risk_gateway_impl/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready_REPORT.md and claude_worklog/phase2_core_rebuild/risk_gateway_impl/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready_GO_NO_GO.md. Do not emit any other file path. The GO/NO-GO file must contain exactly one line: CODEX_PARALLEL_READONLY_REVIEW_READY or CODEX_PARALLEL_READONLY_REVIEW_BLOCKED.",
-  "next_recommended_action": "If READY, planner may consume recommendations without blocking current build. If BLOCKED, Codex watchdog may open a non-live autofix when no builder child is active."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-06T00:34:05.454346+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "parallel_capacity_readonly_review_codex_parallel_readonly_review_ready",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

@@ -1,5 +1,4 @@
-import { useCallback } from 'react';
-import { fetchJson, usePollingQuery, type PollingQueryResult } from './usePollingQuery';
+import { useRealtimeQuery, type RealtimeQueryResult } from './useRealtimeQuery';
 
 export interface AuditEvent {
   event?: string;
@@ -31,13 +30,8 @@ export interface AuditChainEnvelope {
 
 export const AUDIT_CHAIN_URL = '/api/v1/_meta/audit-chain';
 
-export function useAuditChain(limit: number = 100): PollingQueryResult<AuditChainEnvelope> {
-  const fetcher = useCallback(
-    (signal: AbortSignal) =>
-      fetchJson<AuditChainEnvelope>(`${AUDIT_CHAIN_URL}?limit=${limit}`, signal),
-    [limit],
-  );
-  return usePollingQuery<AuditChainEnvelope>(`audit-chain:${limit}`, fetcher, {
+export function useAuditChain(limit: number = 100): RealtimeQueryResult<AuditChainEnvelope> {
+  return useRealtimeQuery<AuditChainEnvelope>(`${AUDIT_CHAIN_URL}?limit=${limit}`, {
     refetchIntervalMs: 30_000,
   });
 }

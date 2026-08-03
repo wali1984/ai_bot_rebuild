@@ -1,0 +1,356 @@
+import type { ApiV2Envelope, PortfolioData } from '../types/apiV2';
+import type { ValidatedDataEnvelope } from '../types/dataContract';
+import { useMemo } from 'react';
+import { usePayloadFile } from './usePayloadFile';
+import { useAuth } from './useAuth';
+import { useRealtimeResource } from './useRealtimeResource';
+import { finite } from '../lib/tradeFormatters';
+
+export const PAPER_ACCOUNT_TRUTH_PATH = '/operator_runtime/v2_runtime_truth/latest/operator_runtime_truth.json';
+export const RUNTIME_PAGES_PATH = '/operator_runtime/v2_runtime_truth/latest/runtime_pages_payload.json';
+export const PORTFOLIO_STATE_PATH = '/operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json';
+
+interface PaperAccountTruthPayload {
+  generated_at?: string;
+  generated_utc?: string;
+  paper_equity?: number | null;
+  paper_pnl?: number | null;
+  paper_realized_pnl_usd?: number | null;
+  paper_unrealized_pnl_usd?: number | null;
+  paper_open_positions_count?: number | null;
+  paper_closed_positions_count?: number | null;
+  paper_equity_source?: string | null;
+}
+
+interface RuntimePagesPayload {
+  generated_utc?: string;
+  generated_est?: string;
+  paper_current_session_equity?: number | null;
+  paper_current_session_pnl?: number | null;
+  paper_current_session_open_positions?: number | null;
+}
+
+interface PortfolioStatePayload {
+  generated_utc?: string;
+  account_mode?: string;
+  equity?: number | null;
+  cash_balance?: number | null;
+  realized_pnl_usd?: number | null;
+  realized_net_pnl_usd?: number | null;
+  clean_session_valid_realized_pnl_usd?: number | null;
+  unrealized_pnl_usd?: number | null;
+  clean_session_valid_unrealized_pnl_usd?: number | null;
+  net_unrealized_pnl?: number | null;
+  total_pnl_usd?: number | null;
+  total_notional?: number | null;
+  open_position_notional?: number | null;
+  open_positions_count?: number | null;
+  closed_positions_count?: number | null;
+  pnl_source_key?: string | null;
+  pnl_source_route?: string | null;
+  pnl_source_type?: string | null;
+  paper_equity_source?: string | null;
+  paper_equity_reason?: string | null;
+}
+
+export interface PaperAccountTruth {
+  equity: number | null;
+  totalPnl: number | null;
+  realizedPnl: number | null;
+  unrealizedPnl: number | null;
+  cashBalance: number | null;
+  totalNotional: number | null;
+  openPositions: number | null;
+  closedPositions: number | null;
+  currency: 'USDT';
+  accountMode: string;
+  source: string;
+  reason: string | null;
+  generatedAt: string | null;
+}
+
+interface UsePaperAccountTruthOptions {
+  requireTraderScope?: boolean;
+}
+
+function firstNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    const n = finite(value);
+    if (n !== null) return n;
+  }
+  return null;
+}
+
+function firstText(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+  return null;
+}
+
+function scopeToken(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function traderFacingText(value: string): string {
+  return value
+    .trim()
+    .replace(/\bPaper\/static\b/gi, 'Account data')
+    .replace(/\bpaper account\b/gi, 'account')
+    .replace(/\bpaper\b/gi, 'runtime')
+    .replace(/\bstatic[_ -]?payload\b/gi, 'data snapshot')
+    .replace(/\bpayloads?\b/gi, 'data feed')
+    .replace(/\/api\/v2\/portfolio/gi, 'account service')
+    .replace(/\bAPI\b/g, 'service');
+}
+
+function traderFacingSource(value: string | null | undefined): string {
+  const source = value?.trim();
+  if (!source) return 'Account service';
+  if (source.startsWith('/api/') || source.includes('.json')) return 'Account service';
+  return traderFacingText(source);
+}
+
+function traderFacingReason(value: string | null | undefined): string | null {
+  return value?.trim() ? traderFacingText(value) : null;
+}
+
+function isoTimestamp(value: number | string | null | undefined): string | null {
+  if (typeof value === 'string' && value.trim()) return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return new Date(value).toISOString();
+  return null;
+}
+
+function apiSourceType(value: ValidatedDataEnvelope<unknown>['source_type']): ApiV2Envelope<unknown>['source_type'] {
+  if (value === 'repository' || value === 'redis_live' || value === 'static_payload' || value === 'unavailable') return value;
+  if (value === 'websocket' || value === 'stream' || value === 'sse') return 'websocket';
+  if (value === 'api' || value === 'cache') return 'api';
+  return 'unavailable';
+}
+
+function apiMode(value: ValidatedDataEnvelope<unknown>['mode']): ApiV2Envelope<unknown>['mode'] {
+  if (value === 'paper' || value === 'read_only' || value === 'live_blocked') return value;
+  return 'read_only';
+}
+
+function portfolioEnvelopeFromResource(
+  envelope: ValidatedDataEnvelope<PortfolioData>,
+): ApiV2Envelope<PortfolioData> | null {
+  if (envelope.data === null || envelope.data === undefined) return null;
+  const receivedAt = isoTimestamp(envelope.received_at) ?? new Date().toISOString();
+  return {
+    data: envelope.data,
+    source: envelope.source,
+    source_type: apiSourceType(envelope.source_type) as ApiV2Envelope<PortfolioData>['source_type'],
+    endpoint: envelope.endpoint ?? '/api/v2/portfolio',
+    timestamp: isoTimestamp(envelope.timestamp) ?? receivedAt,
+    received_at: receivedAt,
+    lag_ms: envelope.lag_ms,
+    stale: envelope.freshness_status === 'stale' || envelope.freshness_status === 'offline' || envelope.freshness_status === 'unavailable',
+    missing_fields: envelope.missing_fields,
+    warnings: envelope.warnings,
+    mode: apiMode(envelope.mode) as ApiV2Envelope<PortfolioData>['mode'],
+    trader_context: (envelope as unknown as { trader_context?: ApiV2Envelope<PortfolioData>['trader_context'] }).trader_context ?? null,
+    account_scope: (envelope as unknown as { account_scope?: ApiV2Envelope<PortfolioData>['account_scope'] }).account_scope ?? null,
+  };
+}
+
+function scopedUnavailableAccount(reason: string, source = '/api/v2/portfolio'): PaperAccountTruth {
+  return {
+    equity: null,
+    totalPnl: null,
+    realizedPnl: null,
+    unrealizedPnl: null,
+    cashBalance: null,
+    totalNotional: null,
+    openPositions: null,
+    closedPositions: null,
+    currency: 'USDT',
+    accountMode: 'paper',
+    source: traderFacingSource(source),
+    reason: traderFacingReason(reason),
+    generatedAt: null,
+  };
+}
+
+export function typedPortfolioMatchesCurrentScope(
+  portfolio: ApiV2Envelope<PortfolioData> | null,
+  traderId: string | null,
+  paperAccountId: string | null,
+): boolean {
+  const data = portfolio?.data;
+  if (!portfolio || !data || !traderId || !paperAccountId) return false;
+  const accountSpecific = data.account_specific === true || portfolio.account_scope?.scope_verified === true;
+  if (!accountSpecific) return false;
+  const dataTraderId = scopeToken(data.trader_id);
+  const dataPaperAccountId = scopeToken(data.paper_account_id);
+  const dataScopePresent = Boolean(dataTraderId || dataPaperAccountId);
+  const dataMatches = dataTraderId === traderId && dataPaperAccountId === paperAccountId;
+  const proofPresent = Boolean(portfolio.account_scope);
+  const proofMatches = (
+    portfolio.account_scope?.scope_verified === true
+    && scopeToken(portfolio.account_scope.trader_id) === traderId
+    && scopeToken(portfolio.account_scope.paper_account_id) === paperAccountId
+  );
+  if (dataScopePresent && !dataMatches) return false;
+  if (proofPresent && portfolio.account_scope?.scope_verified === true && !proofMatches) return false;
+  return dataMatches || proofMatches;
+}
+
+export function resolveTypedPortfolioAccount(
+  portfolio: ApiV2Envelope<PortfolioData> | null,
+  traderId: string | null,
+  paperAccountId: string | null,
+): PaperAccountTruth {
+  const data = portfolio?.data;
+  if (!portfolio || !data) {
+    return scopedUnavailableAccount(
+      portfolio?.warnings?.[0] ?? 'Trader-specific account source connecting',
+      portfolio?.endpoint ?? '/api/v2/portfolio',
+    );
+  }
+  if (!typedPortfolioMatchesCurrentScope(portfolio, traderId, paperAccountId)) {
+    return scopedUnavailableAccount(
+      portfolio.warnings?.[0] ?? 'Trader-specific account data connecting or withheld',
+      portfolio.endpoint,
+    );
+  }
+  const realizedPnl = firstNumber(
+    data.realized_net_pnl_usd,
+    data.clean_session_valid_realized_pnl_usd,
+    data.realized_pnl_usd,
+    data.realized_pnl,
+  );
+  const unrealizedPnl = firstNumber(
+    data.unrealized_pnl_usd,
+    data.clean_session_valid_unrealized_pnl_usd,
+    data.unrealized_pnl,
+  );
+  const summedPnl = realizedPnl !== null && unrealizedPnl !== null ? realizedPnl + unrealizedPnl : null;
+  const totalPnl = firstNumber(data.total_pnl_usd, summedPnl);
+  return {
+    equity: finite(data.equity),
+    totalPnl,
+    realizedPnl,
+    unrealizedPnl,
+    cashBalance: null,
+    totalNotional: null,
+    openPositions: Array.isArray(data.positions) ? data.positions.length : null,
+    closedPositions: null,
+    currency: 'USDT',
+    accountMode: data.mode,
+    source: traderFacingSource(firstText(data.pnl_source_key, data.pnl_source_route, data.pnl_source_type, portfolio.source)),
+    reason: portfolio.missing_fields.length
+      ? 'Trader-specific account data incomplete'
+      : traderFacingReason(portfolio.warnings?.[0]),
+    generatedAt: portfolio.timestamp,
+  };
+}
+
+export function resolvePaperAccountTruth(
+  truth: PaperAccountTruthPayload | null,
+  runtimePages: RuntimePagesPayload | null,
+  portfolio: PortfolioStatePayload | null,
+): PaperAccountTruth {
+  const realizedPnl = firstNumber(
+    portfolio?.realized_net_pnl_usd,
+    portfolio?.clean_session_valid_realized_pnl_usd,
+    portfolio?.realized_pnl_usd,
+    truth?.paper_realized_pnl_usd,
+  );
+  const unrealizedPnl = firstNumber(
+    portfolio?.unrealized_pnl_usd,
+    portfolio?.clean_session_valid_unrealized_pnl_usd,
+    portfolio?.net_unrealized_pnl,
+    truth?.paper_unrealized_pnl_usd,
+  );
+  const summedPnl = realizedPnl !== null && unrealizedPnl !== null ? realizedPnl + unrealizedPnl : null;
+  const totalPnl = firstNumber(portfolio?.total_pnl_usd, runtimePages?.paper_current_session_pnl, truth?.paper_pnl, summedPnl);
+
+  return {
+    equity: firstNumber(portfolio?.equity, runtimePages?.paper_current_session_equity, truth?.paper_equity),
+    totalPnl,
+    realizedPnl,
+    unrealizedPnl,
+    cashBalance: firstNumber(portfolio?.cash_balance),
+    totalNotional: firstNumber(portfolio?.total_notional, portfolio?.open_position_notional),
+    openPositions: firstNumber(portfolio?.open_positions_count, runtimePages?.paper_current_session_open_positions, truth?.paper_open_positions_count),
+    closedPositions: firstNumber(portfolio?.closed_positions_count, truth?.paper_closed_positions_count),
+    currency: 'USDT',
+    accountMode: firstText(portfolio?.account_mode) ?? 'paper',
+    source: traderFacingSource(
+      firstText(
+        portfolio?.pnl_source_key,
+        portfolio?.pnl_source_route,
+        portfolio?.pnl_source_type,
+        portfolio?.paper_equity_source,
+        truth?.paper_equity_source,
+      ) ?? 'Trader account source',
+    ),
+    reason: traderFacingReason(firstText(portfolio?.paper_equity_reason)),
+    generatedAt: firstText(runtimePages?.generated_utc, runtimePages?.generated_est, truth?.generated_utc, truth?.generated_at, portfolio?.generated_utc),
+  };
+}
+
+export function usePaperAccountTruth(intervalMs = 8_000, options: UsePaperAccountTruthOptions = {}): {
+  account: PaperAccountTruth;
+  loading: boolean;
+  error: string | null;
+  ageSeconds: number | null;
+  paths: {
+    truth: string;
+    runtimePages: string;
+    portfolio: string;
+  };
+} {
+  const { user, loading: authLoading } = useAuth();
+  const traderId = user?.trader_id ?? null;
+  const paperAccountId = user?.paper_account_id ?? null;
+  const fallbackPayloadsEnabled = options.requireTraderScope !== true;
+  const typedPortfolioResource = useRealtimeResource<PortfolioData>({
+    url: '/api/v2/portfolio?scope=current_session',
+    source: '/api/v2/portfolio?scope=current_session',
+    source_type: 'websocket',
+    pollIntervalMs: intervalMs,
+    staleThresholdMs: Math.max(30_000, intervalMs * 4),
+    enabled: options.requireTraderScope === true && Boolean(traderId && paperAccountId),
+    mode: 'paper',
+  });
+  const typedPortfolio = useMemo(
+    () => portfolioEnvelopeFromResource(typedPortfolioResource.envelope),
+    [typedPortfolioResource.envelope],
+  );
+  const truth = usePayloadFile<PaperAccountTruthPayload>(PAPER_ACCOUNT_TRUTH_PATH, intervalMs, { enabled: fallbackPayloadsEnabled });
+  const runtimePages = usePayloadFile<RuntimePagesPayload>(RUNTIME_PAGES_PATH, intervalMs, { enabled: fallbackPayloadsEnabled });
+  const portfolio = usePayloadFile<PortfolioStatePayload>(PORTFOLIO_STATE_PATH, intervalMs, { enabled: fallbackPayloadsEnabled });
+
+  const account = useMemo(
+    () => {
+      if (!options.requireTraderScope) {
+        return resolvePaperAccountTruth(truth.data, runtimePages.data, portfolio.data);
+      }
+      if (authLoading) {
+        return scopedUnavailableAccount('Checking signed-in trader account scope');
+      }
+      if (!user) {
+        return scopedUnavailableAccount('Sign in to view trader-specific account');
+      }
+      return resolveTypedPortfolioAccount(typedPortfolio, traderId, paperAccountId);
+    },
+    [authLoading, options.requireTraderScope, paperAccountId, portfolio.data, runtimePages.data, traderId, truth.data, typedPortfolio, user],
+  );
+
+  return {
+    account,
+    loading: options.requireTraderScope ? authLoading || typedPortfolioResource.loading : truth.loading || runtimePages.loading || portfolio.loading,
+    error: options.requireTraderScope ? typedPortfolioResource.error : truth.error ?? runtimePages.error ?? portfolio.error,
+    ageSeconds: options.requireTraderScope && typedPortfolioResource.envelope.received_at
+      ? Math.max(0, Math.round((Date.now() - typedPortfolioResource.envelope.received_at) / 1000))
+      : runtimePages.ageSeconds ?? truth.ageSeconds ?? portfolio.ageSeconds,
+    paths: {
+      truth: PAPER_ACCOUNT_TRUTH_PATH,
+      runtimePages: RUNTIME_PAGES_PATH,
+      portfolio: PORTFOLIO_STATE_PATH,
+    },
+  };
+}

@@ -1,0 +1,59 @@
+{
+  "_captured_note": "pre-workflow-completion; paper loop is running so intents/positions/trace WILL churn (expected); closed_trades/accepted_fills/cohort must NOT change from the read-only dry-run",
+  "_note": "goal1 dry-run immutable-store baseline; verify Goal-1 workflow did NOT mutate closed_trades/accepted_fills/proof-store/cohort",
+  "v2:model_registry:paper:active": {
+    "len": 20,
+    "present": true,
+    "sha256": "9ba9ac2827fbc9dd489075a09cf02e5df30ba735de184c313f72af3ef31c69fd"
+  },
+  "v2:paper:accepted_fills": {
+    "len": 0,
+    "present": true,
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "v2:paper:accepted_fills:quarantine": {
+    "len": 27,
+    "present": true,
+    "sha256": "0a94a287ac92ae4f4129aa99a6b27afedc3bb49b0e8a39af0aa75f4caab95f98"
+  },
+  "v2:paper:account_margin_status": {
+    "len": 67,
+    "present": true,
+    "sha256": "9c592dc71c8b054626358782661c869ffec10dc8a1264ce748b4177f8d9629da"
+  },
+  "v2:paper:closed_trades": {
+    "len": 93,
+    "present": true,
+    "sha256": "87db13185a23f97c962ed2af15a498650a16da5b11d2aec61150640904a2522f"
+  },
+  "v2:paper:economic_evaluation_cohort": {
+    "len": 18,
+    "present": true,
+    "sha256": "3165cedd465b271fc2f602023b5d954db0e94e08dce846945492938f03dab032"
+  },
+  "v2:paper:fill_persistence_trace": {
+    "len": 15,
+    "present": true,
+    "sha256": "21e87d0c5c0678ec7cddec44c41fe7f63a3246bb032c3e82c1b0f5fc1d4d02d4"
+  },
+  "v2:paper:open_position_fill_proofs": {
+    "len": 0,
+    "present": true,
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "v2:paper:positions": {
+    "len": 0,
+    "present": true,
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "v2:paper:provisional_cohort_activation": {
+    "len": 13,
+    "present": true,
+    "sha256": "68885fe876464f3b619998e6b3c8aad16958aa30d2d7c1ad95a15318c8a584ce"
+  },
+  "v2:portfolio:state": {
+    "len": 128,
+    "present": true,
+    "sha256": "0270748645952bdb32aaf4e0b627cc4024cd98acbb9e5ce6cd9349827ea86073"
+  }
+}

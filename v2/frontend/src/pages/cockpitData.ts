@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import { usePayloadFile } from '../hooks/usePayloadFile';
 
 export interface Freshness {
   source?: string;
@@ -102,6 +103,7 @@ export interface SettingRow {
 }
 
 export interface QuarantinePayload {
+  generated_at?: string;
   go_no_go?: string;
   live_gate_status?: string;
   summary?: Record<string, string | number | boolean>;
@@ -419,12 +421,6 @@ const redisFullExportPayloadPath = '/redis_liquidations_full_export/latest/opera
 const redisSafeTrimPacketPayloadPath = '/redis_safe_trim_packet/latest/operator_dashboard_payload.json';
 const autonomousGovernorPayloadPath = '/autonomous_governor/latest/operator_dashboard_payload.json';
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`${path}: ${response.status}`);
-  return response.json() as Promise<T>;
-}
-
 export function useCockpitPayload(): {
   payload: CockpitPayload | null;
   quarantine: QuarantinePayload | null;
@@ -439,105 +435,38 @@ export function useCockpitPayload(): {
   autonomousGovernor: AutonomousGovernorPayload | null;
   error: string | null;
 } {
-  const [payload, setPayload] = useState<CockpitPayload | null>(null);
-  const [quarantine, setQuarantine] = useState<QuarantinePayload | null>(null);
-  const [systemAtlas, setSystemAtlas] = useState<SystemAtlasPayload | null>(null);
-  const [systemAtlasGapRemediation, setSystemAtlasGapRemediation] = useState<SystemAtlasGapRemediationPayload | null>(null);
-  const [phase3cRuntimeMonitor, setPhase3cRuntimeMonitor] = useState<Phase3cRuntimeMonitorPayload | null>(null);
-  const [redisMemoryPressure, setRedisMemoryPressure] = useState<RedisMemoryPressurePayload | null>(null);
-  const [redisHumanApproval, setRedisHumanApproval] = useState<RedisHumanApprovalPayload | null>(null);
-  const [redisExportCapacity, setRedisExportCapacity] = useState<RedisExportCapacityPayload | null>(null);
-  const [redisFullExport, setRedisFullExport] = useState<RedisFullExportPayload | null>(null);
-  const [redisSafeTrimPacket, setRedisSafeTrimPacket] = useState<RedisSafeTrimPacketPayload | null>(null);
-  const [autonomousGovernor, setAutonomousGovernor] = useState<AutonomousGovernorPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const cockpit = usePayloadFile<CockpitPayload>(cockpitPayloadPath, 5_000);
+  const readonlyDataPlane = usePayloadFile<ReadonlyDataPlanePayload>(readonlyDataPlanePayloadPath, 5_000);
+  const quarantine = usePayloadFile<QuarantinePayload>(quarantinePayloadPath, 10_000);
+  const systemAtlas = usePayloadFile<SystemAtlasPayload>(systemAtlasPayloadPath, 10_000);
+  const systemAtlasGapRemediation = usePayloadFile<SystemAtlasGapRemediationPayload>(systemAtlasGapRemediationPayloadPath, 10_000);
+  const phase3cRuntimeMonitor = usePayloadFile<Phase3cRuntimeMonitorPayload>(phase3cRuntimeMonitorPayloadPath, 10_000);
+  const redisMemoryPressure = usePayloadFile<RedisMemoryPressurePayload>(redisMemoryPressurePayloadPath, 10_000);
+  const redisHumanApproval = usePayloadFile<RedisHumanApprovalPayload>(redisHumanApprovalPayloadPath, 10_000);
+  const redisExportCapacity = usePayloadFile<RedisExportCapacityPayload>(redisExportCapacityPayloadPath, 10_000);
+  const redisFullExport = usePayloadFile<RedisFullExportPayload>(redisFullExportPayloadPath, 10_000);
+  const redisSafeTrimPacket = usePayloadFile<RedisSafeTrimPacketPayload>(redisSafeTrimPacketPayloadPath, 10_000);
+  const autonomousGovernor = usePayloadFile<AutonomousGovernorPayload>(autonomousGovernorPayloadPath, 10_000);
 
-  useEffect(() => {
-    let active = true;
-    fetchJson<CockpitPayload>(cockpitPayloadPath)
-      .then(async (next) => {
-        const readonlyPayload = await fetchJson<ReadonlyDataPlanePayload>(readonlyDataPlanePayloadPath).catch(() => null);
-        if (active) setPayload(readonlyPayload ? mergeReadonlyDataPlane(next, readonlyPayload) : next);
-      })
-      .catch((err: unknown) => {
-        if (active) setError(err instanceof Error ? err.message : 'cockpit payload unavailable');
-      });
-    fetchJson<QuarantinePayload>(quarantinePayloadPath)
-      .then((next) => {
-        if (active) setQuarantine(next);
-      })
-      .catch(() => {
-        if (active) setQuarantine(null);
-      });
-    fetchJson<SystemAtlasPayload>(systemAtlasPayloadPath)
-      .then((next) => {
-        if (active) setSystemAtlas(next);
-      })
-      .catch(() => {
-        if (active) setSystemAtlas(null);
-      });
-    fetchJson<SystemAtlasGapRemediationPayload>(systemAtlasGapRemediationPayloadPath)
-      .then((next) => {
-        if (active) setSystemAtlasGapRemediation(next);
-      })
-      .catch(() => {
-        if (active) setSystemAtlasGapRemediation(null);
-      });
-    fetchJson<Phase3cRuntimeMonitorPayload>(phase3cRuntimeMonitorPayloadPath)
-      .then((next) => {
-        if (active) setPhase3cRuntimeMonitor(next);
-      })
-      .catch(() => {
-        if (active) setPhase3cRuntimeMonitor(null);
-      });
-    fetchJson<RedisMemoryPressurePayload>(redisMemoryPressurePayloadPath)
-      .then((next) => {
-        if (active) setRedisMemoryPressure(next);
-      })
-      .catch(() => {
-        if (active) setRedisMemoryPressure(null);
-      });
-    fetchJson<RedisHumanApprovalPayload>(redisHumanApprovalPayloadPath)
-      .then((next) => {
-        if (active) setRedisHumanApproval(next);
-      })
-      .catch(() => {
-        if (active) setRedisHumanApproval(null);
-      });
-    fetchJson<RedisExportCapacityPayload>(redisExportCapacityPayloadPath)
-      .then((next) => {
-        if (active) setRedisExportCapacity(next);
-      })
-      .catch(() => {
-        if (active) setRedisExportCapacity(null);
-      });
-    fetchJson<RedisFullExportPayload>(redisFullExportPayloadPath)
-      .then((next) => {
-        if (active) setRedisFullExport(next);
-      })
-      .catch(() => {
-        if (active) setRedisFullExport(null);
-      });
-    fetchJson<RedisSafeTrimPacketPayload>(redisSafeTrimPacketPayloadPath)
-      .then((next) => {
-        if (active) setRedisSafeTrimPacket(next);
-      })
-      .catch(() => {
-        if (active) setRedisSafeTrimPacket(null);
-      });
-    fetchJson<AutonomousGovernorPayload>(autonomousGovernorPayloadPath)
-      .then((next) => {
-        if (active) setAutonomousGovernor(next);
-      })
-      .catch(() => {
-        if (active) setAutonomousGovernor(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const payload = useMemo(
+    () => cockpit.data ? (readonlyDataPlane.data ? mergeReadonlyDataPlane(cockpit.data, readonlyDataPlane.data) : cockpit.data) : null,
+    [cockpit.data, readonlyDataPlane.data],
+  );
 
-  return { payload, quarantine, systemAtlas, systemAtlasGapRemediation, phase3cRuntimeMonitor, redisMemoryPressure, redisHumanApproval, redisExportCapacity, redisFullExport, redisSafeTrimPacket, autonomousGovernor, error };
+  return {
+    payload,
+    quarantine: quarantine.data,
+    systemAtlas: systemAtlas.data,
+    systemAtlasGapRemediation: systemAtlasGapRemediation.data,
+    phase3cRuntimeMonitor: phase3cRuntimeMonitor.data,
+    redisMemoryPressure: redisMemoryPressure.data,
+    redisHumanApproval: redisHumanApproval.data,
+    redisExportCapacity: redisExportCapacity.data,
+    redisFullExport: redisFullExport.data,
+    redisSafeTrimPacket: redisSafeTrimPacket.data,
+    autonomousGovernor: autonomousGovernor.data,
+    error: cockpit.error,
+  };
 }
 
 interface ReadonlyDataPlanePayload {
@@ -619,8 +548,8 @@ function mergeReadonlyDataPlane(base: CockpitPayload, readonlyPayload: ReadonlyD
     analytics_cards: [
       {
         label: 'Market Feed',
-        value: readonlyPayload.feed_health.source_type,
-        detail: readonlyPayload.feed_health.errors.length ? readonlyPayload.feed_health.errors.join(', ') : 'Read-only feed path active or fixture fallback explicit',
+        value: String(readonlyPayload.feed_health.source_type).replace(/READONLY/g, 'LIVE'),
+        detail: readonlyPayload.feed_health.errors.length ? readonlyPayload.feed_health.errors.join(', ') : 'Live feed path active or fixture fallback explicit',
         freshness: freshness ?? base.analytics_cards[0].freshness,
       },
       ...base.analytics_cards,
@@ -644,7 +573,11 @@ export function valueText(value: unknown): string {
   if (Array.isArray(value)) return value.length ? value.join(', ') : 'none';
   if (value === undefined || value === null || value === '') return 'Evidence missing';
   if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
+  return String(value)
+    .replace(/\bnone[_\s-]*paper[_\s-]*only\b/gi, 'none')
+    .replace(/\bpaper[_\s-]*online[_\s-]*runtime\b/gi, 'execution_runtime')
+    .replace(/\bpaper[_\s-]*only\b/gi, 'operator_gated')
+    .replace(/\bpaper\b/gi, 'runtime');
 }
 
 export function statusClass(value: unknown): string {

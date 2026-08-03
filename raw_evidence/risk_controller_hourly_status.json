@@ -1,0 +1,22 @@
+{
+  "schema_version": "v2_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:25Z",
+  "window_start_est": "2020-01-01T00:00:00+00:00",
+  "window_end_est": "2026-06-21T23:02:22+00:00",
+  "event_count_in_window": 95728,
+  "live_gate": "blocked_human_only",
+  "live_mutation_count_must_be_zero": 0,
+  "mutates_exchange": false,
+  "total_evaluated": 95728,
+  "risk_accepted": 2279,
+  "risk_blocked": 93376,
+  "risk_accept_rate": 0.0238,
+  "block_reasons": {
+    "deny_canary_profile_tightening": 63097,
+    "deny_low_confidence": 19101,
+    "deny_stale_market_feed": 8025,
+    "deny_orchestrator_held": 2489,
+    "deny_expected_move_model_review": 659,
+    "deny_paper_outcome_model_missing": 5
+  }
+}

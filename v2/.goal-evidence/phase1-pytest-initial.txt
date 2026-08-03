@@ -1,0 +1,2358 @@
+/home/wali/Desktop/AI BOT REBUILD/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+.............FFF....................FFFFFFFF...................F.F...... [  1%]
+.F..F......................................................F......F.FF.. [  3%]
+.........FF....F........................................................ [  5%]
+..............................................................F......... [  7%]
+........................................................................ [  8%]
+........................................................................ [ 10%]
+...............................................................F........ [ 12%]
+........................................................................ [ 14%]
+........................................................................ [ 15%]
+........................................................................ [ 17%]
+........................................................................ [ 19%]
+........................................................................ [ 21%]
+........................................................................ [ 22%]
+........................................................................ [ 24%]
+........................................................................ [ 26%]
+........................................................................ [ 28%]
+...................................................FF.FF................ [ 29%]
+.........FF..F.......................................................... [ 31%]
+........................................................................ [ 33%]
+...............F.........................................sss............ [ 35%]
+........................................................................ [ 36%]
+........................................................................ [ 38%]
+........................................................................ [ 40%]
+........................................................................ [ 42%]
+...................................s.................................... [ 44%]
+........................................................................ [ 45%]
+........................................................................ [ 47%]
+........................................................................ [ 49%]
+.F..F...................................F...F..F........................ [ 51%]
+........................................................................ [ 52%]
+........................................................................ [ 54%]
+........................................................................ [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 59%]
+........................................................................ [ 61%]
+........................................................................ [ 63%]
+........................................................................ [ 65%]
+....................................................................F... [ 66%]
+........................................................................ [ 68%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 73%]
+........................................................................ [ 75%]
+..................F..................................................... [ 77%]
+.F..FF..F........F..F........F..FF...F...............FF....F............ [ 79%]
+........................................................................ [ 80%]
+FFFFF................................................................... [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+........................................................................ [ 89%]
+........................................................................ [ 91%]
+...............................................................F........ [ 93%]
+........................................................................ [ 95%]
+................................................................FF...... [ 96%]
+........................................................................ [ 98%]
+..........................................................               [100%]
+=================================== FAILURES ===================================
+____________ test_authenticated_user_can_update_own_watchlist_only _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_authenticated_user_can_up0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7184329b6c30>
+
+    def test_authenticated_user_can_update_own_watchlist_only(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+        created = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "watchlist.trader@example.com",
+                "username": "watchlist-trader",
+                "password": "watchlist-password",
+                "role": "trader",
+                "trader_id": "trader-watchlist",
+                "paper_account_id": "paper-watchlist",
+                "reason": "watchlist self-service test user",
+            },
+        )
+        assert created.status_code == 201
+        trader_token = _login(client, "watchlist.trader@example.com", "watchlist-password")
+    
+        response = client.put(
+            "/api/accounts/me/watchlist",
+            headers=_auth(trader_token),
+            json={"symbols": ["btcusdt", "ETHUSDT", "btcusdt", ""]},
+        )
+    
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["watchlist"] == ["BTCUSDT", "ETHUSDT"]
+        assert payload["user"]["watchlist"] == ["BTCUSDT", "ETHUSDT"]
+        assert payload["user"]["email"] == "watchlist.trader@example.com"
+        assert "password_hash" not in json.dumps(payload)
+        assert "credential_ref" not in json.dumps(payload)
+        assert payload["warnings"] == [
+            "Watchlist is scoped to the signed-in user",
+            "No exchange state was read or mutated",
+            "Live trading remains disabled",
+        ]
+    
+        invalid = client.put(
+            "/api/accounts/me/watchlist",
+            headers=_auth(trader_token),
+            json={"symbols": ["BTC/USDT"]},
+        )
+        assert invalid.status_code == 400
+        assert invalid.json()["detail"] == "invalid_watchlist_symbol"
+    
+        unauthenticated = client.put("/api/accounts/me/watchlist", json={"symbols": ["BTCUSDT"]})
+>       assert unauthenticated.status_code == 401
+E       assert 200 == 401
+E        +  where 200 = <Response [200 OK]>.status_code
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:265: AssertionError
+________ test_chart_endpoints_return_structured_source_freshness_states ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_chart_endpoints_return_st0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7184329db320>
+
+    def test_chart_endpoints_return_structured_source_freshness_states(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+    
+        symbols = client.get("/api/v1/chart/symbols")
+>       assert symbols.status_code == 200
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:272: AssertionError
+__________ test_exchange_account_link_requires_trader_and_paper_scope __________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_exchange_account_link_req0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7184324b36b0>
+
+    def test_exchange_account_link_requires_trader_and_paper_scope(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+        created = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "viewer.scope@example.com",
+                "username": "viewer-scope",
+                "password": "viewer-password",
+                "role": "viewer",
+                "reason": "exchange link fail-closed scope test",
+            },
+        )
+        assert created.status_code == 201
+        viewer_token = _login(client, "viewer.scope@example.com", "viewer-password")
+    
+        response = client.post(
+            "/api/accounts/me/exchange-accounts",
+            headers=_auth(viewer_token),
+            json={"exchange": "binance", "label": "Viewer Binance", "account_type": "usd_m_futures"},
+        )
+    
+        assert response.status_code == 409
+        assert response.json()["detail"] == "trader_account_scope_required"
+    
+        scoped_viewer = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "viewer.with-scope@example.com",
+                "username": "viewer-with-scope",
+                "password": "viewer-password",
+                "role": "viewer",
+                "trader_id": "viewer-trader-scope",
+                "paper_account_id": "viewer-paper-scope",
+                "reason": "exchange link fail-closed role test",
+            },
+        )
+        assert scoped_viewer.status_code == 201
+        scoped_viewer_token = _login(client, "viewer.with-scope@example.com", "viewer-password")
+    
+        scoped_response = client.post(
+            "/api/accounts/me/exchange-accounts",
+            headers=_auth(scoped_viewer_token),
+            json={"exchange": "binance", "label": "Viewer Scoped Binance", "account_type": "usd_m_futures"},
+        )
+    
+        assert scoped_response.status_code == 403
+        assert scoped_response.json()["detail"] == "trader_role_required"
+    
+        viewer_with_exchange = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "viewer.exchange@example.com",
+                "username": "viewer-exchange",
+                "password": "viewer-password",
+                "role": "viewer",
+                "trader_id": "viewer-exchange-scope",
+                "paper_account_id": "viewer-exchange-paper",
+                "exchange_accounts": [
+                    {
+                        "id": "binance-viewer-exchange",
+                        "exchange": "binance",
+                        "label": "Viewer Exchange",
+                        "account_type": "usd_m_futures",
+                        "mode": "read_only",
+                        "read_only": True,
+                        "live_trading_enabled": False,
+                    }
+                ],
+                "reason": "exchange metadata must require trader role",
+            },
+        )
+        assert viewer_with_exchange.status_code == 400
+        assert viewer_with_exchange.json()["detail"] == "exchange_account_role_required"
+    
+        trader = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "exchange.trader@example.com",
+                "username": "exchange-trader",
+                "password": "trader-password",
+                "role": "trader",
+                "trader_id": "trader-account-link",
+                "paper_account_id": "paper-account-link",
+                "reason": "exchange account self-service test",
+            },
+        )
+        assert trader.status_code == 201
+        trader_token = _login(client, "exchange.trader@example.com", "trader-password")
+    
+        extra_field = client.post(
+            "/api/accounts/me/exchange-accounts",
+            headers=_auth(trader_token),
+            json={
+                "exchange": "binance",
+                "label": "Exchange Trader Binance",
+                "account_type": "usd_m_futures",
+                "credential_ref": "ALPHAFORGE_SHOULD_NOT_BE_ACCEPTED",
+            },
+        )
+>       assert extra_field.status_code == 422
+E       assert 201 == 422
+E        +  where 201 = <Response [201 Created]>.status_code
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:401: AssertionError
+_______ test_admin_activation_requires_valid_step_up_code_in_production ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_admin_activation_requires0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718433aabc50>
+
+    def test_admin_activation_requires_valid_step_up_code_in_production(tmp_path: Path, monkeypatch) -> None:
+        step_up_secret = "JBSWY3DPEHPK3PXP"
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_SESSION_MINUTES", "30")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_ISSUER", "alphaforge-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_AUDIENCE", "alphaforge-web-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_REVOCATION_STORE", str(tmp_path / "auth_revocations.json"))
+        monkeypatch.setenv("ALPHAFORGE_AUTH_COOKIE_SAMESITE", "lax")
+        monkeypatch.setenv("ALPHAFORGE_BOOTSTRAP_ADMIN_PASSWORD", "Correct-Password-123!")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_STEP_UP_TOTP_SECRET", step_up_secret)
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "Correct-Password-123!")
+    
+        missing = client.post(
+            "/api/admin/users/user-wajidali1984/activation",
+            headers=_auth(admin_token),
+            json={
+                "is_active": True,
+                "temporary_password": "Temporary-Password-123!",
+                "reason": "activate seeded trader",
+            },
+        )
+        assert missing.status_code == 403
+        assert missing.json()["detail"] == "admin_step_up_required"
+    
+        valid = client.post(
+            "/api/admin/users/user-wajidali1984/activation",
+            headers={**_auth(admin_token), "X-AlphaForge-Step-Up-Code": _totp_code(step_up_secret)},
+            json={
+                "is_active": True,
+                "temporary_password": "Temporary-Password-123!",
+                "reason": "activate seeded trader",
+            },
+        )
+        assert valid.status_code == 200
+        payload = valid.json()
+        assert payload["activation"]["is_active"] is True
+        assert payload["activation"]["password_reset"] is True
+>       assert payload["audit"]["recorded"] is True
+E       assert False is True
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:990: AssertionError
+__________ test_admin_activation_writes_secret_free_local_audit_event __________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_admin_activation_writes_s0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718432839dc0>
+
+    def test_admin_activation_writes_secret_free_local_audit_event(tmp_path: Path, monkeypatch) -> None:
+        audit_path = tmp_path / "admin_audit.jsonl"
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_LOG_STORE", str(audit_path))
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+    
+        response = client.post(
+            "/api/admin/users/user-wajidali1984/activation",
+            headers=_auth(admin_token),
+            json={
+                "is_active": True,
+                "temporary_password": "trader-reset-password",
+                "reason": "operator activation",
+            },
+        )
+    
+        assert response.status_code == 200
+        payload = response.json()
+>       assert payload["audit"]["recorded"] is True
+E       assert False is True
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:1018: AssertionError
+_ test_admin_activation_fails_closed_in_production_when_audit_log_is_unwritable _
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_admin_activation_fails_cl1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71843210cef0>
+
+    def test_admin_activation_fails_closed_in_production_when_audit_log_is_unwritable(
+        tmp_path: Path, monkeypatch
+    ) -> None:
+        step_up_secret = "JBSWY3DPEHPK3PXP"
+        broken_parent = tmp_path / "admin_audit_parent"
+        broken_parent.write_text("not a directory", encoding="utf-8")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_LOG_STORE", str(broken_parent / "admin_audit.jsonl"))
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_SESSION_MINUTES", "30")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_ISSUER", "alphaforge-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_AUDIENCE", "alphaforge-web-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_REVOCATION_STORE", str(tmp_path / "auth_revocations.json"))
+        monkeypatch.setenv("ALPHAFORGE_AUTH_COOKIE_SAMESITE", "lax")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_STEP_UP_TOTP_SECRET", step_up_secret)
+        monkeypatch.setenv("ALPHAFORGE_BOOTSTRAP_ADMIN_PASSWORD", "Correct-Password-123!")
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "Correct-Password-123!")
+    
+        response = client.post(
+            "/api/admin/users/user-wajidali1984/activation",
+            headers={**_auth(admin_token), "X-AlphaForge-Step-Up-Code": _totp_code(step_up_secret)},
+            json={
+                "is_active": True,
+                "temporary_password": "Temporary-Password-123!",
+                "reason": "activate seeded trader",
+            },
+        )
+    
+>       assert response.status_code == 503
+E       assert 200 == 503
+E        +  where 200 = <Response [200 OK]>.status_code
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:1068: AssertionError
+________ test_admin_user_mutations_write_secret_free_local_audit_events ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_admin_user_mutations_writ0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71843201b830>
+
+    def test_admin_user_mutations_write_secret_free_local_audit_events(tmp_path: Path, monkeypatch) -> None:
+        audit_path = tmp_path / "admin_user_mutations_audit.jsonl"
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_LOG_STORE", str(audit_path))
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+    
+        created = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "audit.trader@example.com",
+                "username": "audit-trader",
+                "password": "Mutation-Secret-123!",
+                "role": "trader",
+                "trader_id": "trader-audit",
+                "paper_account_id": "paper-audit",
+            },
+        )
+        assert created.status_code == 201
+        created_payload = created.json()
+>       assert created_payload["audit"]["recorded"] is True
+E       assert False is True
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:1097: AssertionError
+_ test_admin_user_create_fails_closed_in_production_when_audit_log_is_unwritable _
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_admin_user_create_fails_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7184322ff680>
+
+    def test_admin_user_create_fails_closed_in_production_when_audit_log_is_unwritable(
+        tmp_path: Path, monkeypatch
+    ) -> None:
+        broken_parent = tmp_path / "admin_user_audit_parent"
+        broken_parent.write_text("not a directory", encoding="utf-8")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_LOG_STORE", str(broken_parent / "admin_audit.jsonl"))
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_SESSION_MINUTES", "30")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_ISSUER", "alphaforge-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_AUDIENCE", "alphaforge-web-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_REVOCATION_STORE", str(tmp_path / "auth_revocations.json"))
+        monkeypatch.setenv("ALPHAFORGE_AUTH_COOKIE_SAMESITE", "lax")
+        monkeypatch.setenv("ALPHAFORGE_BOOTSTRAP_ADMIN_PASSWORD", "Correct-Password-123!")
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "Correct-Password-123!")
+    
+        response = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "blocked.audit@example.com",
+                "username": "blocked-audit",
+                "password": "Blocked-Audit-Password-123!",
+                "role": "trader",
+                "trader_id": "trader-blocked-audit",
+                "paper_account_id": "paper-blocked-audit",
+                "reason": "production audit fail closed test",
+            },
+        )
+    
+>       assert response.status_code == 503
+E       assert 201 == 503
+E        +  where 201 = <Response [201 Created]>.status_code
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:1178: AssertionError
+________ test_local_admin_audit_store_access_fails_closed_in_production ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71843205da60>
+
+    def test_local_admin_audit_store_access_fails_closed_in_production(monkeypatch) -> None:
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        monkeypatch.delenv("ALPHAFORGE_ALLOW_LOCAL_ADMIN_AUDIT_IN_PRODUCTION", raising=False)
+        monkeypatch.delenv("ALPHAFORGE_ADMIN_AUDIT_STORE_BACKEND", raising=False)
+    
+>       with pytest.raises(HTTPException) as exc:
+E       Failed: DID NOT RAISE <class 'fastapi.exceptions.HTTPException'>
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:1192: Failed
+_____ test_sqlalchemy_admin_audit_requires_retention_policy_in_production ______
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_sqlalchemy_admin_audit_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718432091a60>
+
+    def test_sqlalchemy_admin_audit_requires_retention_policy_in_production(tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_STORE_BACKEND", "sqlalchemy")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_DATABASE_URL", f"sqlite:///{tmp_path / 'admin_audit.db'}")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_DB_AUTO_CREATE", "true")
+        monkeypatch.delenv("ALPHAFORGE_ADMIN_AUDIT_RETENTION_DAYS", raising=False)
+    
+>       with pytest.raises(HTTPException) as exc:
+E       Failed: DID NOT RAISE <class 'fastapi.exceptions.HTTPException'>
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:1220: Failed
+________ test_sqlalchemy_admin_audit_store_persists_secret_free_events _________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_sqlalchemy_admin_audit_st0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718432093260>
+
+    def test_sqlalchemy_admin_audit_store_persists_secret_free_events(tmp_path: Path, monkeypatch) -> None:
+        database_path = tmp_path / "admin_audit.db"
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_STORE_BACKEND", "sqlalchemy")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_DATABASE_URL", f"sqlite:///{database_path}")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_DB_AUTO_CREATE", "true")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_RETENTION_DAYS", "365")
+    
+        audit_event = append_admin_audit_event(
+            {
+                "event_type": "admin_user_activation_reset",
+                "actor_user_id": "user-admin",
+                "actor_role": "admin",
+                "target_user_id": "user-wajidali1984",
+                "target_email": "wajidali1984@hotmail.com",
+                "target_trader_id": "trader-wajidali1984",
+                "password_reset": True,
+                "password_returned": False,
+                "password_hash_returned": False,
+            }
+        )
+    
+>       assert audit_event["audit_persisted"] is True
+E       KeyError: 'audit_persisted'
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:1261: KeyError
+________ test_admin_activation_reset_workflow_for_seeded_trader_is_safe ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_admin_activation_reset_wo0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718431ffc770>
+
+    def test_admin_activation_reset_workflow_for_seeded_trader_is_safe(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+        users = client.get("/api/admin/users", headers=_auth(admin_token)).json()["users"]
+        trader = next(user for user in users if user["email"] == "wajidali1984@hotmail.com")
+        assert trader["is_active"] is False
+    
+        unauthenticated = client.post(
+            f"/api/admin/users/{trader['id']}/activation",
+            json={"is_active": True, "temporary_password": "trader-reset-password", "reason": "operator activation"},
+        )
+>       assert unauthenticated.status_code == 401
+E       assert 200 == 401
+E        +  where 200 = <Response [200 OK]>.status_code
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:1856: AssertionError
+________________ test_admin_user_creation_requires_trader_scope ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_admin_user_creation_requi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7184325497f0>
+
+    def test_admin_user_creation_requires_trader_scope(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+    
+        missing_scope = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "unscoped.trader@example.com",
+                "username": "unscoped-trader",
+                "password": "trader-password",
+                "role": "trader",
+            },
+        )
+        assert missing_scope.status_code == 400
+        assert missing_scope.json()["detail"] == "trader_scope_required"
+    
+        missing_scope_for_exchange = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "exchange.only@example.com",
+                "username": "exchange-only",
+                "password": "viewer-password",
+                "role": "viewer",
+                "exchange_accounts": [{"id": "binance-unscoped", "exchange": "binance"}],
+            },
+        )
+        assert missing_scope_for_exchange.status_code == 400
+>       assert missing_scope_for_exchange.json()["detail"] == "exchange_account_scope_required"
+E       AssertionError: assert 'exchange_acc...role_required' == 'exchange_acc...cope_required'
+E         
+E         - exchange_account_scope_required
+E         ?                  ^^ ^
+E         + exchange_account_role_required
+E         ?                  ^ ^
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:2004: AssertionError
+______ test_admin_credential_status_is_backend_protected_and_secret_free _______
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_admin_credential_status_i0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718431e26930>
+
+    def test_admin_credential_status_is_backend_protected_and_secret_free(tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv("ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_KEY", "test-read-only-key")
+        monkeypatch.setenv("ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_SECRET", "test-read-only-secret")
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+        client.cookies.clear()
+        assert client.get("/api/admin/credential-status").status_code == 401
+    
+        created = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "trader3@example.com",
+                "username": "trader3",
+                "password": "trader-password",
+                "role": "trader",
+                "trader_id": "trader-test-3",
+                "paper_account_id": "paper-test-3",
+            },
+        )
+        assert created.status_code == 201
+        trader_token = _login(client, "trader3@example.com", "trader-password")
+        assert client.get("/api/admin/credential-status", headers=_auth(trader_token)).status_code == 403
+    
+        response = client.get("/api/admin/credential-status", headers=_auth(admin_token))
+    
+        assert response.status_code == 200
+        payload = response.json()
+        account = next(
+            row["exchange_account"]
+            for row in payload["accounts"]
+            if row["trader_id"] == "trader-wajidali1984"
+        )
+        assert account["credential_status"]["configured"] is True
+        assert account["credential_status"]["credential_ref"] is None
+        assert account["credential_status"]["raw_credential_value_exposed"] is False
+        assert account["credential_status"]["live_trading_enabled"] is False
+        assert payload["credential_vault_readiness"]["status"] == "partial_backend_only_local_binding"
+        assert payload["credential_vault_readiness"]["backend_only"] is True
+        assert payload["credential_vault_readiness"]["environment_binding_supported"] is True
+        assert payload["credential_vault_readiness"]["durable_production_vault_integrated"] is False
+        assert payload["credential_vault_readiness"]["durable_production_vault_artifact_configured"] is False
+        assert payload["credential_vault_readiness"]["durable_production_vault_artifact_valid"] is False
+        assert payload["credential_vault_readiness"]["durable_production_vault_artifact_status"] == "pending"
+        assert payload["credential_vault_readiness"]["credential_rotation_policy_status"] == "missing"
+        assert payload["credential_vault_readiness"]["permission_probe_status"] == "pending"
+        assert payload["credential_vault_readiness"]["permission_probe_artifact_configured"] is False
+        assert payload["credential_vault_readiness"]["permission_probe_artifact_valid"] is False
+        assert payload["credential_vault_readiness"]["permission_probe_artifact_status"] == "pending"
+        assert payload["credential_vault_readiness"]["signed_read_validation_status"] == "pending"
+        assert payload["credential_vault_readiness"]["signed_read_validation_artifact_configured"] is False
+        assert payload["credential_vault_readiness"]["signed_read_validation_artifact_valid"] is False
+        assert payload["credential_vault_readiness"]["signed_read_validation_artifact_status"] == "pending"
+        assert payload["credential_vault_readiness"]["secret_redaction_smoke_status"] == "pending"
+        assert payload["credential_vault_readiness"]["secret_redaction_smoke_artifact_configured"] is False
+        assert payload["credential_vault_readiness"]["secret_redaction_smoke_artifact_valid"] is False
+        assert payload["credential_vault_readiness"]["secret_redaction_smoke_artifact_status"] == "pending"
+        assert payload["credential_vault_readiness"]["raw_credential_value_exposed"] is False
+        assert payload["credential_vault_readiness"]["live_trading_enabled"] is False
+        assert payload["credential_vault_readiness"]["exchange_mutation_enabled"] is False
+        assert "durable_production_credential_vault" in payload["credential_vault_readiness"]["missing_fields"]
+        assert "durable_credential_vault_artifact" in payload["credential_vault_readiness"]["missing_fields"]
+        assert "durable_credential_vault_current_validation" in payload["credential_vault_readiness"]["missing_fields"]
+>       assert payload["admin_audit_readiness"]["backend"] == "local_file"
+E       KeyError: 'backend'
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:2451: KeyError
+_______________ test_trader_exchange_link_route_is_metadata_only _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_trader_exchange_link_rout0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718432967020>
+
+    def test_trader_exchange_link_route_is_metadata_only(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+        created = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "metadata.trader@example.com",
+                "username": "metadata-trader",
+                "password": "trader-password",
+                "role": "trader",
+                "trader_id": "trader-metadata",
+                "paper_account_id": "paper-metadata",
+            },
+        )
+        assert created.status_code == 201
+        trader_token = _login(client, "metadata.trader@example.com", "trader-password")
+    
+        response = client.post(
+            "/api/accounts/me/exchange-accounts",
+            headers=_auth(trader_token),
+            json={
+                "exchange": "binance",
+                "label": "Metadata Binance Futures",
+                "account_type": "usd_m_futures",
+                "credential_ref": "ALPHAFORGE_SHOULD_NOT_STORE",
+            },
+        )
+    
+        assert response.status_code == 201
+        payload = response.json()
+        account = payload["user"]["exchange_accounts"][0]
+        assert "credential_ref" not in account
+        assert account["trader_id"] == "trader-metadata"
+        assert account["paper_account_id"] == "paper-metadata"
+>       assert account["status"] == "credential_binding_required"
+E       AssertionError: assert 'credential_reference_missing' == 'credential_binding_required'
+E         
+E         - credential_binding_required
+E         + credential_reference_missing
+
+v2/backend/tests/integration/api/test_auth_rbac_and_status.py:2661: AssertionError
+_____ test_static_portfolio_fallback_withholds_unscoped_or_mismatched_rows _____
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_static_portfolio_fallback0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718432465040>
+
+    def test_static_portfolio_fallback_withholds_unscoped_or_mismatched_rows(
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
+        client = _client(tmp_path, monkeypatch)
+        login = client.post(
+            "/api/auth/login",
+            json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
+        )
+        assert login.status_code == 200
+    
+        good_scope = {
+            "trader_id": "trader-wajidali1984",
+            "paper_account_id": "paper-wajidali1984",
+        }
+        wrong_scope = {
+            "trader_id": "trader-other",
+            "paper_account_id": "paper-other",
+        }
+        _write_json(
+            tmp_path,
+            "operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json",
+            {
+                "generated_utc": "2026-06-14T00:00:00Z",
+                "trader_id": "trader-wajidali1984",
+                "paper_account_id": "paper-wajidali1984",
+                "equity": 1000,
+                "realized_pnl_usd": 4,
+                "net_unrealized_pnl": -1,
+                "positions": [
+                    {**good_scope, "symbol": "BTCUSDT", "quantity": 0.1},
+                    {**wrong_scope, "symbol": "ETHUSDT", "quantity": 1},
+                    {"symbol": "SOLUSDT", "quantity": 5},
+                ],
+            },
+        )
+    
+        portfolio = client.get("/api/v2/portfolio").json()
+        _assert_contract(portfolio, "/api/v2/portfolio")
+        _assert_authenticated_account_scope(portfolio, verified=True)
+>       assert [row["symbol"] for row in portfolio["data"]["positions"]] == ["BTCUSDT"]
+E       AssertionError: assert [] == ['BTCUSDT']
+E         
+E         Right contains one more item: 'BTCUSDT'
+E         Use -v to get more diff
+
+v2/backend/tests/integration/api/v2/test_market_contract_routes.py:475: AssertionError
+_ test_local_paper_audit_metadata_accepts_durable_policy_artifact_as_partial_evidence _
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_local_paper_audit_metadat0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7184322856d0>
+
+    def test_local_paper_audit_metadata_accepts_durable_policy_artifact_as_partial_evidence(
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        artifact = tmp_path / "durable_paper_audit_policy.json"
+        artifact.write_text(
+            json.dumps(
+                {
+                    "durable_paper_audit_policy_status": "passed",
+                    "production_durable_store": True,
+                    "retention_enforced": True,
+                    "production_writer_hardened": True,
+                    "audit_verification_passed": True,
+                    "live_transport_enabled": False,
+                    "exchange_mutation_enabled": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("ALPHAFORGE_DURABLE_PAPER_AUDIT_POLICY_ARTIFACT", str(artifact))
+    
+        metadata = local_paper_audit_ledger_metadata(event_count=0, events=[])
+    
+        assert metadata["durable_paper_audit_policy_status"] == "artifact_present_pending_current_validation"
+        assert metadata["durable_paper_audit_policy_artifact_configured"] is True
+        assert metadata["durable_paper_audit_policy_artifact_valid"] is True
+        assert metadata["durable_paper_audit_policy_artifact_status"] == "verified"
+        assert metadata["durable_paper_audit_policy_artifact_production_durable_store"] is True
+        assert metadata["durable_paper_audit_policy_artifact_retention_enforced"] is True
+        assert metadata["durable_paper_audit_policy_artifact_writer_hardened"] is True
+        assert metadata["durable_paper_audit_policy_artifact_audit_verified"] is True
+        assert metadata["production_durable_store"] is False
+        assert "durable_paper_audit_policy_artifact" not in metadata["missing_fields"]
+        assert "durable_paper_audit_policy_current_validation" in metadata["missing_fields"]
+>       assert ledger_path.exists()
+E       NameError: name 'ledger_path' is not defined
+
+v2/backend/tests/integration/api/v2/test_market_contract_routes.py:681: NameError
+_______ test_production_paper_actions_fail_closed_until_verified_service _______
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_production_paper_actions_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718432285fa0>
+
+    def test_production_paper_actions_fail_closed_until_verified_service(tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
+        _write_json(
+            tmp_path,
+            "operator_runtime/v2_trade_terminal/latest/trade_terminal_payload.json",
+            {"symbol": "BTCUSDT", "generated_at": "2026-06-13T03:00:00Z", "last_price": 100000},
+        )
+        client = _client(tmp_path, monkeypatch)
+        login = client.post(
+            "/api/auth/login",
+            json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
+        )
+        assert login.status_code == 200
+        get_trader_account_repository().upsert_account(
+            trader_id="trader-wajidali1984",
+            paper_account_id="paper-wajidali1984",
+            equity=250000,
+            realized_pnl=0,
+            unrealized_pnl=0,
+            positions=[],
+            orders=[],
+            executions=[],
+            signals=[],
+            source_status="test_paper_repository",
+        )
+    
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(preview, "/api/v2/orders/preview")
+        assert preview["data"]["allowed"] is False
+        assert preview["data"]["reason"] == "production_paper_actions_disabled"
+        assert preview["data"]["estimated_notional"] == 10000
+        policy = preview["data"]["paper_execution_policy"]
+        assert policy["production_environment"] is True
+        assert policy["production_paper_actions_enabled"] is False
+        assert policy["production_paper_actions_status"] == "disabled_pending_verified_paper_execution_service"
+        assert policy["local_paper_actions_allowed_in_production"] is False
+        assert "production_paper_submit_cancel_validation" in preview["missing_fields"]
+        assert "production_paper_fill_writer" in preview["missing_fields"]
+        assert "verified_paper_execution_service" in preview["missing_fields"]
+    
+        submitted = client.post(
+            "/api/v2/orders/paper",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+>       _assert_contract(submitted, "/api/v2/orders/paper")
+
+v2/backend/tests/integration/api/v2/test_market_contract_routes.py:814: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = {'detail': 'auth_secret_required_in_production'}
+endpoint = '/api/v2/orders/paper'
+
+    def _assert_contract(response: dict, endpoint: str) -> None:
+>       assert response["endpoint"] == endpoint
+E       KeyError: 'endpoint'
+
+v2/backend/tests/integration/api/v2/test_market_contract_routes.py:37: KeyError
+_____ test_paper_execution_policy_reports_production_fill_writer_artifact ______
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_paper_execution_policy_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718432a0cc80>
+
+    def test_paper_execution_policy_reports_production_fill_writer_artifact(
+        tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
+        artifact = tmp_path / "production_paper_fill_writer.json"
+        artifact.write_text(
+            json.dumps(
+                {
+                    "production_paper_fill_writer_status": "verified",
+                    "paper_fill_writer_validated": True,
+                    "paper_only_fill_writer": True,
+                    "trader_scope_enforced": True,
+                    "paper_account_scope_enforced": True,
+                    "backend_owned_order_ids": True,
+                    "idempotency_enforced": True,
+                    "durable_repository_verified": True,
+                    "audit_event_linked": True,
+                    "contains_credentials": False,
+                    "live_transport_enabled": False,
+                    "exchange_mutation_enabled": False,
+                    "real_order_submitted": False,
+                    "real_order_cancelled": False,
+                    "leverage_mutation_enabled": False,
+                    "margin_mutation_enabled": False,
+                    "live_gate_mutation_enabled": False,
+                    "missing_fields": [],
+                    "warnings": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("ALPHAFORGE_PRODUCTION_PAPER_FILL_WRITER_ARTIFACT", str(artifact))
+        _write_json(
+            tmp_path,
+            "operator_runtime/v2_trade_terminal/latest/trade_terminal_payload.json",
+            {"symbol": "BTCUSDT", "generated_at": "2026-06-13T03:00:00Z", "last_price": 100000},
+        )
+        client = _client(tmp_path, monkeypatch)
+        login = client.post(
+            "/api/auth/login",
+            json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
+        )
+        assert login.status_code == 200
+        get_trader_account_repository().upsert_account(
+            trader_id="trader-wajidali1984",
+            paper_account_id="paper-wajidali1984",
+            equity=250000,
+            realized_pnl=0,
+            unrealized_pnl=0,
+            positions=[],
+            orders=[],
+            executions=[],
+            signals=[],
+            source_status="test_paper_repository",
+        )
+    
+        preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+    
+        _assert_contract(preview, "/api/v2/orders/preview")
+        policy = preview["data"]["paper_execution_policy"]
+        assert policy["production_paper_fill_writer_status"] == "artifact_present_pending_current_validation"
+        assert policy["production_paper_fill_writer_artifact_configured"] is True
+        assert policy["production_paper_fill_writer_artifact_valid"] is True
+        assert policy["production_paper_fill_writer_artifact_status"] == "verified"
+        assert policy["paper_fill_writer_validated"] is True
+        assert policy["paper_only_fill_writer"] is True
+        assert policy["paper_fill_writer_trader_scope_enforced"] is True
+        assert policy["paper_fill_writer_paper_account_scope_enforced"] is True
+        assert policy["paper_fill_writer_idempotency_enforced"] is True
+        assert "production_paper_fill_writer_artifact" not in policy["missing_fields"]
+        assert "production_paper_fill_writer_current_validation" in policy["missing_fields"]
+        assert policy["production_paper_actions_enabled"] is False
+        assert policy["live_transport_enabled"] is False
+        assert policy["exchange_mutation_enabled"] is False
+        serialized = json.dumps(policy).lower()
+        for text in ("api_key", "api_secret", "access_token", "live_order"):
+>           assert text not in serialized
+E           assert 'live_order' not in '{"status": ...s enabled"]}'
+E             
+E             'live_order' is contained here:
+E               : false, "live_order_cancel_enabled": false, "leverage_mutation_enabled": false, "margin_mode_mutation_enabled": false, "live_gate_mutation_enabled": false, "contains_exchange_credentials": false, "missing_fields": ["production_paper_submit_cancel_validation", "production_paper_fill_writer", "verified_paper_execution_service", "durable_paper_audit_policy", "production_trader_account_repository", "production_paper_fill_writer_current_validation"], "warnings": ["local paper repository policy only", "production paper submit/cancel/fill validation is pendin...
+E             
+E             ...Full output truncated (2 lines hidden), use '-vv' to show
+
+v2/backend/tests/integration/api/v2/test_market_contract_routes.py:910: AssertionError
+_________ test_market_data_websocket_emits_read_only_contract_snapshot _________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_market_data_websocket_emi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718433d53d10>
+
+    def test_market_data_websocket_emits_read_only_contract_snapshot(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+    
+>       with client.websocket_connect("/ws/market-data?symbol=BTCUSDT&interval_ms=1000") as websocket:
+
+v2/backend/tests/integration/api/v2/test_market_contract_routes.py:1413: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.12/site-packages/starlette/testclient.py:112: in __enter__
+    self._raise_on_close(message)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.testclient.WebSocketTestSession object at 0x7184323deba0>
+message = {'code': 1000, 'reason': '', 'type': 'websocket.close'}
+
+    def _raise_on_close(self, message: Message) -> None:
+        if message["type"] == "websocket.close":
+>           raise WebSocketDisconnect(code=message.get("code", 1000), reason=message.get("reason", ""))
+E           starlette.websockets.WebSocketDisconnect
+
+.venv/lib/python3.12/site-packages/starlette/testclient.py:170: WebSocketDisconnect
+_______ test_market_data_websocket_rejects_invalid_symbol_and_timeframe ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_market_data_websocket_rej0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x718431cf30e0>
+
+    def test_market_data_websocket_rejects_invalid_symbol_and_timeframe(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+    
+>       with client.websocket_connect("/ws/market-data?symbol=btcusdt..&timeframe=1m") as websocket:
+
+v2/backend/tests/integration/api/v2/test_market_contract_routes.py:1430: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.12/site-packages/starlette/testclient.py:112: in __enter__
+    self._raise_on_close(message)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.testclient.WebSocketTestSession object at 0x718432a0d580>
+message = {'code': 1000, 'reason': '', 'type': 'websocket.close'}
+
+    def _raise_on_close(self, message: Message) -> None:
+        if message["type"] == "websocket.close":
+>           raise WebSocketDisconnect(code=message.get("code", 1000), reason=message.get("reason", ""))
+E           starlette.websockets.WebSocketDisconnect
+
+.venv/lib/python3.12/site-packages/starlette/testclient.py:170: WebSocketDisconnect
+_ test_authenticated_trader_can_stage_fill_and_reject_cancel_local_paper_order_only _
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_authenticated_trader_can_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7184324b2b10>
+
+    def test_authenticated_trader_can_stage_fill_and_reject_cancel_local_paper_order_only(tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
+        _write_json(
+            tmp_path,
+            "operator_runtime/v2_trade_terminal/latest/trade_terminal_payload.json",
+            {"symbol": "BTCUSDT", "generated_at": "2026-06-13T03:00:00Z", "last_price": 100000},
+        )
+        client = _client(tmp_path, monkeypatch)
+        login = client.post(
+            "/api/auth/login",
+            json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
+        )
+        assert login.status_code == 200
+        get_trader_account_repository().upsert_account(
+            trader_id="trader-wajidali1984",
+            paper_account_id="paper-wajidali1984",
+            equity=250000,
+            realized_pnl=0,
+            unrealized_pnl=0,
+            positions=[],
+            orders=[],
+            executions=[],
+            signals=[],
+            source_status="test_paper_repository",
+        )
+    
+        preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(preview, "/api/v2/orders/preview")
+        assert preview["source_type"] == "repository"
+        assert "Trader account repository" in preview["source"]
+        assert "/home/" not in preview["source"]
+        assert "trader_accounts.json" not in preview["source"]
+        assert preview["data"]["allowed"] is True
+        assert preview["data"]["reason"] == "paper_preview_ready"
+        assert preview["symbol"] == "BTCUSDT"
+        assert "Reference price was supplied by the paper preview request" in preview["warnings"]
+    
+        invalid_symbol_preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "btcusdt../",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(invalid_symbol_preview, "/api/v2/orders/preview")
+        assert invalid_symbol_preview["data"]["allowed"] is False
+        assert invalid_symbol_preview["data"]["reason"] == "symbol_invalid"
+        assert invalid_symbol_preview["data"]["friendly_reason"] == "Enter a valid market symbol"
+        assert "symbol" in invalid_symbol_preview["missing_fields"]
+        assert invalid_symbol_preview["symbol"] is None
+    
+        mismatched_preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "trader_id": "trader-wajidali1984",
+                "paper_account_id": "paper-other",
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(mismatched_preview, "/api/v2/orders/preview")
+        assert mismatched_preview["data"]["allowed"] is False
+        assert mismatched_preview["data"]["reason"] == "paper_account_scope_mismatch"
+        assert "paper_account_scope" in mismatched_preview["missing_fields"]
+    
+        mismatched_trader_preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "trader_id": "trader-other",
+                "paper_account_id": "paper-wajidali1984",
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(mismatched_trader_preview, "/api/v2/orders/preview")
+        assert mismatched_trader_preview["data"]["allowed"] is False
+        assert mismatched_trader_preview["data"]["reason"] == "trader_scope_mismatch"
+        assert "trader_scope" in mismatched_trader_preview["missing_fields"]
+    
+        missing_scope_submit = client.post(
+            "/api/v2/orders/paper",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(missing_scope_submit, "/api/v2/orders/paper")
+        assert missing_scope_submit["data"]["accepted"] is False
+        assert missing_scope_submit["data"]["reason"] == "paper_action_scope_required"
+        assert missing_scope_submit["data"]["friendly_reason"] == "Paper action requires a signed-in trader and matching paper account"
+        assert "request_trader_id" in missing_scope_submit["missing_fields"]
+        assert "request_paper_account_id" in missing_scope_submit["missing_fields"]
+    
+        submitted = client.post(
+            "/api/v2/orders/paper",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "trader_id": "trader-wajidali1984",
+                "paper_account_id": "paper-wajidali1984",
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(submitted, "/api/v2/orders/paper")
+        assert submitted["data"]["accepted"] is True
+        assert submitted["data"]["order"]["status"] == "open"
+        assert submitted["data"]["order"]["audit_event"] == "paper_order_staged_local"
+        assert submitted["symbol"] == "BTCUSDT"
+        assert submitted["data"]["order"]["symbol"] == "BTCUSDT"
+        assert submitted["data"]["order"]["trader_id"] == "trader-wajidali1984"
+        assert submitted["data"]["order"]["paper_account_id"] == "paper-wajidali1984"
+    
+        staged_orders = client.get("/api/v2/execution/orders").json()
+        _assert_contract(staged_orders, "/api/v2/execution/orders")
+        _assert_authenticated_account_scope(staged_orders, verified=True)
+        assert staged_orders["data"]["orders"][0]["order_id"] == submitted["data"]["order"]["order_id"]
+        assert staged_orders["data"]["orders"][0]["trader_id"] == "trader-wajidali1984"
+        assert staged_orders["data"]["orders"][0]["paper_account_id"] == "paper-wajidali1984"
+    
+        invalid_symbol_submit = client.post(
+            "/api/v2/orders/paper",
+            json={
+                "symbol": "btcusdt../",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "trader_id": "trader-wajidali1984",
+                "paper_account_id": "paper-wajidali1984",
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(invalid_symbol_submit, "/api/v2/orders/paper")
+        assert invalid_symbol_submit["data"]["accepted"] is False
+        assert invalid_symbol_submit["data"]["reason"] == "symbol_invalid"
+        assert invalid_symbol_submit["data"]["friendly_reason"] == "Enter a valid market symbol"
+        assert "symbol" in invalid_symbol_submit["missing_fields"]
+        assert invalid_symbol_submit["symbol"] is None
+        assert submitted["data"]["order"]["id"].startswith("paper-")
+        assert submitted["data"]["order"]["order_id"].startswith("paper-")
+        assert submitted["data"]["order"]["live_transport_enabled"] is False
+        assert submitted["data"]["order"]["exchange_mutation_enabled"] is False
+        _assert_paper_execution_policy(submitted["data"]["paper_execution_policy"])
+        order_id = submitted["data"]["order"]["order_id"]
+    
+        filled = client.post(
+            f"/api/v2/orders/paper/{order_id}/fill",
+            json={"price": 100000, "reason": "test local paper fill"},
+        ).json()
+        _assert_contract(filled, f"/api/v2/orders/paper/{order_id}/fill")
+        assert filled["data"]["accepted"] is True
+        assert filled["data"]["order"]["status"] == "filled"
+        assert filled["data"]["execution"]["order_id"] == order_id
+        assert filled["data"]["execution"]["audit_event"] == "paper_order_filled_local"
+        assert filled["data"]["execution"]["live_transport_enabled"] is False
+        assert filled["data"]["execution"]["exchange_mutation_enabled"] is False
+        _assert_paper_execution_policy(filled["data"]["paper_execution_policy"])
+    
+        positions = client.get("/api/v2/account/positions").json()
+        _assert_contract(positions, "/api/v2/account/positions")
+        _assert_authenticated_account_scope(positions, verified=True)
+        assert positions["data"]["positions"][0]["symbol"] == "BTCUSDT"
+        assert positions["data"]["positions"][0]["trader_id"] == "trader-wajidali1984"
+        assert positions["data"]["positions"][0]["paper_account_id"] == "paper-wajidali1984"
+        assert positions["data"]["positions"][0]["side"] == "Long"
+    
+        executions = client.get("/api/v2/execution/executions").json()
+        _assert_contract(executions, "/api/v2/execution/executions")
+        _assert_authenticated_account_scope(executions, verified=True)
+        assert executions["data"]["executions"][0]["order_id"] == order_id
+    
+        canceled = client.post(f"/api/v2/orders/paper/{order_id}/cancel").json()
+        _assert_contract(canceled, f"/api/v2/orders/paper/{order_id}/cancel")
+        assert canceled["data"]["accepted"] is False
+        assert canceled["data"]["reason"] == "paper_cancel_rejected"
+        _assert_paper_execution_policy(canceled["data"]["paper_execution_policy"])
+        account = get_trader_account_repository().get_account(
+            trader_id="trader-wajidali1984",
+            paper_account_id="paper-wajidali1984",
+        )
+        assert account is not None
+        audit_events = account.get("audit_events", [])
+        audit_names = [event.get("audit_event") for event in audit_events]
+        assert "paper_order_staged_local" in audit_names
+        assert "paper_order_filled_local" in audit_names
+        assert all(event.get("exchange_mutation_enabled") is False for event in audit_events)
+        assert all(event.get("live_transport_enabled") is False for event in audit_events)
+>       assert all(event.get("tamper_evident") is True for event in audit_events)
+E       assert False
+E        +  where False = all(<generator object test_authenticated_trader_can_stage_fill_and_reject_cancel_local_paper_order_only.<locals>.<genexpr> at 0x718431e8f440>)
+
+v2/backend/tests/integration/api/v2/test_market_contract_routes.py:1890: AssertionError
+_________________ test_market_page_imports_panel_and_uses_hook _________________
+
+    def test_market_page_imports_panel_and_uses_hook() -> None:
+        src = _read(MARKET_PAGE_TSX)
+>       assert "CandidatePublisherPanel" in src, (
+            "/market page must import CandidatePublisherPanel."
+        )
+E       AssertionError: /market page must import CandidatePublisherPanel.
+E       assert 'CandidatePublisherPanel' in "import { useMemo, type ReactNode } from 'react';\nimport { useParams } from 'react-router-dom';\nimport { Activity, A...r} />\n      <SignalSection signal={state.signals} />\n      <EvidenceSection state={state} />\n    </main>\n  );\n}\n"
+
+v2/backend/tests/integration/cli/test_v2_alt_data_symbol_candidate_publisher_frontend_wiring.py:339: AssertionError
+___________ test_symbol_universe_contract_required_in_public_payload ___________
+
+freshly_built_snapshot_file = PosixPath('/tmp/pytest-of-wali/pytest-608/test_symbol_universe_contract_5/snapshot.json')
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_symbol_universe_contract_5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x71848bcb4d40>
+
+    def test_symbol_universe_contract_required_in_public_payload(
+        freshly_built_snapshot_file: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _route_writes_to(tmp_path, monkeypatch)
+        snapshot = json.loads(freshly_built_snapshot_file.read_text())
+        snapshot["dynamic_discovered_symbols"] = [
+            "BTCUSDT",
+            "ETHUSDT",
+            "SOLUSDT",
+            "COINANK_ONLY_USDT",
+            "KUCOIN_ONLY_USDT",
+        ]
+        snapshot["training_symbols"] = ["BTCUSDT", "ETHUSDT"]
+        snapshot["paper_symbols"] = ["BTCUSDT"]
+        scoped_snapshot = tmp_path / "scoped_snapshot.json"
+        scoped_snapshot.write_text(json.dumps(snapshot))
+    
+        args = parse_args(["--once", "--input-file", str(scoped_snapshot)])
+        status = run_once(args)
+    
+        assert status["symbol_universe_contract"] == "SYMBOL_UNIVERSE_CONTRACT_REQUIRED"
+>       assert status["symbol_universe_source_path"] == "v2/backend/app/services/symbol_universe/service.py"
+E       AssertionError: assert 'v2/frontend/...e_status.json' == 'v2/backend/a...se/service.py'
+E         
+E         - v2/backend/app/services/symbol_universe/service.py
+E         + v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json
+
+v2/backend/tests/integration/cli/test_v2_feature_pipeline_and_ta_worker.py:214: AssertionError
+_____________________________ test_happy_fill_long _____________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_happy_fill_long0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7180cb70ca10>
+
+    def test_happy_fill_long(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        paths = _route_writes_to(tmp_path, monkeypatch)
+        decision_path = _write_decision_file(
+            tmp_path,
+            _risk_decision_dict(
+                risk_action="allow",
+                risk_reason_code="allow_proceed_long",
+                input_decision_action="open_long",
+                input_decision_reason_code="proceed_long",
+            ),
+        )
+        args = parse_args(["--once", "--decision-file", str(decision_path)])
+        status = run_once(args)
+    
+        assert status["worker_id"] == WORKER_ID
+>       assert status["ledger_action"] == "record_allow"
+E       AssertionError: assert 'denied_by_paper_edge_gate' == 'record_allow'
+E         
+E         - record_allow
+E         + denied_by_paper_edge_gate
+
+v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py:190: AssertionError
+____________________________ test_happy_fill_short _____________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_happy_fill_short0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7180cb70cdd0>
+
+    def test_happy_fill_short(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _route_writes_to(tmp_path, monkeypatch)
+        decision_path = _write_decision_file(
+            tmp_path,
+            _risk_decision_dict(
+                risk_action="allow",
+                risk_reason_code="allow_proceed_short",
+                input_decision_action="open_short",
+                input_decision_reason_code="proceed_short",
+            ),
+        )
+        args = parse_args(["--once", "--decision-file", str(decision_path)])
+        status = run_once(args)
+    
+>       assert status["ledger_action"] == "record_allow"
+E       AssertionError: assert 'denied_by_paper_edge_gate' == 'record_allow'
+E         
+E         - record_allow
+E         + denied_by_paper_edge_gate
+
+v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py:256: AssertionError
+________________ test_paper_filter_denies_same_symbol_cooldown _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_paper_filter_denies_same_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7180c650af60>
+
+    def test_paper_filter_denies_same_symbol_cooldown(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _route_writes_to(tmp_path, monkeypatch)
+        decision = _risk_decision_dict(
+            risk_action="allow",
+            risk_reason_code="allow_proceed_long",
+            input_decision_action="open_long",
+            input_decision_reason_code="proceed_long",
+        )
+        decision["recent_paper_events"] = [
+            {
+                "generated_at_ms": PAPER_FILTER_TEST_NOW_MS - 60_000,
+                "symbol": "BTCUSDT",
+                "action": "OPEN_LONG",
+                "paper_result": "FILLED_PAPER_ONLY",
+                "ledger_action": "PAPER_FILL_SIMULATED",
+                "paper_pnl_delta": 0.05,
+            }
+        ]
+        decision_path = _write_decision_file(tmp_path, decision)
+    
+        status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
+    
+>       _assert_paper_filter_denial(status, "same_symbol_same_direction_cooldown")
+
+v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py:353: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+status = {'binance_usdm_confirmed_symbols': ['BTCUSDT'], 'block_reason': 'COOLDOWN_BLOCK', 'checkpoint_id': 'checkpoint_readonly', 'coinank_symbols_tradability': 'market_intelligence_only_until_binance_usdm_confirmed', ...}
+reason = 'same_symbol_same_direction_cooldown'
+
+    def _assert_paper_filter_denial(status: Dict[str, Any], reason: str) -> None:
+>       assert status["ledger_action"] == PAPER_CANARY_FILTER_DENY_ACTION
+E       AssertionError: assert 'denied_by_paper_edge_gate' == 'denied_by_paper_filter'
+E         
+E         - denied_by_paper_filter
+E         ?                 ^^^  -
+E         + denied_by_paper_edge_gate
+E         ?                 ^^^^^^^
+
+v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py:277: AssertionError
+_____________________ test_paper_filter_denies_flip_churn ______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_paper_filter_denies_flip_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7180c650b800>
+
+    def test_paper_filter_denies_flip_churn(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _route_writes_to(tmp_path, monkeypatch)
+        decision = _risk_decision_dict(
+            risk_action="allow",
+            risk_reason_code="allow_proceed_short",
+            input_decision_action="open_short",
+            input_decision_reason_code="proceed_short",
+        )
+        decision["recent_paper_events"] = [
+            {
+                "generated_at_ms": PAPER_FILTER_TEST_NOW_MS - 60_000,
+                "symbol": "BTCUSDT",
+                "action": "OPEN_LONG",
+                "paper_result": "FILLED_PAPER_ONLY",
+                "ledger_action": "PAPER_FILL_SIMULATED",
+                "paper_pnl_delta": 0.05,
+            }
+        ]
+        decision_path = _write_decision_file(tmp_path, decision)
+    
+        status = run_once(parse_args(["--once", "--decision-file", str(decision_path)]))
+    
+>       _assert_paper_filter_denial(status, "flip_churn_cooldown")
+
+v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py:380: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+status = {'binance_usdm_confirmed_symbols': ['BTCUSDT'], 'block_reason': 'COOLDOWN_BLOCK', 'checkpoint_id': 'checkpoint_readonly', 'coinank_symbols_tradability': 'market_intelligence_only_until_binance_usdm_confirmed', ...}
+reason = 'flip_churn_cooldown'
+
+    def _assert_paper_filter_denial(status: Dict[str, Any], reason: str) -> None:
+>       assert status["ledger_action"] == PAPER_CANARY_FILTER_DENY_ACTION
+E       AssertionError: assert 'denied_by_paper_edge_gate' == 'denied_by_paper_filter'
+E         
+E         - denied_by_paper_filter
+E         ?                 ^^^  -
+E         + denied_by_paper_edge_gate
+E         ?                 ^^^^^^^
+
+v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py:277: AssertionError
+______________ test_paper_trade_id_derived_from_risk_decision_id _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_paper_trade_id_derived_fr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7180cb5ef830>
+
+    def test_paper_trade_id_derived_from_risk_decision_id(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _route_writes_to(tmp_path, monkeypatch)
+        rid = "risk_decision_xyz_42"
+        decision_path = _write_decision_file(
+            tmp_path,
+            _risk_decision_dict(
+                risk_action="allow",
+                risk_reason_code="allow_proceed_long",
+                input_decision_action="open_long",
+                input_decision_reason_code="proceed_long",
+                risk_decision_id=rid,
+            ),
+        )
+        args = parse_args(["--once", "--decision-file", str(decision_path)])
+        status = run_once(args)
+>       assert status["last_paper_trade_id"] == f"pt_{rid}"
+E       AssertionError: assert '' == 'pt_risk_decision_xyz_42'
+E         
+E         - pt_risk_decision_xyz_42
+
+v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py:805: AssertionError
+_____________ test_bridge_format_from_risk_gateway_status_accepted _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_bridge_format_from_risk_g0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7180c650be30>
+
+    def test_bridge_format_from_risk_gateway_status_accepted(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _route_writes_to(tmp_path, monkeypatch)
+        bridge = {
+            "worker_id": UPSTREAM_RISK_GATEWAY_WORKER_ID,
+            "last_risk_decision_id": "rd_bridge_1",
+            "last_decision_id": "decision_bridge_1",
+            "prediction_id": "prediction_bridge_1",
+            "feature_snapshot_id": "feature_bridge_1",
+            "symbol": "BTCUSDT",
+            "last_risk_decision_ts_ms": PAPER_FILTER_TEST_NOW_MS - 1_000,
+            "risk_action": "allow",
+            "risk_reason_code": "allow_proceed_short",
+            "input_decision_action": "open_short",
+            "input_decision_reason_code": "proceed_short",
+            "live_blocked": True,
+            "confidence_calibrated": 0.82,
+            "signal_generated_at_ms": PAPER_FILTER_TEST_NOW_MS - 1_000,
+            "feature_snapshot_generated_at_ms": PAPER_FILTER_TEST_NOW_MS - 1_000,
+            "expected_move_bps": 14.0,
+            "expected_move_after_cost_bps": 8.0,
+            "fee_bps": 4.0,
+            "spread_bps": 0.0,
+            "slippage_bps": 2.0,
+            "funding_risk_bps": 0.0,
+            "funding_bps": 0.0,
+            "trainer_source": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+            "trainer_bridge_status": "LEGACY_HYBRID_TRAINER_LOG_READONLY",
+            "feature_freshness_state": "CURRENT",
+            "stale_feature_flags": [],
+            "missing_feature_flags": [],
+        }
+        decision_path = _write_decision_file(tmp_path, bridge, name="bridge.json")
+        args = parse_args(["--once", "--decision-file", str(decision_path)])
+        status = run_once(args)
+>       assert status["ledger_action"] == "record_allow"
+E       AssertionError: assert 'denied_by_paper_edge_gate' == 'record_allow'
+E         
+E         - record_allow
+E         + denied_by_paper_edge_gate
+
+v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py:850: AssertionError
+_______________ test_fake_exchange_spy_not_invoked_on_paper_path _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_fake_exchange_spy_not_inv0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7180cb5ee930>
+
+    def test_fake_exchange_spy_not_invoked_on_paper_path(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _route_writes_to(tmp_path, monkeypatch)
+    
+        class ExchangeSpy:
+            def __init__(self) -> None:
+                self.calls: List[str] = []
+    
+        spy = ExchangeSpy()
+    
+        def _trap(name: str):
+            def _inner(*_args: Any, **_kwargs: Any) -> None:
+                spy.calls.append(name)
+                raise AssertionError(f"paper worker invoked exchange method: {name}")
+    
+            return _inner
+    
+        for name in [
+            "create" + "_order",
+            "cancel" + "_order",
+            "futures_create" + "_order",
+            "futures_change" + "_leverage",
+            "futures_change" + "_margin_type",
+        ]:
+            setattr(spy, name, _trap(name))
+        for attr in ["exchange_client", "binance_client", "futures_client", "ccxt_client"]:
+            monkeypatch.setattr(worker, attr, spy, raising=False)
+    
+        decision_path = _write_decision_file(
+            tmp_path,
+            _risk_decision_dict(
+                risk_action="allow",
+                risk_reason_code="allow_proceed_long",
+                input_decision_action="open_long",
+                input_decision_reason_code="proceed_long",
+            ),
+        )
+        args = parse_args(["--once", "--decision-file", str(decision_path)])
+        status = run_once(args)
+    
+>       assert status["simulated_fill"]["fill_recorded"] is True
+E       assert False is True
+
+v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py:953: AssertionError
+_____________ test_risk_gateway_live_loop_stamps_v2_risk_decisions _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7180cb5d3e00>
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_risk_gateway_live_loop_st0')
+
+    def test_risk_gateway_live_loop_stamps_v2_risk_decisions(monkeypatch, tmp_path):
+        from v2.backend.app.cli import v2_risk_gateway_live_loop as worker
+    
+        clear_decision_replays()
+        client = _RedisLike({
+            "generated_utc": "2026-06-03T00:00:00Z",
+            "bucket_winners": [{
+                "symbol": "BTCUSDT",
+                "side": "long",
+                "winner_proposal_id": "pred_1",
+                "winner_confidence_calibrated": 0.81,
+                "winner_freshness_seconds": 5.0,
+            }],
+        })
+        monkeypatch.setattr(worker, "_connect_redis", lambda: client)
+        monkeypatch.setattr(worker, "PUBLIC_STATUS_FILE", tmp_path / "public.json")
+        monkeypatch.setattr(worker, "LOCAL_STATUS_FILE", tmp_path / "local.json")
+        monkeypatch.setattr(worker, "WORKLOG_STATUS_FILE", tmp_path / "worklog.json")
+>       payload = worker.run_once(ttl_seconds=123)
+
+v2/backend/tests/integration/cli/test_v2_risk_gateway_live_loop.py:44: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
+        started = _utc_iso()
+        client = _connect_redis()
+        live_context = _live_context(client)
+        payload = _read_json_key(client, f"{V2_REDIS_PREFIX}orchestrator:decisions")
+        winners = (payload or {}).get("bucket_winners") or []
+        if not isinstance(winners, list):
+            winners = []
+>       evaluator = build_risk_decision_evaluator(now_ms_clock=_now_ms, live_trading_enabled=False)
+E       TypeError: build_risk_decision_evaluator() got an unexpected keyword argument 'live_trading_enabled'
+
+v2/backend/app/cli/v2_risk_gateway_live_loop.py:273: TypeError
+_____ test_trusted_publisher_once_emits_prediction_replay_and_mtf_snapshot _____
+
+    def test_trusted_publisher_once_emits_prediction_replay_and_mtf_snapshot() -> None:
+        client = FakeRedis(closed_store())
+    
+        result = run_publisher_proof_once(client=client)
+    
+        assert result["success"] is True
+        assert result["prediction_key"] == "v2:prediction:BTCUSDT:1m"
+        assert result["replay_snapshot_key"] in client.store
+        assert result["mtf_snapshot_key"] in client.store
+        prediction = json.loads(client.store[result["prediction_key"]])
+        replay = json.loads(client.store[result["replay_snapshot_key"]])
+        mtf = json.loads(client.store[result["mtf_snapshot_key"]])
+        assert prediction["trust_schema_version"] == TRUST_SCHEMA_VERSION
+        assert prediction["routes_to_live"] is False
+        assert prediction["live_order_allowed"] is False
+        assert prediction["mtf_snapshot_id"]
+        assert prediction["replay_snapshot_id"]
+>       assert replay["trust_schema_version"] == TRUST_SCHEMA_VERSION
+E       KeyError: 'trust_schema_version'
+
+v2/backend/tests/unit/cli/test_run_trusted_prediction_publisher_once.py:148: KeyError
+_________ test_export_and_strict_verifier_accept_clean_publisher_proof _________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_export_and_strict_verifie0')
+
+    def test_export_and_strict_verifier_accept_clean_publisher_proof(tmp_path: Path) -> None:
+        client = FakeRedis(closed_store())
+        result = run_publisher_proof_once(client=client, symbol="BTCUSDT")
+        assert result["success"] is True
+        client.store.update(supporting_strict_runtime_records(result))
+    
+        run_dir = export_pipeline_trust_evidence(
+            client=client,
+            redis_url="redis://example.invalid:6379/0",
+            output_root=tmp_path,
+        )
+        replay_rows = [
+            json.loads(line)
+            for line in (run_dir / "replay_snapshots.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        prediction_rows = [
+            json.loads(line)
+            for line in (run_dir / "predictions.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        mtf_rows = [
+            json.loads(line)
+            for line in (run_dir / "mtf_snapshots.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert len(replay_rows) == 2
+        assert len(prediction_rows) == 1
+        assert len(mtf_rows) == 1
+    
+        out = run_dir / "report"
+        code = verify_main(["--input", str(run_dir), "--output-dir", str(out), "--strict-unknown"])
+        report = json.loads((out / "pipeline_trust_report.json").read_text(encoding="utf-8"))
+        finding_ids = {finding["check_id"] for finding in report["findings"]}
+>       assert code == 0
+E       assert 1 == 0
+
+v2/backend/tests/unit/cli/test_run_trusted_prediction_publisher_once.py:207: AssertionError
+_ test_module_source_no_longer_pins_three_symbol_default[v2/backend/app/cli/v2_market_ingestor.py-forbidden5-required5] _
+
+file_path = 'v2/backend/app/cli/v2_market_ingestor.py'
+forbidden = ('add_argument\\(\\s*"--symbol",\\s*default\\s*=\\s*"BTCUSDT"\\s*\\)',)
+required = ('resolve_symbols', '--smoke-test')
+
+    @pytest.mark.parametrize("file_path,forbidden,required", PATCHED_FILES)
+    def test_module_source_no_longer_pins_three_symbol_default(
+        file_path: str,
+        forbidden: tuple[str, ...],
+        required: tuple[str, ...],
+    ) -> None:
+        src = (REPO_ROOT / file_path).read_text(encoding="utf-8")
+        for pat in forbidden:
+>           assert not re.search(pat, src, re.MULTILINE), (
+                f"{file_path}: still contains forbidden hard-coded default "
+                f"matching /{pat}/"
+            )
+E           AssertionError: v2/backend/app/cli/v2_market_ingestor.py: still contains forbidden hard-coded default matching /add_argument\(\s*"--symbol",\s*default\s*=\s*"BTCUSDT"\s*\)/
+E           assert not <re.Match object; span=(8623, 8666), match='add_argument("--symbol", default="BTCUSDT")'>
+E            +  where <re.Match object; span=(8623, 8666), match='add_argument("--symbol", default="BTCUSDT")'> = <function search at 0x71848f4e2660>('add_argument\\(\\s*"--symbol",\\s*default\\s*=\\s*"BTCUSDT"\\s*\\)', '"""V2 market ingestor — standalone CLI worker.\n\nPorts the legacy market-ingestor responsibility from the startup-ba...:\n            pass\n        time.sleep(max(1, args.interval))\n\n\nif __name__ == "__main__":\n    sys.exit(main())\n', re.MULTILINE)
+E            +    where <function search at 0x71848f4e2660> = re.search
+E            +    and   re.MULTILINE = re.MULTILINE
+
+v2/backend/tests/unit/cli/test_v2_full_copied_runtime_default_symbol_drift.py:136: AssertionError
+_ test_module_source_no_longer_pins_three_symbol_default[v2/backend/app/cli/readonly_market_exchange_data_plane.py-forbidden9-required9] _
+
+file_path = 'v2/backend/app/cli/readonly_market_exchange_data_plane.py'
+forbidden = ('add_argument\\(\\s*"--symbol",\\s*default\\s*=\\s*"BTCUSDT"\\s*\\)',)
+required = ('resolve_symbols', '--smoke-test')
+
+    @pytest.mark.parametrize("file_path,forbidden,required", PATCHED_FILES)
+    def test_module_source_no_longer_pins_three_symbol_default(
+        file_path: str,
+        forbidden: tuple[str, ...],
+        required: tuple[str, ...],
+    ) -> None:
+        src = (REPO_ROOT / file_path).read_text(encoding="utf-8")
+        for pat in forbidden:
+>           assert not re.search(pat, src, re.MULTILINE), (
+                f"{file_path}: still contains forbidden hard-coded default "
+                f"matching /{pat}/"
+            )
+E           AssertionError: v2/backend/app/cli/readonly_market_exchange_data_plane.py: still contains forbidden hard-coded default matching /add_argument\(\s*"--symbol",\s*default\s*=\s*"BTCUSDT"\s*\)/
+E           assert not <re.Match object; span=(586, 629), match='add_argument("--symbol", default="BTCUSDT")'>
+E            +  where <re.Match object; span=(586, 629), match='add_argument("--symbol", default="BTCUSDT")'> = <function search at 0x71848f4e2660>('add_argument\\(\\s*"--symbol",\\s*default\\s*=\\s*"BTCUSDT"\\s*\\)', 'from __future__ import annotations\n\nimport argparse\nfrom pathlib import Path\n\nfrom v2.backend.app.proof.readonly...:\n        print(args.public_output_dir)\n    return 0\n\n\nif __name__ == "__main__":\n    raise SystemExit(main())\n', re.MULTILINE)
+E            +    where <function search at 0x71848f4e2660> = re.search
+E            +    and   re.MULTILINE = re.MULTILINE
+
+v2/backend/tests/unit/cli/test_v2_full_copied_runtime_default_symbol_drift.py:136: AssertionError
+__ test_active_runtime_cli_source_has_no_literal_btc_or_three_symbol_default ___
+
+    def test_active_runtime_cli_source_has_no_literal_btc_or_three_symbol_default() -> None:
+        for path in (REPO_ROOT / "v2/backend/app/cli").glob("*.py"):
+            rel = str(path.relative_to(REPO_ROOT))
+            if rel in ACTIVE_RUNTIME_CLI_DRIFT_ALLOWLIST:
+                continue
+            src = path.read_text(encoding="utf-8")
+            for pat in ACTIVE_RUNTIME_FORBIDDEN_DEFAULT_PATTERNS:
+>               assert not re.search(pat, src, re.MULTILINE | re.DOTALL), (
+                    f"{rel}: active V2 CLI still contains a BTC-only or "
+                    f"BTC/ETH/SOL default matching /{pat}/"
+                )
+E               AssertionError: v2/backend/app/cli/v2_market_ingestor.py: active V2 CLI still contains a BTC-only or BTC/ETH/SOL default matching /add_argument\([^)]*"--symbol"[^)]*default\s*=\s*"BTCUSDT"/
+E               assert not <re.Match object; span=(8623, 8665), match='add_argument("--symbol", default="BTCUSDT"'>
+E                +  where <re.Match object; span=(8623, 8665), match='add_argument("--symbol", default="BTCUSDT"'> = <function search at 0x71848f4e2660>('add_argument\\([^)]*"--symbol"[^)]*default\\s*=\\s*"BTCUSDT"', '"""V2 market ingestor — standalone CLI worker.\n\nPorts the legacy market-ingestor responsibility from the startup-ba...:\n            pass\n        time.sleep(max(1, args.interval))\n\n\nif __name__ == "__main__":\n    sys.exit(main())\n', (re.MULTILINE | re.DOTALL))
+E                +    where <function search at 0x71848f4e2660> = re.search
+E                +    and   re.MULTILINE = re.MULTILINE
+E                +    and   re.DOTALL = re.DOTALL
+
+v2/backend/tests/unit/cli/test_v2_full_copied_runtime_default_symbol_drift.py:154: AssertionError
+_______________ test_public_surface_exports_exact_ordered_names ________________
+
+    def test_public_surface_exports_exact_ordered_names() -> None:
+        expected = (
+            "RiskGatewayDomainError",
+            "RiskDecisionRecord",
+            "RISK_DECISION_ACTION_ALLOW",
+            "RISK_DECISION_ACTION_DENY",
+            "RISK_DECISION_REASON_ALLOW_PROCEED_LONG",
+            "RISK_DECISION_REASON_ALLOW_PROCEED_SHORT",
+            "RISK_DECISION_REASON_DENY_ORCHESTRATOR_ABSTAINED",
+            "RISK_DECISION_REASON_DENY_ORCHESTRATOR_HELD",
+            "RISK_DECISION_REASON_DENY_DEFAULT",
+        )
+>       assert risk_gateway.__all__ == expected
+E       AssertionError: assert ('RiskGateway...D_SHORT', ...) == ('RiskGateway...D_SHORT', ...)
+E         
+E         At index 6 diff: 'RISK_DECISION_REASON_ALLOW_CLOSE_ONLY_INTELLIGENT_CLOSE_GUARD' != 'RISK_DECISION_REASON_DENY_ORCHESTRATOR_ABSTAINED'
+E         Left contains 10 more items, first extra item: 'RISK_DECISION_REASON_DENY_DEFAULT'
+E         Use -v to get more diff
+
+v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py:18: AssertionError
+_______________ test_harness_does_not_use_live_side_effect_terms _______________
+
+    def test_harness_does_not_use_live_side_effect_terms() -> None:
+        root = Path("v2/backend/app/proof")
+        text = "\n".join(path.read_text() for path in root.rglob("*.py"))
+    
+        forbidden = [
+            "redis" + "-cli",
+            "XA" + "DD",
+            "XD" + "EL",
+            "FLUSH" + "DB",
+            "FLUSH" + "ALL",
+            "create" + "_order",
+            "cancel" + "_order",
+            "change" + "_leverage",
+            "change" + "_margin",
+            "systemctl" + " restart",
+            "LIVE_TRADING" + "_ENABLED",
+        ]
+>       assert [token for token in forbidden if token in text] == []
+E       AssertionError: assert ['create_orde...hange_margin'] == []
+E         
+E         Left contains 4 more items, first extra item: 'create_order'
+E         Use -v to get more diff
+
+v2/backend/tests/unit/proof/test_non_live_operational_proof_artifacts.py:131: AssertionError
+_____ test_alembic_auth_migration_approval_smoke_passes_for_safe_evidence ______
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_alembic_auth_migration_ap0')
+
+    def test_alembic_auth_migration_approval_smoke_passes_for_safe_evidence(tmp_path: Path) -> None:
+        approval, safety = _write_safe_evidence(tmp_path)
+    
+        report = build_report(approval_artifact_paths=[approval], safety_artifact_paths=[safety])
+    
+>       assert report["alembic_auth_migration_approval_status"] == "passed"
+E       AssertionError: assert 'failed' == 'passed'
+E         
+E         - passed
+E         + failed
+
+v2/backend/tests/unit/scripts/test_run_alembic_auth_migration_approval_smoke.py:51: AssertionError
+________ test_alembic_auth_migration_approval_smoke_cli_writes_artifact ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_alembic_auth_migration_ap3')
+
+    def test_alembic_auth_migration_approval_smoke_cli_writes_artifact(tmp_path: Path) -> None:
+        approval, safety = _write_safe_evidence(tmp_path)
+        output = tmp_path / "artifact" / "alembic-approval.json"
+    
+        exit_code = main(
+            [
+                "--approval-artifact-path",
+                str(approval),
+                "--safety-artifact-path",
+                str(safety),
+                "--output",
+                str(output),
+            ]
+        )
+    
+        payload = json.loads(output.read_text(encoding="utf-8"))
+>       assert exit_code == 0
+E       assert 1 == 0
+
+v2/backend/tests/unit/scripts/test_run_alembic_auth_migration_approval_smoke.py:112: AssertionError
+__________ test_auth_session_hardening_smoke_passes_for_safe_evidence __________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_auth_session_hardening_sm0')
+
+    def test_auth_session_hardening_smoke_passes_for_safe_evidence(tmp_path: Path) -> None:
+        session, rbac, safety = _write_safe_evidence(tmp_path)
+    
+        report = build_report(
+            session_evidence_paths=[session],
+            rbac_evidence_paths=[rbac],
+            safety_evidence_paths=[safety],
+        )
+    
+>       assert report["production_auth_session_hardening_status"] == "passed"
+E       AssertionError: assert 'failed' == 'passed'
+E         
+E         - passed
+E         + failed
+
+v2/backend/tests/unit/scripts/test_run_auth_session_hardening_smoke.py:74: AssertionError
+____________ test_auth_session_hardening_smoke_cli_writes_artifact _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_auth_session_hardening_sm3')
+
+    def test_auth_session_hardening_smoke_cli_writes_artifact(tmp_path: Path) -> None:
+        session, rbac, safety = _write_safe_evidence(tmp_path)
+        output = tmp_path / "artifact" / "auth-session-hardening.json"
+    
+        exit_code = main(
+            [
+                "--session-evidence-path",
+                str(session),
+                "--rbac-evidence-path",
+                str(rbac),
+                "--safety-evidence-path",
+                str(safety),
+                "--output",
+                str(output),
+            ]
+        )
+    
+        payload = json.loads(output.read_text(encoding="utf-8"))
+>       assert exit_code == 0
+E       assert 1 == 0
+
+v2/backend/tests/unit/scripts/test_run_auth_session_hardening_smoke.py:151: AssertionError
+_________ test_durable_credential_vault_smoke_passes_for_safe_evidence _________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_durable_credential_vault_0')
+
+    def test_durable_credential_vault_smoke_passes_for_safe_evidence(tmp_path: Path) -> None:
+        vault, safety = _write_safe_evidence(tmp_path)
+    
+        report = build_report(vault_evidence_paths=[vault], safety_evidence_paths=[safety])
+    
+>       assert report["durable_credential_vault_status"] == "passed"
+E       AssertionError: assert 'failed' == 'passed'
+E         
+E         - passed
+E         + failed
+
+v2/backend/tests/unit/scripts/test_run_durable_credential_vault_smoke.py:51: AssertionError
+___________ test_durable_credential_vault_smoke_cli_writes_artifact ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_durable_credential_vault_3')
+
+    def test_durable_credential_vault_smoke_cli_writes_artifact(tmp_path: Path) -> None:
+        vault, safety = _write_safe_evidence(tmp_path)
+        output = tmp_path / "artifact" / "durable-vault.json"
+    
+        exit_code = main(
+            [
+                "--vault-evidence-path",
+                str(vault),
+                "--safety-evidence-path",
+                str(safety),
+                "--output",
+                str(output),
+            ]
+        )
+    
+        payload = json.loads(output.read_text(encoding="utf-8"))
+>       assert exit_code == 0
+E       assert 1 == 0
+
+v2/backend/tests/unit/scripts/test_run_durable_credential_vault_smoke.py:114: AssertionError
+_____ test_production_alert_delivery_audit_smoke_passes_for_safe_evidence ______
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_production_alert_delivery0')
+
+    def test_production_alert_delivery_audit_smoke_passes_for_safe_evidence(tmp_path: Path) -> None:
+        repository, delivery, audit = _write_safe_evidence(tmp_path)
+    
+        report = build_report(repository_paths=[repository], delivery_paths=[delivery], audit_paths=[audit])
+    
+>       assert report["production_alert_delivery_audit_smoke_status"] == "passed"
+E       AssertionError: assert 'failed' == 'passed'
+E         
+E         - passed
+E         + failed
+
+v2/backend/tests/unit/scripts/test_run_production_alert_delivery_audit_smoke.py:70: AssertionError
+________ test_production_alert_delivery_audit_smoke_cli_writes_artifact ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_production_alert_delivery3')
+
+    def test_production_alert_delivery_audit_smoke_cli_writes_artifact(tmp_path: Path) -> None:
+        repository, delivery, audit = _write_safe_evidence(tmp_path)
+        output = tmp_path / "artifact" / "production-alert-delivery-audit.json"
+    
+        exit_code = main(
+            [
+                "--repository-evidence-path",
+                str(repository),
+                "--delivery-evidence-path",
+                str(delivery),
+                "--audit-evidence-path",
+                str(audit),
+                "--output",
+                str(output),
+            ]
+        )
+    
+        payload = json.loads(output.read_text(encoding="utf-8"))
+>       assert exit_code == 0
+E       assert 2 == 0
+
+v2/backend/tests/unit/scripts/test_run_production_alert_delivery_audit_smoke.py:167: AssertionError
+__________ test_production_https_smoke_passes_for_safe_https_evidence __________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_production_https_smoke_pa0')
+
+    def test_production_https_smoke_passes_for_safe_https_evidence(tmp_path: Path) -> None:
+        route, status, auth, console, safety = _write_safe_evidence(tmp_path)
+    
+        report = build_report(
+            route_evidence_paths=[route],
+            status_evidence_paths=[status],
+            auth_evidence_paths=[auth],
+            console_evidence_paths=[console],
+            safety_evidence_paths=[safety],
+        )
+    
+>       assert report["production_https_smoke_status"] == "passed"
+E       AssertionError: assert 'failed' == 'passed'
+E         
+E         - passed
+E         + failed
+
+v2/backend/tests/unit/scripts/test_run_production_https_smoke.py:72: AssertionError
+_______________ test_production_https_smoke_cli_writes_artifact ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_production_https_smoke_cl0')
+
+    def test_production_https_smoke_cli_writes_artifact(tmp_path: Path) -> None:
+        route, status, auth, console, safety = _write_safe_evidence(tmp_path)
+        output = tmp_path / "artifact" / "production-https-smoke.json"
+    
+        exit_code = main(
+            [
+                "--route-evidence-path",
+                str(route),
+                "--status-evidence-path",
+                str(status),
+                "--auth-evidence-path",
+                str(auth),
+                "--console-evidence-path",
+                str(console),
+                "--safety-evidence-path",
+                str(safety),
+                "--output",
+                str(output),
+            ]
+        )
+    
+        payload = json.loads(output.read_text(encoding="utf-8"))
+>       assert exit_code == 0
+E       assert 2 == 0
+
+v2/backend/tests/unit/scripts/test_run_production_https_smoke.py:197: AssertionError
+_ test_secret_redaction_smoke_flags_unredacted_values_without_returning_secret _
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_secret_redaction_smoke_fl0')
+
+    def test_secret_redaction_smoke_flags_unredacted_values_without_returning_secret(tmp_path: Path) -> None:
+        payload_dir = tmp_path / "payloads"
+        log_dir = tmp_path / "logs"
+        screenshot_dir = tmp_path / "screenshots"
+        payload_dir.mkdir()
+        log_dir.mkdir()
+        screenshot_dir.mkdir()
+        secret_value = "abcd1234abcd1234abcd1234abcd1234"
+        (payload_dir / "unsafe.json").write_text(f'{{"api_secret":"{secret_value}"}}', encoding="utf-8")
+        (log_dir / "app.log").write_text("safe log\n", encoding="utf-8")
+        (screenshot_dir / "status.png").write_bytes(b"fake png placeholder")
+    
+        report = build_report(
+            safe_api_payload_paths=[payload_dir],
+            log_paths=[log_dir],
+            screenshot_paths=[screenshot_dir],
+            screenshots_reviewed=True,
+        )
+    
+>       assert report["secret_redaction_smoke_status"] == "failed"
+E       AssertionError: assert 'passed' == 'failed'
+E         
+E         - failed
+E         + passed
+
+v2/backend/tests/unit/scripts/test_run_secret_redaction_smoke.py:84: AssertionError
+_____ test_trader_account_scope_smoke_passes_for_scoped_multi_trader_files _____
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_trader_account_scope_smok0')
+
+    def test_trader_account_scope_smoke_passes_for_scoped_multi_trader_files(tmp_path: Path) -> None:
+        auth_path = _write(tmp_path / "auth_users.json", _valid_auth_payload())
+        accounts_path = _write(tmp_path / "trader_accounts.json", _valid_accounts_payload())
+    
+        report = build_report(auth_users_path=auth_path, trader_accounts_path=accounts_path)
+    
+>       assert report["status"] == "passed"
+E       AssertionError: assert 'failed' == 'passed'
+E         
+E         - passed
+E         + failed
+
+v2/backend/tests/unit/scripts/test_run_trader_account_scope_smoke.py:99: AssertionError
+_____________ test_trader_account_scope_smoke_cli_writes_artifact ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_trader_account_scope_smok5')
+
+    def test_trader_account_scope_smoke_cli_writes_artifact(tmp_path: Path) -> None:
+        auth_path = _write(tmp_path / "auth_users.json", _valid_auth_payload())
+        accounts_path = _write(tmp_path / "trader_accounts.json", _valid_accounts_payload())
+        output_path = tmp_path / "scope-smoke.json"
+    
+        code = main([
+            "--auth-users-path",
+            str(auth_path),
+            "--trader-accounts-path",
+            str(accounts_path),
+            "--output",
+            str(output_path),
+        ])
+    
+>       assert code == 0
+E       assert 2 == 0
+
+v2/backend/tests/unit/scripts/test_run_trader_account_scope_smoke.py:177: AssertionError
+_____________ test_recorded_state_verification_passes_clean_export _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_recorded_state_verificati0')
+
+    def test_recorded_state_verification_passes_clean_export(tmp_path: Path) -> None:
+        run_dir = _write_records(tmp_path, _clean_records())
+        output_dir = tmp_path / "out-clean"
+    
+>       exit_code = recorded_cli.main(["--input", str(run_dir), "--output-dir", str(output_dir)])
+
+v2/backend/tests/unit/services/market_data_trust/test_real_path_guards.py:401: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+v2/backend/app/cli/run_recorded_state_verification.py:355: in main
+    metrics = _compute_metrics(records)
+v2/backend/app/cli/run_recorded_state_verification.py:80: in _compute_metrics
+    decisions = [decision for decision in trust.extract_decisions(records) if _is_recorded_decision_record(decision)]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+decision = {'_key': 'v2:test:masa_ppo', '_source': '/tmp/pytest-of-wali/pytest-608/test_recorded_state_verificati0/recorded/masa_ppo.jsonl', 'all_tf_candle_timestamps': ['2026-06-11T00:01:00Z'], 'available_at': '2026-06-11T00:01:00Z', ...}
+
+    def _is_recorded_decision_record(decision: dict[str, Any]) -> bool:
+>       if trust.is_model_prediction_record(decision):
+E       AttributeError: module 'v2.backend.app.cli.verify_pipeline_trust' has no attribute 'is_model_prediction_record'
+
+v2/backend/app/cli/run_recorded_state_verification.py:42: AttributeError
+_ test_recorded_state_verification_fails_on_replay_gap_and_invalid_transition __
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_recorded_state_verificati1')
+
+    def test_recorded_state_verification_fails_on_replay_gap_and_invalid_transition(tmp_path: Path) -> None:
+        records = _clean_records()
+        records["masa_ppo"][0]["replay_snapshot_id"] = None
+        records["masa_ppo"][0]["replay_snapshot_write_success"] = False
+        records["execution_records"][0] = {
+            "position_before": "LONG",
+            "requested_action": "short",
+            "position_after": "SHORT",
+            "fill_status": "filled",
+            "strategy_router_block_reason": "DATA_QUALITY_BELOW_THRESHOLD",
+        }
+        run_dir = _write_records(tmp_path, records)
+        output_dir = tmp_path / "out-dirty"
+    
+>       exit_code = recorded_cli.main(["--input", str(run_dir), "--output-dir", str(output_dir)])
+
+v2/backend/tests/unit/services/market_data_trust/test_real_path_guards.py:424: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+v2/backend/app/cli/run_recorded_state_verification.py:355: in main
+    metrics = _compute_metrics(records)
+v2/backend/app/cli/run_recorded_state_verification.py:80: in _compute_metrics
+    decisions = [decision for decision in trust.extract_decisions(records) if _is_recorded_decision_record(decision)]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+decision = {'_key': 'v2:test:masa_ppo', '_source': '/tmp/pytest-of-wali/pytest-608/test_recorded_state_verificati1/recorded/masa_ppo.jsonl', 'all_tf_candle_timestamps': ['2026-06-11T00:01:00Z'], 'available_at': '2026-06-11T00:01:00Z', ...}
+
+    def _is_recorded_decision_record(decision: dict[str, Any]) -> bool:
+>       if trust.is_model_prediction_record(decision):
+E       AttributeError: module 'v2.backend.app.cli.verify_pipeline_trust' has no attribute 'is_model_prediction_record'
+
+v2/backend/app/cli/run_recorded_state_verification.py:42: AttributeError
+__ test_recorded_state_verification_ignores_non_consumable_microfeature_rows ___
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_recorded_state_verificati2')
+
+    def test_recorded_state_verification_ignores_non_consumable_microfeature_rows(tmp_path: Path) -> None:
+        records = _clean_records()
+        records["features"].append(
+            {
+                "symbol": "GALAUSDT",
+                "timeframe": "1m",
+                "generated_at": "2026-06-11T00:01:00Z",
+                "available_at": "2026-06-11T00:01:00Z",
+                "feature_cutoff": "2026-06-11T00:01:00Z",
+                "features": {
+                    "churn_score": None,
+                    "fast_move_score": None,
+                    "p_false_move": None,
+                },
+            }
+        )
+        run_dir = _write_records(tmp_path, records)
+        output_dir = tmp_path / "out-microfeat"
+    
+>       exit_code = recorded_cli.main(["--input", str(run_dir), "--output-dir", str(output_dir)])
+
+v2/backend/tests/unit/services/market_data_trust/test_real_path_guards.py:452: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+v2/backend/app/cli/run_recorded_state_verification.py:355: in main
+    metrics = _compute_metrics(records)
+v2/backend/app/cli/run_recorded_state_verification.py:80: in _compute_metrics
+    decisions = [decision for decision in trust.extract_decisions(records) if _is_recorded_decision_record(decision)]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+decision = {'_key': 'v2:test:masa_ppo', '_source': '/tmp/pytest-of-wali/pytest-608/test_recorded_state_verificati2/recorded/masa_ppo.jsonl', 'all_tf_candle_timestamps': ['2026-06-11T00:01:00Z'], 'available_at': '2026-06-11T00:01:00Z', ...}
+
+    def _is_recorded_decision_record(decision: dict[str, Any]) -> bool:
+>       if trust.is_model_prediction_record(decision):
+E       AttributeError: module 'v2.backend.app.cli.verify_pipeline_trust' has no attribute 'is_model_prediction_record'
+
+v2/backend/app/cli/run_recorded_state_verification.py:42: AttributeError
+___ test_recorded_state_verification_fails_on_consumable_invalid_feature_row ___
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_recorded_state_verificati3')
+
+    def test_recorded_state_verification_fails_on_consumable_invalid_feature_row(tmp_path: Path) -> None:
+        records = _clean_records()
+        records["features"][0]["trainer_consumable"] = True
+        records["features"][0]["features"] = {"ret_pct": None}
+        run_dir = _write_records(tmp_path, records)
+        output_dir = tmp_path / "out-consumable-invalid"
+    
+>       exit_code = recorded_cli.main(["--input", str(run_dir), "--output-dir", str(output_dir)])
+
+v2/backend/tests/unit/services/market_data_trust/test_real_path_guards.py:466: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+v2/backend/app/cli/run_recorded_state_verification.py:355: in main
+    metrics = _compute_metrics(records)
+v2/backend/app/cli/run_recorded_state_verification.py:80: in _compute_metrics
+    decisions = [decision for decision in trust.extract_decisions(records) if _is_recorded_decision_record(decision)]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+decision = {'_key': 'v2:test:masa_ppo', '_source': '/tmp/pytest-of-wali/pytest-608/test_recorded_state_verificati3/recorded/masa_ppo.jsonl', 'all_tf_candle_timestamps': ['2026-06-11T00:01:00Z'], 'available_at': '2026-06-11T00:01:00Z', ...}
+
+    def _is_recorded_decision_record(decision: dict[str, Any]) -> bool:
+>       if trust.is_model_prediction_record(decision):
+E       AttributeError: module 'v2.backend.app.cli.verify_pipeline_trust' has no attribute 'is_model_prediction_record'
+
+v2/backend/app/cli/run_recorded_state_verification.py:42: AttributeError
+____ test_recorded_state_verification_ignores_preview_and_manifest_records _____
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-608/test_recorded_state_verificati4')
+
+    def test_recorded_state_verification_ignores_preview_and_manifest_records(tmp_path: Path) -> None:
+        records = _clean_records()
+        records["training_samples"].extend(
+            [
+                {
+                    "schema_version": "v2_native_dynamic_runtime_trainer_bridge_exit_execution_v1_trainer_dataset_manifest",
+                    "generated_utc": "2026-05-24T00:27:22Z",
+                    "trainer_source": "V2_NATIVE_CONTRACT_ONLY",
+                    "training_dispatched": False,
+                },
+                {
+                    "decision_id": "dec_preview",
+                    "prediction_id": "pred_preview",
+                    "feature_snapshot_id": "fs_preview",
+                    "risk_action": "deny",
+                    "symbol": "ZROUSDT",
+                },
+                {
+                    "decision_id": "dec_preview",
+                    "prediction_id": "pred_preview",
+                    "feature_snapshot_id": "fs_preview",
+                    "decision_action": "abstain",
+                    "symbol": "ZROUSDT",
+                },
+            ]
+        )
+        run_dir = _write_records(tmp_path, records)
+        output_dir = tmp_path / "out-preview-manifest"
+    
+>       exit_code = recorded_cli.main(["--input", str(run_dir), "--output-dir", str(output_dir)])
+
+v2/backend/tests/unit/services/market_data_trust/test_real_path_guards.py:502: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+v2/backend/app/cli/run_recorded_state_verification.py:355: in main
+    metrics = _compute_metrics(records)
+v2/backend/app/cli/run_recorded_state_verification.py:80: in _compute_metrics
+    decisions = [decision for decision in trust.extract_decisions(records) if _is_recorded_decision_record(decision)]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+decision = {'_key': 'v2:test:masa_ppo', '_source': '/tmp/pytest-of-wali/pytest-608/test_recorded_state_verificati4/recorded/masa_ppo.jsonl', 'all_tf_candle_timestamps': ['2026-06-11T00:01:00Z'], 'available_at': '2026-06-11T00:01:00Z', ...}
+
+    def _is_recorded_decision_record(decision: dict[str, Any]) -> bool:
+>       if trust.is_model_prediction_record(decision):
+E       AttributeError: module 'v2.backend.app.cli.verify_pipeline_trust' has no attribute 'is_model_prediction_record'
+
+v2/backend/app/cli/run_recorded_state_verification.py:42: AttributeError
+____________________ test_init_module_does_not_load_url_env ____________________
+
+    def test_init_module_does_not_load_url_env() -> None:
+        import importlib
+        import sys
+        from pathlib import Path
+    
+        marker = "url" + "_env"
+        source_root = Path("v2/backend/app/services/trainer_worker_health")
+        for source_filename in ("__init__.py", "errors.py", "service.py"):
+            source_text = (source_root / source_filename).read_text(encoding="utf-8")
+            assert marker not in source_text
+    
+        blocked_prefix = "v2.backend.app.adapters." + "red" + "is_v2." + marker
+        for module_name in tuple(sys.modules):
+            if module_name.startswith(blocked_prefix) or module_name.startswith(
+                "v2.backend.app.services.trainer_worker_health"
+            ):
+                sys.modules.pop(module_name, None)
+    
+        importlib.import_module("v2.backend.app.services.trainer_worker_health")
+    
+>       assert not any(marker in module_name for module_name in sys.modules if module_name != __name__)
+E       assert not True
+E        +  where True = any(<generator object test_init_module_does_not_load_url_env.<locals>.<genexpr> at 0x7180c25cf440>)
+
+v2/backend/tests/unit/services/trainer_worker_health/test_init_module_does_not_load_url_env.py:21: AssertionError
+______________ test_trainer_consumes_strategy_hedge_exit_feedback ______________
+
+    def test_trainer_consumes_strategy_hedge_exit_feedback() -> None:
+        position = _position()
+        close_event, outcome = build_close_event(
+            position=position,
+            close_quantity=1.0,
+            exit_price=102.0,
+            exit_time="2026-06-14T00:01:00Z",
+            close_reason="TIER_2_TAKE_PROFIT",
+        )
+        row = build_strategy_hedge_exit_feedback(close_event=close_event, outcome_label=outcome)
+>       assert row["trainer_consumable"] is True
+E       assert False is True
+
+v2/backend/tests/unit/test_runtime_alpha_decision_chain.py:215: AssertionError
+__ test_runtime_alpha_one_shot_does_not_claim_guaranteed_10k_or_live_mutation __
+
+    def test_runtime_alpha_one_shot_does_not_claim_guaranteed_10k_or_live_mutation() -> None:
+        status = build_one_shot_status()
+>       assert status["gate"] == "V2_RUNTIME_ALPHA_DECISION_CHAIN_REMEDIATION_READY"
+E       AssertionError: assert 'V2_RUNTIME_A...ATION_BLOCKED' == 'V2_RUNTIME_A...DIATION_READY'
+E         
+E         Skipping 34 identical leading characters in diff, use -v to show
+E         - MEDIATION_READY
+E         ?           ^ - -
+E         + MEDIATION_BLOCKED
+E         ?           ^^^^^
+
+v2/backend/tests/unit/test_runtime_alpha_decision_chain.py:222: AssertionError
+=============================== warnings summary ===============================
+backend/tests/integration/cli/test_run_e2e_verification.py::test_run_e2e_verification_writes_json_and_text_reports
+  /home/wali/Desktop/AI BOT REBUILD/.venv/lib/python3.12/site-packages/torch/cuda/__init__.py:65: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+    import pynvml  # type: ignore[import]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_authenticated_user_can_update_own_watchlist_only
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_chart_endpoints_return_structured_source_freshness_states
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_exchange_account_link_requires_trader_and_paper_scope
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_activation_requires_valid_step_up_code_in_production
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_activation_writes_secret_free_local_audit_event
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_activation_fails_closed_in_production_when_audit_log_is_unwritable
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_user_mutations_write_secret_free_local_audit_events
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_user_create_fails_closed_in_production_when_audit_log_is_unwritable
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_local_admin_audit_store_access_fails_closed_in_production
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_sqlalchemy_admin_audit_requires_retention_policy_in_production
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_sqlalchemy_admin_audit_store_persists_secret_free_events
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_activation_reset_workflow_for_seeded_trader_is_safe
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_user_creation_requires_trader_scope
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_credential_status_is_backend_protected_and_secret_free
+FAILED v2/backend/tests/integration/api/test_auth_rbac_and_status.py::test_trader_exchange_link_route_is_metadata_only
+FAILED v2/backend/tests/integration/api/v2/test_market_contract_routes.py::test_static_portfolio_fallback_withholds_unscoped_or_mismatched_rows
+FAILED v2/backend/tests/integration/api/v2/test_market_contract_routes.py::test_local_paper_audit_metadata_accepts_durable_policy_artifact_as_partial_evidence
+FAILED v2/backend/tests/integration/api/v2/test_market_contract_routes.py::test_production_paper_actions_fail_closed_until_verified_service
+FAILED v2/backend/tests/integration/api/v2/test_market_contract_routes.py::test_paper_execution_policy_reports_production_fill_writer_artifact
+FAILED v2/backend/tests/integration/api/v2/test_market_contract_routes.py::test_market_data_websocket_emits_read_only_contract_snapshot
+FAILED v2/backend/tests/integration/api/v2/test_market_contract_routes.py::test_market_data_websocket_rejects_invalid_symbol_and_timeframe
+FAILED v2/backend/tests/integration/api/v2/test_market_contract_routes.py::test_authenticated_trader_can_stage_fill_and_reject_cancel_local_paper_order_only
+FAILED v2/backend/tests/integration/cli/test_v2_alt_data_symbol_candidate_publisher_frontend_wiring.py::test_market_page_imports_panel_and_uses_hook
+FAILED v2/backend/tests/integration/cli/test_v2_feature_pipeline_and_ta_worker.py::test_symbol_universe_contract_required_in_public_payload
+FAILED v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py::test_happy_fill_long
+FAILED v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py::test_happy_fill_short
+FAILED v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py::test_paper_filter_denies_same_symbol_cooldown
+FAILED v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py::test_paper_filter_denies_flip_churn
+FAILED v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py::test_paper_trade_id_derived_from_risk_decision_id
+FAILED v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py::test_bridge_format_from_risk_gateway_status_accepted
+FAILED v2/backend/tests/integration/cli/test_v2_paper_execution_worker.py::test_fake_exchange_spy_not_invoked_on_paper_path
+FAILED v2/backend/tests/integration/cli/test_v2_risk_gateway_live_loop.py::test_risk_gateway_live_loop_stamps_v2_risk_decisions
+FAILED v2/backend/tests/unit/cli/test_run_trusted_prediction_publisher_once.py::test_trusted_publisher_once_emits_prediction_replay_and_mtf_snapshot
+FAILED v2/backend/tests/unit/cli/test_run_trusted_prediction_publisher_once.py::test_export_and_strict_verifier_accept_clean_publisher_proof
+FAILED v2/backend/tests/unit/cli/test_v2_full_copied_runtime_default_symbol_drift.py::test_module_source_no_longer_pins_three_symbol_default[v2/backend/app/cli/v2_market_ingestor.py-forbidden5-required5]
+FAILED v2/backend/tests/unit/cli/test_v2_full_copied_runtime_default_symbol_drift.py::test_module_source_no_longer_pins_three_symbol_default[v2/backend/app/cli/readonly_market_exchange_data_plane.py-forbidden9-required9]
+FAILED v2/backend/tests/unit/cli/test_v2_full_copied_runtime_default_symbol_drift.py::test_active_runtime_cli_source_has_no_literal_btc_or_three_symbol_default
+FAILED v2/backend/tests/unit/domain/risk_gateway/test_public_surface.py::test_public_surface_exports_exact_ordered_names
+FAILED v2/backend/tests/unit/proof/test_non_live_operational_proof_artifacts.py::test_harness_does_not_use_live_side_effect_terms
+FAILED v2/backend/tests/unit/scripts/test_run_alembic_auth_migration_approval_smoke.py::test_alembic_auth_migration_approval_smoke_passes_for_safe_evidence
+FAILED v2/backend/tests/unit/scripts/test_run_alembic_auth_migration_approval_smoke.py::test_alembic_auth_migration_approval_smoke_cli_writes_artifact
+FAILED v2/backend/tests/unit/scripts/test_run_auth_session_hardening_smoke.py::test_auth_session_hardening_smoke_passes_for_safe_evidence
+FAILED v2/backend/tests/unit/scripts/test_run_auth_session_hardening_smoke.py::test_auth_session_hardening_smoke_cli_writes_artifact
+FAILED v2/backend/tests/unit/scripts/test_run_durable_credential_vault_smoke.py::test_durable_credential_vault_smoke_passes_for_safe_evidence
+FAILED v2/backend/tests/unit/scripts/test_run_durable_credential_vault_smoke.py::test_durable_credential_vault_smoke_cli_writes_artifact
+FAILED v2/backend/tests/unit/scripts/test_run_production_alert_delivery_audit_smoke.py::test_production_alert_delivery_audit_smoke_passes_for_safe_evidence
+FAILED v2/backend/tests/unit/scripts/test_run_production_alert_delivery_audit_smoke.py::test_production_alert_delivery_audit_smoke_cli_writes_artifact
+FAILED v2/backend/tests/unit/scripts/test_run_production_https_smoke.py::test_production_https_smoke_passes_for_safe_https_evidence
+FAILED v2/backend/tests/unit/scripts/test_run_production_https_smoke.py::test_production_https_smoke_cli_writes_artifact
+FAILED v2/backend/tests/unit/scripts/test_run_secret_redaction_smoke.py::test_secret_redaction_smoke_flags_unredacted_values_without_returning_secret
+FAILED v2/backend/tests/unit/scripts/test_run_trader_account_scope_smoke.py::test_trader_account_scope_smoke_passes_for_scoped_multi_trader_files
+FAILED v2/backend/tests/unit/scripts/test_run_trader_account_scope_smoke.py::test_trader_account_scope_smoke_cli_writes_artifact
+FAILED v2/backend/tests/unit/services/market_data_trust/test_real_path_guards.py::test_recorded_state_verification_passes_clean_export
+FAILED v2/backend/tests/unit/services/market_data_trust/test_real_path_guards.py::test_recorded_state_verification_fails_on_replay_gap_and_invalid_transition
+FAILED v2/backend/tests/unit/services/market_data_trust/test_real_path_guards.py::test_recorded_state_verification_ignores_non_consumable_microfeature_rows
+FAILED v2/backend/tests/unit/services/market_data_trust/test_real_path_guards.py::test_recorded_state_verification_fails_on_consumable_invalid_feature_row
+FAILED v2/backend/tests/unit/services/market_data_trust/test_real_path_guards.py::test_recorded_state_verification_ignores_preview_and_manifest_records
+FAILED v2/backend/tests/unit/services/trainer_worker_health/test_init_module_does_not_load_url_env.py::test_init_module_does_not_load_url_env
+FAILED v2/backend/tests/unit/test_runtime_alpha_decision_chain.py::test_trainer_consumes_strategy_hedge_exit_feedback
+FAILED v2/backend/tests/unit/test_runtime_alpha_decision_chain.py::test_runtime_alpha_one_shot_does_not_claim_guaranteed_10k_or_live_mutation
+60 failed, 4026 passed, 4 skipped, 1 warning in 367.40s (0:06:07)

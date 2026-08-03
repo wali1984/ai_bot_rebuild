@@ -1,0 +1,20 @@
+[Unit]
+Description=AI BOT V2 live-canary permission probe (read-only, NEVER opens exchange sockets in this packet; NOT enabled by default)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+# Optional credential/config files. Loaded if they exist; otherwise
+# the probe gracefully reports BINANCE_API_KEY_ENV_VAR_ABSENT and
+# its status file marks the probe BLOCKED. Files are 0600 in the
+# .local_secrets directory; their values NEVER appear in payloads.
+EnvironmentFile=-/home/wali/Desktop/AI BOT REBUILD/.local_secrets/live_canary.env
+EnvironmentFile=-/home/wali/Desktop/AI BOT REBUILD/.local_secrets/live_canary_credentials.env
+ExecStart=/usr/bin/env bash -lc 'exec /home/wali/Desktop/AI\ BOT\ REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_live_canary_permission_probe --once'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_live_canary_permission_probe.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_live_canary_permission_probe.err
+
+[Install]
+WantedBy=default.target

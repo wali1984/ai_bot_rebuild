@@ -1,0 +1,45 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "default_resolution": {
+    "count": 27,
+    "first_5": [
+      "1000BONKUSDT",
+      "1000FLOKIUSDT",
+      "1000PEPEUSDT",
+      "1000SHIBUSDT",
+      "ALICEUSDT"
+    ],
+    "is_smoke_test_3": false,
+    "last_3": [
+      "XRPUSDT",
+      "COINANK_ONLY_USDT",
+      "KUCOIN_ONLY_USDT"
+    ],
+    "profile": "dynamic_or_baseline",
+    "source_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json"
+  },
+  "go_no_go": "DYNAMIC_SYMBOL_DEFAULT_ENFORCEMENT_READY",
+  "live_symbols": [],
+  "patched_clis": [
+    "v2_binance_public_metadata_ingestor.py",
+    "v2_liquidation_observation_aggregator_status.py",
+    "v2_coinank_and_liquidation_bridge.py",
+    "v2_feature_pipeline_and_ta_worker.py"
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "resolver_module": "v2.backend.app.services.v2_symbol_runtime_universe",
+  "rules": [
+    "No BTC-only defaults",
+    "No BTC/ETH/SOL default outside explicit smoke-test mode",
+    "Default = dynamic universe + 25-baseline merged",
+    "Fallback = 25-symbol legacy baseline",
+    "Smoke-test 3-set requires --smoke-test or V2_SYMBOL_PROFILE=smoke_test"
+  ],
+  "ts_est": "20260526T014445EST",
+  "ts_iso_est": "2026-05-26T01:50:04-0400",
+  "writes_exchange_orders": false
+}

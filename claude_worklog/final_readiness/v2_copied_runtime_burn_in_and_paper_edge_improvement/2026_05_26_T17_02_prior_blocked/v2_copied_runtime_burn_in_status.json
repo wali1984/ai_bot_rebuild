@@ -1,0 +1,100 @@
+{
+  "schema_version": "v2_copied_runtime_burn_in_status_v1",
+  "phase": 1,
+  "generated_est": "2026-05-26T17:02:47-0400",
+  "generated_utc": "2026-05-26T21:02:47Z",
+  "git_head": "10513bbe0517fd81c9c87e4672bb15486a083c02",
+  "post_reboot_boot_est": "2026-05-26T13:22:02-0400",
+  "burn_in_window_so_far_minutes": 220,
+  "summary": {
+    "active_ai_bot_v2_user_services_count": 30,
+    "active_ai_bot_v2_user_timers_count": 28,
+    "active_ai_bot_v2_slices_count": 2,
+    "active_ai_bot_v2_total_count": 60,
+    "services_with_zero_restart_count": 27,
+    "services_with_nonzero_restart_count": 1,
+    "services_started_post_reboot_recently": 2,
+    "freeze_root_cause_remediated": true
+  },
+  "running_services": [
+    {"unit": "ai-bot-v2-agent-supervisor.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "control_plane_supervisor"},
+    {"unit": "ai-bot-v2-closed-loop-claude-worker@1.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "closed_loop_claude_worker"},
+    {"unit": "ai-bot-v2-closed-loop-claude-worker@2.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "closed_loop_claude_worker"},
+    {"unit": "ai-bot-v2-closed-loop-claude-worker@3.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "closed_loop_claude_worker"},
+    {"unit": "ai-bot-v2-closed-loop-codex-worker@1.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "closed_loop_codex_worker"},
+    {"unit": "ai-bot-v2-closed-loop-codex-worker@2.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "closed_loop_codex_worker"},
+    {"unit": "ai-bot-v2-closed-loop-codex-worker@3.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "closed_loop_codex_worker"},
+    {"unit": "ai-bot-v2-codex-shutdown-readiness-takeover.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "codex_shutdown_readiness"},
+    {"unit": "ai-bot-v2-codex-watchdog.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "codex_non_live_watchdog"},
+    {"unit": "ai-bot-v2-continuous-legacy-log-remediation.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "legacy_log_remediation_observer", "readonly_legacy": true},
+    {"unit": "ai-bot-v2-feature-pipeline-native-loop.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "v2_native_feature_pipeline"},
+    {"unit": "ai-bot-v2-feature-snapshot-builder.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "v2_native_feature_snapshot_builder"},
+    {"unit": "ai-bot-v2-legacy-log-intelligence-observer.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "legacy_log_intelligence_observer", "readonly_legacy": true},
+    {"unit": "ai-bot-v2-legacy-v2-production-comparator.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "legacy_vs_v2_production_comparator", "readonly_legacy": true},
+    {"unit": "ai-bot-v2-liquidation-bridge.service", "active_since_est": "2026-05-26T16:09:40", "uptime_minutes": 53, "n_restarts": 0, "role": "copied_liquidation_bridge_paper_only", "newly_added_this_session": true},
+    {"unit": "ai-bot-v2-liquidation-levels-engine.service", "active_since_est": "2026-05-26T16:09:40", "uptime_minutes": 53, "n_restarts": 0, "role": "copied_liquidation_levels_engine_paper_only", "newly_added_this_session": true},
+    {"unit": "ai-bot-v2-liquidation-wss-paper-shadow.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "binance_public_wss_force_order_shadow"},
+    {"unit": "ai-bot-v2-native-ingestors-live-loop.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "v2_native_ingestors_paper_only"},
+    {"unit": "ai-bot-v2-orchestrator-arbitration-loop.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "v2_orchestrator_arbitration_paper_only"},
+    {"unit": "ai-bot-v2-paper-online-runtime.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "paper_online_runtime"},
+    {"unit": "ai-bot-v2-paper-shadow-observation.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "paper_shadow_observation_publisher"},
+    {"unit": "ai-bot-v2-parallel-scheduler.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "parallel_capacity_scheduler"},
+    {"unit": "ai-bot-v2-parallel-spark-automation.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "parallel_spark_automation_runner"},
+    {"unit": "ai-bot-v2-position-history-persistent-tracker.service", "active_since_est": "2026-05-26T16:57:23", "uptime_minutes": 5, "n_restarts": 21, "role": "paper_position_history_tracker", "restart_pattern_explanation": "designed for 600s/session with systemd auto-restart; 21 restarts = ~3.5h cumulative paper-only uptime, not failure"},
+    {"unit": "ai-bot-v2-production-replacement-runtime-guard.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "production_replacement_guard"},
+    {"unit": "ai-bot-v2-public-website-backend.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "trading_platform_fastapi_backend"},
+    {"unit": "ai-bot-v2-readonly-decision-observatory.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "codex_legacy_v2_realtime_decision_observatory"},
+    {"unit": "ai-bot-v2-rl-core-inference-loop.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "v2_rl_core_paper_inference"},
+    {"unit": "ai-bot-v2-symbol-universe-publisher.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "v2_symbol_universe_publisher"},
+    {"unit": "ai-bot-v2-trade-management-paper-loop.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "paper_trade_management"},
+    {"unit": "ai-bot-v2-trainer-bridge.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "trainer_bridge_parity_baseline"},
+    {"unit": "ai-bot-v2-worker-porting-orchestrator.service", "active_since_est": "2026-05-26T13:22:03", "uptime_minutes": 220, "n_restarts": 0, "role": "worker_porting_orchestrator"}
+  ],
+  "running_timers_count": 28,
+  "freshness_seconds_by_payload": {
+    "operator_runtime/symbol_universe/latest/symbol_universe_status.json": 0,
+    "operator_runtime/v2_liquidation_wss_client/latest/v2_liquidation_wss_client_status.json": 6,
+    "operator_runtime/v2_native_ingestors/latest/v2_native_ingestors_status.json": 8,
+    "operator_runtime/v2_trade_management_paper/latest/v2_trade_management_paper_status.json": 8,
+    "operator_runtime/paper_shadow_observation/latest/paper_shadow_observation_status.json": -6,
+    "operator_runtime/v2_feature_pipeline_native/latest/v2_feature_pipeline_native_status.json": 932220,
+    "operator_runtime/v2_owned_trainer/latest/status.json": 932220,
+    "operator_runtime/v2_liquidation_ingestor/latest/v2_liquidation_ingestor_status.json": 800000
+  },
+  "redis_v2_namespace_writes_observed": {
+    "v2:liquidations:*": 1,
+    "v2:market:*": 128,
+    "v2:features:*": 64,
+    "v2:unified_features:*": 170,
+    "v2:altdata:*": 1,
+    "v2:paper:*": 89,
+    "v2:risk:*": 1,
+    "v2:symbol_universe:*": 1
+  },
+  "old_redis_namespace_writes_observed": {
+    "live_orders:*": 0,
+    "exchange:order:*": 0,
+    "orchestrator:*": 0
+  },
+  "gnome_terminal_output_status": {
+    "panels_referenced_by_start_full_copied_v2_runtime_gnome_sh": 4,
+    "panel_names": [
+      "V2 CoinAnk Bridge",
+      "V2 Liquidation Aggregator",
+      "V2 TA Worker",
+      "V2 Binance Public Metadata"
+    ],
+    "verification_method": "out_of_scope_for_this_phase",
+    "note": "headless verification of GNOME panels requires DBus/X11 introspection and is deferred"
+  },
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "writes_old_redis": false
+  }
+}

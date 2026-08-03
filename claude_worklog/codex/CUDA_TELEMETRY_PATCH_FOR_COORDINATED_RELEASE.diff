@@ -1,0 +1,67 @@
+diff --git a/v2/backend/app/services/native_trainer/locally_authenticated_profiled_research_service_v1.py b/v2/backend/app/services/native_trainer/locally_authenticated_profiled_research_service_v1.py
+index 7936380605..0b41f1045b 100644
+--- a/v2/backend/app/services/native_trainer/locally_authenticated_profiled_research_service_v1.py
++++ b/v2/backend/app/services/native_trainer/locally_authenticated_profiled_research_service_v1.py
+@@ -1203,6 +1203,54 @@ def _cycle_result_material(
+     }
+ 
+ 
++def _cuda_runtime_telemetry() -> dict[str, Any]:
++    """Read-only CUDA runtime observability for the status payload.
++
++    Additive status-only field (participates only in the self-recomputed
++    status_sha256/auth_tag, never in the frozen cycle-result provenance
++    material).  Never allocates GPU memory, never raises: telemetry must never
++    break a status write.  Satisfies the CUDA-spec device/memory observability
++    requirement; per-cycle loss/optimizer metrics are threaded separately.
++    """
++    try:
++        import torch  # local import: telemetry must not gate module import
++    except Exception as exc:  # noqa: BLE001
++        return {"cuda_probe_ok": False, "cuda_probe_error": type(exc).__name__}
++    try:
++        available = bool(torch.cuda.is_available())
++        payload: dict[str, Any] = {
++            "cuda_probe_ok": True,
++            "torch_version": str(torch.__version__),
++            "torch_cuda_version": getattr(torch.version, "cuda", None),
++            "cuda_available": available,
++            "device_count": int(torch.cuda.device_count()) if available else 0,
++        }
++        if not available:
++            # Spec fail-closed posture: CUDA absence must be visible, not silent.
++            payload["cuda_runtime_blocker"] = "CUDA_UNAVAILABLE"
++            return payload
++        index = int(torch.cuda.current_device())
++        free_bytes, total_bytes = torch.cuda.mem_get_info(index)
++        cap = torch.cuda.get_device_capability(index)
++        payload.update(
++            {
++                "device_index": index,
++                "gpu_name": str(torch.cuda.get_device_name(index)),
++                "compute_capability": f"{cap[0]}.{cap[1]}",
++                "memory_free_bytes": int(free_bytes),
++                "memory_total_bytes": int(total_bytes),
++                "memory_allocated_bytes": int(torch.cuda.memory_allocated(index)),
++                "memory_reserved_bytes": int(torch.cuda.memory_reserved(index)),
++                "peak_memory_allocated_bytes": int(
++                    torch.cuda.max_memory_allocated(index)
++                ),
++            }
++        )
++        return payload
++    except Exception as exc:  # noqa: BLE001
++        return {"cuda_probe_ok": False, "cuda_probe_error": type(exc).__name__}
++
++
+ def _status_payload(
+     *,
+     config: LocallyAuthenticatedProfiledResearchServiceConfigV1,
+@@ -1231,6 +1279,7 @@ def _status_payload(
+         "external_witness_verified": False,
+         "local_research_non_promotable": True,
+         "candidate_directory": str(config.candidate_model_dir),
++        "cuda_runtime": _cuda_runtime_telemetry(),
+         "cycle_result": None if result is None else _cycle_result_material(result),
+         "error": (
+             None

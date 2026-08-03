@@ -23,6 +23,11 @@ CODEX_BATCH_GENERATOR = WORKSPACE / "claude_worklog/tools/create_codex_parallel_
 CODEX_ACTING_GOVERNOR = WORKSPACE / "claude_worklog/tools/codex_acting_governor.py"
 CODEX_REVIEW_WINDOW_SECONDS = 5 * 60 * 60
 CODEX_UTILIZATION_TARGET_PERCENT = 50
+MAX_TEXT_READ_CHARS = 1_000_000
+EVENT_TAIL_MAX_LINES = 2_000
+EVENT_TAIL_MAX_BYTES = 4 * 1024 * 1024
+EVENT_LINE_MAX_BYTES = 256 * 1024
+EVENT_RAW_FALLBACK_MAX_CHARS = 4_096
 
 SCHEDULER_SESSION = "ai_bot_parallel_capacity_scheduler"
 WATCHDOG_SESSION = "ai_bot_codex_non_live_watchdog"
@@ -62,14 +67,21 @@ def append_event(event: dict[str, Any]) -> None:
 
 def read_json(path: Path) -> dict[str, Any]:
     try:
-        return json.loads(path.read_text())
+        payload = json.loads(read_text(path, MAX_TEXT_READ_CHARS))
     except Exception:
         return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def read_text(path: Path, limit: int = 100_000) -> str:
+    """Read a bounded text prefix without materializing the whole file."""
+
+    if type(limit) is not int or limit <= 0:
+        return ""
+    bounded_limit = min(limit, MAX_TEXT_READ_CHARS)
     try:
-        return path.read_text(errors="replace")[:limit]
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            return handle.read(bounded_limit)
     except Exception:
         return ""
 
@@ -104,25 +116,89 @@ def tmux_running(session: str) -> bool:
     return run(["tmux", "has-session", "-t", session]).returncode == 0
 
 
-def latest_event_matching(pattern: str) -> dict[str, Any]:
-    if not EVENTS.exists():
-        return {}
-    regex = re.compile(pattern)
-    latest: dict[str, Any] = {}
+def _tail_event_lines_newest(
+    path: Path,
+    *,
+    max_lines: int = EVENT_TAIL_MAX_LINES,
+    max_bytes: int = EVENT_TAIL_MAX_BYTES,
+) -> list[bytes]:
+    """Return complete JSONL tail lines newest-first within hard resource caps."""
+
+    if (
+        type(max_lines) is not int
+        or max_lines <= 0
+        or type(max_bytes) is not int
+        or max_bytes <= 0
+    ):
+        return []
+    bounded_lines = min(max_lines, EVENT_TAIL_MAX_LINES)
+    bounded_bytes = min(max_bytes, EVENT_TAIL_MAX_BYTES)
     try:
-        lines = EVENTS.read_text(errors="replace").splitlines()
+        with path.open("rb") as handle:
+            handle.seek(0, 2)
+            size = handle.tell()
+            if size <= 0:
+                return []
+            start = max(0, size - bounded_bytes)
+            starts_at_line_boundary = start == 0
+            if start:
+                handle.seek(start - 1)
+                starts_at_line_boundary = handle.read(1) == b"\n"
+            handle.seek(start)
+            payload = handle.read(bounded_bytes)
     except Exception:
-        return {}
-    for line in lines[-2000:]:
+        return []
+
+    lower_bound = 0
+    if not starts_at_line_boundary:
+        first_newline = payload.find(b"\n")
+        if first_newline < 0:
+            return []
+        lower_bound = first_newline + 1
+
+    lines: list[bytes] = []
+    upper_bound = len(payload)
+    if payload.endswith(b"\n"):
+        upper_bound -= 1
+    while len(lines) < bounded_lines and upper_bound >= lower_bound:
+        newline = payload.rfind(b"\n", lower_bound, upper_bound)
+        line_start = newline + 1 if newline >= 0 else lower_bound
+        line = payload[line_start:upper_bound]
+        if line.endswith(b"\r"):
+            line = line[:-1]
+        if len(line) <= EVENT_LINE_MAX_BYTES:
+            lines.append(line)
+        else:
+            # Oversized lines still consume their position in the last-N window.
+            lines.append(b"")
+        if newline < 0:
+            break
+        upper_bound = newline
+    return lines
+
+
+def latest_event_matching(pattern: str) -> dict[str, Any]:
+    regex = re.compile(pattern)
+    for raw_line in _tail_event_lines_newest(EVENTS):
+        line = raw_line.decode("utf-8", errors="replace")
         try:
             event = json.loads(line)
         except Exception:
             if regex.search(line):
-                latest = {"raw": line}
+                return {
+                    "raw": line[:EVENT_RAW_FALLBACK_MAX_CHARS],
+                    "raw_truncated": len(line) > EVENT_RAW_FALLBACK_MAX_CHARS,
+                }
             continue
-        if regex.search(str(event.get("event", ""))):
-            latest = event
-    return latest
+        if isinstance(event, dict):
+            if regex.search(str(event.get("event", ""))):
+                return event
+        elif regex.search(line):
+            return {
+                "raw": line[:EVENT_RAW_FALLBACK_MAX_CHARS],
+                "raw_truncated": len(line) > EVENT_RAW_FALLBACK_MAX_CHARS,
+            }
+    return {}
 
 
 def latest_human_attention_task() -> str | None:

@@ -1,0 +1,10 @@
+[Unit]
+Description=AI Bot V2 paper equity reconciliation loop
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStart=/usr/bin/python3 -m v2.backend.app.cli.v2_portfolio_state_publisher --once
+
+[Install]
+WantedBy=default.target

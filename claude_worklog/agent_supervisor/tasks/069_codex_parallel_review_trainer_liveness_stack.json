@@ -1,17 +1,41 @@
 {
-  "task_id": "069_codex_parallel_review_trainer_liveness_stack",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
   ],
+  "completed_at": "2026-06-15T20:07:06Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "fail_blockers": [
+    "1. `freshness_metadata` reinstated as a distinct Stage A field.",
+    "1. `StageATrainerRecord`",
+    "1. `LivenessSignalSnapshot`",
+    "1. If `snapshot.last_prediction_ts_ms is not None` and",
+    "1. `StreamIdObservation`",
+    "1. `LivenessSnapshotBaseInputs`",
+    "1. Type-check `base_inputs` is a `LivenessSnapshotBaseInputs`. On",
+    "1. `LivenessSignalSnapshot`",
+    "1. If `snapshot.last_prediction_ts_ms is not None` and",
+    "1. prediction_age,",
+    "1. `freshness_metadata` reinstated as a distinct Stage A field.",
+    "1. `StageATrainerRecord`",
+    "1. `LivenessSignalSnapshot`",
+    "1. If `snapshot.last_prediction_ts_ms is not None` and",
+    "1. prediction_age,",
+    "1. `LivenessSnapshotBaseInputs`"
+  ],
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/069_codex_parallel_review_trainer_liveness_stack_codex.log",
+  "next_action": "Codex FAIL (PHASE2E1C_ALPHA_TRAINER_PARITY_IMPL_CODEX_FAIL). Remediation: created at claude_worklog/agent_supervisor/tasks/closed_loop_remediation_069_codex_parallel_review_trainer_liveness_stack.json",
+  "next_recommended_action": "If pass, continue trainer parity sequence. If fail, create Codex autofix task.",
+  "pid_or_job_id": 221799,
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Review the trainer parity 2E1A/2E1B and 2E1C trainer liveness stack. Inputs: v2/backend/app/adapters/trainer, v2/backend/app/domain/trainer_parity, v2/backend/app/domain/trainer_liveness, corresponding unit tests, claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl. Verify: no live trainer restart, no Redis writes, no legacy mutation, no exchange action, no secrets, liveness model catches process-alive worker-dead, stale prediction, zero stream growth, fatal log signatures, multi-reason alerts, and explainability/lineage remains consistent. Output exactly two BEGIN_FILE blocks. GO/NO-GO file must contain one line: CODEX_PARALLEL_TRAINER_LIVENESS_REVIEW_PASS or CODEX_PARALLEL_TRAINER_LIVENESS_REVIEW_FAIL.",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/69_CODEX_PARALLEL_REVIEW_TRAINER_LIVENESS.md",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/69_CODEX_PARALLEL_REVIEW_GO_NO_GO.md"
   ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Review the trainer parity 2E1A/2E1B and 2E1C trainer liveness stack. Inputs: v2/backend/app/adapters/trainer, v2/backend/app/domain/trainer_parity, v2/backend/app/domain/trainer_liveness, corresponding unit tests, claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl. Verify: no live trainer restart, no Redis writes, no legacy mutation, no exchange action, no secrets, liveness model catches process-alive worker-dead, stale prediction, zero stream growth, fatal log signatures, multi-reason alerts, and explainability/lineage remains consistent. Output exactly two BEGIN_FILE blocks. GO/NO-GO file must contain one line: CODEX_PARALLEL_TRAINER_LIVENESS_REVIEW_PASS or CODEX_PARALLEL_TRAINER_LIVENESS_REVIEW_FAIL.",
-  "next_recommended_action": "If pass, continue trainer parity sequence. If fail, create Codex autofix task."
+  "risk_level": "L1",
+  "started_at": "2026-06-15T20:02:36Z",
+  "status": "failed",
+  "task_id": "069_codex_parallel_review_trainer_liveness_stack",
+  "updated_at": "2026-06-15T20:07:06Z"
 }

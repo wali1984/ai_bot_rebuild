@@ -1,0 +1,57 @@
+{
+  "rollup_version": "static-v1",
+  "generated_at": "2026-06-04T22:30:00-04:00",
+  "go_no_go_marker": "STATIC_FRONTEND_FALLBACK_LIVE_BLOCKED",
+  "all_required_matched": false,
+  "blocking_lanes": [
+    "live_gate_blocked_human_only",
+    "paper_edge_not_proven",
+    "operator_risk_caps_required"
+  ],
+  "lanes": [
+    {
+      "lane_id": "live_gate",
+      "description": "Static frontend fallback reports live/canary as blocked unless the backend replaces this contract.",
+      "required_marker": "blocked_human_only",
+      "actual_marker": "blocked_human_only",
+      "marker_path": "/api/v1/live-readiness/banner",
+      "found": true,
+      "matched": true,
+      "is_required_for_online": true,
+      "error": null
+    },
+    {
+      "lane_id": "paper_edge",
+      "description": "Live remains blocked until current paper/shadow edge is proven by runtime evidence.",
+      "required_marker": "EDGE_CLAIMED_OPERATOR_THRESHOLDS_MET",
+      "actual_marker": "EDGE_NOT_CLAIMED_OPERATOR_THRESHOLDS_REQUIRED",
+      "marker_path": "/v2_unified_feature_parity_and_backtest_edge_completion/latest/V2_UNIFIED_FEATURE_PARITY_AND_BACKTEST_EDGE_COMPLETION_REPORT.md",
+      "found": true,
+      "matched": false,
+      "is_required_for_online": true,
+      "error": null
+    },
+    {
+      "lane_id": "risk_caps",
+      "description": "Operator risk caps and live enablement remain human-only.",
+      "required_marker": "LIVE_RISK_CAPS_OPERATOR_APPROVED",
+      "actual_marker": "LIVE_RISK_CAPS_OPERATOR_REQUIRED",
+      "marker_path": "/api/v1/live-readiness/banner",
+      "found": true,
+      "matched": false,
+      "is_required_for_online": true,
+      "error": null
+    }
+  ],
+  "forbidden_operations": [
+    "order",
+    "test_order",
+    "cancel",
+    "modify",
+    "leverage_mutation",
+    "margin_mutation",
+    "redis_trim",
+    "legacy_restart"
+  ],
+  "live_gate_status": "blocked_human_only"
+}

@@ -1,0 +1,126 @@
+{
+  "ledger_id": "omission_blocker_ledger_20260531",
+  "generated_at": "2026-05-31T05:30:00Z",
+  "source_of_truth_dispatch": "claude_worklog/final_readiness/priority_autoseed_20260531/latest/PRIORITY_AUTONOMOUS_DISPATCH_PACKET.json",
+  "source_of_truth_audit": "V2_VS_LEGACY_AUDIT_2026-05-31.md",
+  "entries": [
+    {
+      "omission_id": "missing_ingestor_service",
+      "task_id": "claude_priority_missing_ingestor_service_20260531",
+      "task_status": "pending",
+      "exact_blocker": "no_v2_native_writer_for_legacy_ingestors_(coinank,tokenmetrics,microstructure,orderbook_depth);_legacy_processes_stopped_2026-05-26",
+      "owner_path": "v2/backend/app/ingestors/ (target) | v2/legacy_owned_runtime/ingest/ (reference)",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:18-39,113,178-180",
+      "next_action": "Author V2-native ingestor services with explicit ownership and freshness contracts; emit per-source GO_NO_GO.",
+      "missing_evidence": "no_v2_heartbeat_writer_proof_for_4_missing_source_categories"
+    },
+    {
+      "omission_id": "stale_ingestor_payload",
+      "task_id": "claude_priority_stale_ingestor_payload_20260531",
+      "task_status": "pending",
+      "exact_blocker": "legacy_keys_aging_out_(features:coinank:*_961_keys_expiring;_tm:last_run:*_6_remaining_of_18;_heartbeat:*_5d+_stale)_with_no_v2_writer_taking_over",
+      "owner_path": "v2/frontend/public/operator_runtime/ (display) | v2/backend/app/ (write)",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:80,149-152,177-180",
+      "next_action": "Emit stale-key matrix with timestamps and age seconds; mark each upstream dependency with command-level verification.",
+      "missing_evidence": "no_per_key_age_seconds_table_yet_emitted_for_all_stale_namespaces"
+    },
+    {
+      "omission_id": "missing_v2_namespace_mapping",
+      "task_id": "claude_priority_missing_v2_namespace_mapping_20260531",
+      "task_status": "pending",
+      "exact_blocker": "no_authoritative_legacy_to_v2_namespace_table_committed_to_repo_with_explicit_read_write_direction",
+      "owner_path": "v2/backend/app/ + v2/backend/tests/ + v2/frontend/public/operator_runtime/",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:77-97",
+      "next_action": "Produce table covering price, funding, OI, OHLCV, TA, unified_features, prediction, signals, positions, coinank, tokenmetrics with direction = read|write|none and policy = no_old_redis_writes_from_v2.",
+      "missing_evidence": "no_committed_mapping_table_artifact_at_v2/backend/app/contracts/"
+    },
+    {
+      "omission_id": "old_redis_adapter_for_copied_script",
+      "task_id": "claude_priority_old_redis_adapter_for_copied_script_20260531",
+      "task_status": "pending",
+      "exact_blocker": "copied_legacy_owned_runtime_scripts_(liquidation_bridge.py,liquidation_levels_engine.py)_still_running_against_unclear_redis_namespace_routing;_read_only_bridge_contract_not_formally_proven",
+      "owner_path": "v2/legacy_owned_runtime/ingest/ + v2/backend/app/adapters/",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:49,64,69-70",
+      "next_action": "Prove fail_closed bridge contract via tests; document any read-only legacy Redis reads with explicit V2-only writes.",
+      "missing_evidence": "no_contract_test_artifact_demonstrates_zero_old_redis_writes_from_running_copied_scripts"
+    },
+    {
+      "omission_id": "missing_dynamic_symbol_coverage",
+      "task_id": "claude_priority_missing_dynamic_symbol_coverage_20260531",
+      "task_status": "pending",
+      "exact_blocker": "no_explicit_separation_of_discovered_observed_training_paper_live_blocked_symbol_sets_with_per_source_validation",
+      "owner_path": "v2/backend/app/symbols/ + v2/frontend/public/operator_runtime/",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:92-97 (v2:market:*=25 symbols), memory/reference_coinank_odt.md (CoinAnk symbol source)",
+      "next_action": "Emit symbol-set matrix with per-source feed validation; do not auto-train/auto-trade discovered symbols.",
+      "missing_evidence": "no_committed_artifact_at_v2/backend/app/symbols/ enumerating_5_disjoint_sets"
+    },
+    {
+      "omission_id": "feature_ta_missing_fields",
+      "task_id": "claude_priority_feature_ta_missing_fields_20260531",
+      "task_status": "running",
+      "exact_blocker": "v2_unified_features=14_fields_vs_legacy_562_fields_AND_v2_technical_analysis=nested_json_11_meta_vs_legacy_160_flat_hash_fields;_full_legacy_unified_feature_builder_MISSING",
+      "owner_path": "v2/backend/app/features/ + v2/backend/tests/",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:121-132,253-254",
+      "next_action": "Emit field-by-field contract parity table (legacy expected vs v2 actual) with freshness and nullability columns.",
+      "missing_evidence": "no_per_field_parity_table_yet_emitted_for_all_562_unified_feature_fields_or_160_ta_fields"
+    },
+    {
+      "omission_id": "trainer_data_feed_gaps",
+      "task_id": "claude_priority_trainer_data_feed_gaps_20260531",
+      "task_status": "pending",
+      "exact_blocker": "v2_rl_core=0/6_components_ported_AND_input_features_14/562_AND_no_heartbeat_writer_for_native_trainer;_native_trainer_not_implemented",
+      "owner_path": "v2/backend/app/trainer/ + v2/backend/tests/",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:140-143,206,230",
+      "next_action": "Validate each required trainer input source (price/funding/OI/OHLCV/TA/unified_features/microstructure/regime/toxicity/coinank/tokenmetrics) and emit per-source PASS/BLOCKED/MISSING_EVIDENCE.",
+      "missing_evidence": "no_per_input_freshness_heartbeat_artifact_yet_emitted_for_trainer_feed"
+    },
+    {
+      "omission_id": "website_stale_incorrect_page",
+      "task_id": "claude_priority_website_stale_incorrect_page_20260531",
+      "task_status": "pending",
+      "exact_blocker": "v2/frontend/public/* cards still render legacy-derived state that no longer matches runtime evidence (signals stream frozen, predictions empty, unified features 14 fields) without explicit MISSING_EVIDENCE or BLOCKED label",
+      "owner_path": "v2/frontend/public/ + v2/frontend/src/ + v2/backend/app/api/",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:91,141-143,158",
+      "next_action": "For every unresolved card, emit explicit MISSING_EVIDENCE or BLOCKED label with source-of-truth pointer; no placeholder data shown as runtime truth.",
+      "missing_evidence": "no_committed_audit_per_page_artifact_distinguishing_runtime_truth_vs_stale_placeholder"
+    },
+    {
+      "omission_id": "paper_decision_lineage_missing",
+      "task_id": "claude_priority_paper_decision_lineage_missing_20260531",
+      "task_status": "pending",
+      "exact_blocker": "no_enforced_lineage_contract_signal_id__execution_intent_id__shadow_decision_id_across_v2:signals:paper__v2_trade_management_paper_loop__v2:paper:position_history",
+      "owner_path": "v2/backend/app/lineage/ + v2/frontend/public/",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:160,165-172",
+      "next_action": "Author lineage contract + dashboard projection parity; emit per-link READY/BLOCKED with evidence pointer.",
+      "missing_evidence": "no_contract_artifact_at_v2/backend/app/lineage/_yet_enforcing_three_id_chain"
+    },
+    {
+      "omission_id": "backtest_not_run",
+      "task_id": "claude_priority_backtest_not_run_20260531",
+      "task_status": "running",
+      "exact_blocker": "no_v2_native_backtest_invocation_evidence_against_a_committed_dataset_scope;_runner_path_not_yet_emitted",
+      "owner_path": "v2/backend/app/backtest/ + v2/backend/tests/ + v2/frontend/public/operator_runtime/",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md (no backtest evidence in audit)",
+      "next_action": "Emit reproducible invocation, dataset scope, and non-live results evidence; if blocked, emit exact blocker.",
+      "missing_evidence": "no_committed_backtest_results_artifact_yet"
+    },
+    {
+      "omission_id": "old_redis_writer_proof_missing",
+      "task_id": "claude_priority_old_redis_writer_proof_missing_20260531",
+      "task_status": "pending",
+      "exact_blocker": "no_definitive_proof_test_artifact_demonstrates_zero_old_redis_writes_from_any_v2_runtime_path_(unit+contract+runtime_evidence)",
+      "owner_path": "v2/backend/app/ + v2/backend/tests/ + v2/frontend/public/operator_runtime/",
+      "evidence_pointer": "V2_VS_LEGACY_AUDIT_2026-05-31.md:49,64,69-70 (copied legacy_owned_runtime scripts still running)",
+      "next_action": "Author tests + contract checks proving no V2 path writes to legacy Redis namespaces; any uncertain path = BLOCKED with file/function ownership.",
+      "missing_evidence": "no_committed_proof_artifact_at_v2/backend/tests/_yet"
+    }
+  ],
+  "summary": {
+    "total_omissions": 11,
+    "with_exact_blocker": 11,
+    "with_task_descriptor": 11,
+    "running": 3,
+    "pending": 8,
+    "closed": 0
+  }
+}

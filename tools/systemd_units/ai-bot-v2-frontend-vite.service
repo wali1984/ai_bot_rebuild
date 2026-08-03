@@ -1,0 +1,18 @@
+[Unit]
+Description=AI Bot V2 frontend production preview (built Vite dist; API proxy only)
+Wants=network-online.target
+After=network-online.target ai-bot-v2-public-website-backend.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD/v2/frontend
+Environment=NODE_ENV=production
+Environment=VITE_API_PROXY_TARGET=http://127.0.0.1:8000
+ExecStartPre=/usr/bin/env bash -lc 'test -s dist/index.html'
+ExecStart=/usr/bin/env bash -lc 'exec /usr/bin/npm run preview -- --host 0.0.0.0 --port 5173'
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

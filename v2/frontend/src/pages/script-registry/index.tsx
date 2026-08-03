@@ -1,11 +1,11 @@
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
-import { useEffect, useState } from 'react';
 import { Panel } from '../cockpitComponents';
 import { statusClass, valueText } from '../cockpitData';
 import { useCoinankMarketIntelligencePayload, usePaperOnlineRuntimePayload } from '../operatorTruthData';
 import { CoinankMarketIntelligencePanel, PaperOnlineRuntimeStatusPanel } from '../operatorTruthComponents';
+import { usePayloadFile } from '../../hooks/usePayloadFile';
 
 interface ScriptRegistryPayload {
   generated_at: string;
@@ -14,31 +14,15 @@ interface ScriptRegistryPayload {
 }
 
 export default function ScriptRegistryPage(): JSX.Element {
-  const [payload, setPayload] = useState<ScriptRegistryPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: payload, error } = usePayloadFile<ScriptRegistryPayload>(
+    '/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json',
+    30_000,
+  );
   const { payload: paperRuntime } = usePaperOnlineRuntimePayload();
   const { payload: coinankPayload, error: coinankError } = useCoinankMarketIntelligencePayload();
 
-  useEffect(() => {
-    let active = true;
-    fetch('/system_atlas_runtime_coverage/latest/SCRIPT_REGISTRY.json', { cache: 'no-store' })
-      .then((res) => {
-        if (!res.ok) throw new Error(`script registry ${res.status}`);
-        return res.json() as Promise<ScriptRegistryPayload>;
-      })
-      .then((next) => {
-        if (active) setPayload(next);
-      })
-      .catch((err: unknown) => {
-        if (active) setError(err instanceof Error ? err.message : 'script registry unavailable');
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
   return (
-    <article className="enterprise-cockpit-page" data-testid="page-script-registry" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}>
+    <article className="enterprise-cockpit-page" data-testid="page-script-registry" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole} style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
       <header className="enterprise-cockpit-hero">
         <div>
           <p className="cockpit-kicker">Script Registry</p>
@@ -48,7 +32,7 @@ export default function ScriptRegistryPage(): JSX.Element {
       </header>
       <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
       {!payload ? (
-        <p className="cockpit-evidence-gap">{error ?? 'Loading script registry evidence...'}</p>
+        <p className="cockpit-evidence-gap">{error ?? 'Connecting script registry evidence stream...'}</p>
       ) : (
         <>
           <CoinankMarketIntelligencePanel payload={coinankPayload} error={coinankError} context="Script Registry" />

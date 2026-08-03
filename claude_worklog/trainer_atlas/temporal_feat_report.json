@@ -1,0 +1,257 @@
+{
+  "schema_version": "trainer_offline_batch_train_v1",
+  "examples": 16000,
+  "epochs": 30,
+  "steps_per_epoch": 60,
+  "batch_size": 512,
+  "total_gradient_steps": 1260,
+  "wall_seconds": 827.098,
+  "gradient_steps_per_second": 1.523,
+  "rows_processed": 20160000,
+  "rows_per_second": 24374.4,
+  "loss_first": 87.51703643798828,
+  "loss_last": 4.309307098388672,
+  "loss_improved": true,
+  "best_validation_loss": 33.13786315917969,
+  "best_epoch": 12,
+  "checkpoint_selection_criterion": "risk_adjusted_composite",
+  "best_risk_composite": -0.09270319322265802,
+  "best_risk_sortino": 0.4511154804932282,
+  "best_risk_cvar": -543.8186737158862,
+  "best_risk_trades": 2130,
+  "early_stop_patience": 8,
+  "stopped_early": true,
+  "epochs_run": 21,
+  "kept_best_val_checkpoint": true,
+  "gpu": {
+    "gpu_telemetry_available": true,
+    "samples": 643,
+    "gpu_utilization_mean_pct": 18.45,
+    "gpu_utilization_max_pct": 98.0,
+    "vram_used_max_mb": 15709.0
+  },
+  "epoch_reports": [
+    {
+      "epoch": 0,
+      "loss_before": 87.51703643798828,
+      "loss_after": 61.00321578979492,
+      "validation_supervised_loss": 49.0011100769043,
+      "train_val_generalization_gap": -12.002106,
+      "ppo_entropy": 0.9190473556518555,
+      "learning_mode": null
+    },
+    {
+      "epoch": 1,
+      "loss_before": 60.6722297668457,
+      "loss_after": 42.15656280517578,
+      "validation_supervised_loss": 39.05833435058594,
+      "train_val_generalization_gap": -3.098228,
+      "ppo_entropy": 1.0743958950042725,
+      "learning_mode": null
+    },
+    {
+      "epoch": 2,
+      "loss_before": 42.110626220703125,
+      "loss_after": 43.383426666259766,
+      "validation_supervised_loss": 41.993125915527344,
+      "train_val_generalization_gap": -1.390301,
+      "ppo_entropy": 1.0368608236312866,
+      "learning_mode": null
+    },
+    {
+      "epoch": 3,
+      "loss_before": 43.39234924316406,
+      "loss_after": 34.53964614868164,
+      "validation_supervised_loss": 36.71851348876953,
+      "train_val_generalization_gap": 2.178867,
+      "ppo_entropy": 0.9985818266868591,
+      "learning_mode": null
+    },
+    {
+      "epoch": 4,
+      "loss_before": 34.549434661865234,
+      "loss_after": 28.1634578704834,
+      "validation_supervised_loss": 33.95752716064453,
+      "train_val_generalization_gap": 5.794069,
+      "ppo_entropy": 0.9481418132781982,
+      "learning_mode": null
+    },
+    {
+      "epoch": 5,
+      "loss_before": 28.185266494750977,
+      "loss_after": 31.951997756958008,
+      "validation_supervised_loss": 39.677520751953125,
+      "train_val_generalization_gap": 7.725523,
+      "ppo_entropy": 0.9482895731925964,
+      "learning_mode": null
+    },
+    {
+      "epoch": 6,
+      "loss_before": 32.0388069152832,
+      "loss_after": 24.34969711303711,
+      "validation_supervised_loss": 33.73493957519531,
+      "train_val_generalization_gap": 9.385242,
+      "ppo_entropy": 0.8967364430427551,
+      "learning_mode": null
+    },
+    {
+      "epoch": 7,
+      "loss_before": 24.353933334350586,
+      "loss_after": 19.709531784057617,
+      "validation_supervised_loss": 33.04706954956055,
+      "train_val_generalization_gap": 13.337538,
+      "ppo_entropy": 0.8735396862030029,
+      "learning_mode": null
+    },
+    {
+      "epoch": 8,
+      "loss_before": 19.765336990356445,
+      "loss_after": 22.23661231994629,
+      "validation_supervised_loss": 35.08979415893555,
+      "train_val_generalization_gap": 12.853182,
+      "ppo_entropy": 0.8925005793571472,
+      "learning_mode": null
+    },
+    {
+      "epoch": 9,
+      "loss_before": 22.224929809570312,
+      "loss_after": 13.871323585510254,
+      "validation_supervised_loss": 32.945281982421875,
+      "train_val_generalization_gap": 19.073958,
+      "ppo_entropy": 0.8266487717628479,
+      "learning_mode": null
+    },
+    {
+      "epoch": 10,
+      "loss_before": 13.863852500915527,
+      "loss_after": 16.267179489135742,
+      "validation_supervised_loss": 32.480560302734375,
+      "train_val_generalization_gap": 16.213381,
+      "ppo_entropy": 0.8714582920074463,
+      "learning_mode": null
+    },
+    {
+      "epoch": 11,
+      "loss_before": 16.28176498413086,
+      "loss_after": 11.08906078338623,
+      "validation_supervised_loss": 32.576107025146484,
+      "train_val_generalization_gap": 21.487046,
+      "ppo_entropy": 0.7838685512542725,
+      "learning_mode": null
+    },
+    {
+      "epoch": 12,
+      "loss_before": 11.092253684997559,
+      "loss_after": 10.955686569213867,
+      "validation_supervised_loss": 33.13786315917969,
+      "train_val_generalization_gap": 22.182177,
+      "ppo_entropy": 0.7740259170532227,
+      "learning_mode": null
+    },
+    {
+      "epoch": 13,
+      "loss_before": 10.988883018493652,
+      "loss_after": 9.582198143005371,
+      "validation_supervised_loss": 32.205665588378906,
+      "train_val_generalization_gap": 22.623467,
+      "ppo_entropy": 0.7647355198860168,
+      "learning_mode": null
+    },
+    {
+      "epoch": 14,
+      "loss_before": 9.602119445800781,
+      "loss_after": 9.197479248046875,
+      "validation_supervised_loss": 33.987571716308594,
+      "train_val_generalization_gap": 24.790092,
+      "ppo_entropy": 0.7753133773803711,
+      "learning_mode": null
+    },
+    {
+      "epoch": 15,
+      "loss_before": 9.08818531036377,
+      "loss_after": 7.649477005004883,
+      "validation_supervised_loss": 32.758731842041016,
+      "train_val_generalization_gap": 25.109255,
+      "ppo_entropy": 0.7701912522315979,
+      "learning_mode": null
+    },
+    {
+      "epoch": 16,
+      "loss_before": 7.640653610229492,
+      "loss_after": 7.141007423400879,
+      "validation_supervised_loss": 32.74179458618164,
+      "train_val_generalization_gap": 25.600787,
+      "ppo_entropy": 0.743317723274231,
+      "learning_mode": null
+    },
+    {
+      "epoch": 17,
+      "loss_before": 7.13586950302124,
+      "loss_after": 6.283957004547119,
+      "validation_supervised_loss": 32.76887512207031,
+      "train_val_generalization_gap": 26.484918,
+      "ppo_entropy": 0.7541505098342896,
+      "learning_mode": null
+    },
+    {
+      "epoch": 18,
+      "loss_before": 6.282517433166504,
+      "loss_after": 6.2865190505981445,
+      "validation_supervised_loss": 35.029022216796875,
+      "train_val_generalization_gap": 28.742503,
+      "ppo_entropy": 0.7089264392852783,
+      "learning_mode": null
+    },
+    {
+      "epoch": 19,
+      "loss_before": 6.323731422424316,
+      "loss_after": 5.176259517669678,
+      "validation_supervised_loss": 32.643333435058594,
+      "train_val_generalization_gap": 27.467074,
+      "ppo_entropy": 0.6987890601158142,
+      "learning_mode": null
+    },
+    {
+      "epoch": 20,
+      "loss_before": 5.1765007972717285,
+      "loss_after": 4.309307098388672,
+      "validation_supervised_loss": 32.692779541015625,
+      "train_val_generalization_gap": 28.383472,
+      "ppo_entropy": 0.685440719127655,
+      "learning_mode": null
+    }
+  ],
+  "point_in_time_safety": {
+    "schema_version": "trainer_offline_point_in_time_safety_v1",
+    "checked_rows": 16000,
+    "missing_trust_row_count": 0,
+    "missing_decision_time_count": 0,
+    "violation_count": 0,
+    "violations_sample": [],
+    "passed": true
+  },
+  "offline_only": true,
+  "writes_live_checkpoint": false,
+  "places_real_order": false,
+  "order_submitted": false,
+  "test_order_submitted": false,
+  "leverage_mutated": false,
+  "margin_mutated": false,
+  "routes_to_live": false,
+  "live_gate": "blocked_human_only",
+  "load": {
+    "cache_path": "claude_worklog/trainer_atlas/offline_batch_example_cache.pkl",
+    "cache_hit": false,
+    "archive_view_root": "/tmp/v2_offline_archive_view_ht628ov6",
+    "live_cursor_untouched": true,
+    "load_seconds": 54.784,
+    "examples": 16000,
+    "cache_written": true
+  },
+  "save": {
+    "offline_dir": "/home/wali/Desktop/AI BOT REBUILD/.local_models/v2_native_rl_masa_ppo_temporal_feat",
+    "is_live_dir": false,
+    "saved": true,
+    "checkpoint_id": "v2_hybrid_ckpt_28e95fec1b4b711ee41bf6a1"
+  }
+}

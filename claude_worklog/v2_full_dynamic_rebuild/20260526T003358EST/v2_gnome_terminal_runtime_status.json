@@ -1,0 +1,17 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_GNOME_TERMINAL_RUNTIME_STATUS_READY",
+  "launcher_script": "claude_worklog/tools/start_v2_rebuild_gnome_terminals.sh",
+  "legacy_style_monitor_module": "claude_worklog/tools/v2_legacy_style_monitors.py",
+  "live_symbols": [],
+  "panels_uses_est_timestamps": true,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:15-0400",
+  "visible_panel_module": "claude_worklog/tools/v2_visible_terminal_panel.py",
+  "writes_exchange_orders": false
+}

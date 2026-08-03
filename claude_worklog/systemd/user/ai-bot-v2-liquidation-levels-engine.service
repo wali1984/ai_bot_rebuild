@@ -1,0 +1,19 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI BOT V2 liquidation levels engine (read-only inputs; V2 namespace only)
+After=ai-bot-v2-liquidation-wss-paper-shadow.service ai-bot-v2-native-ingestors-live-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_liquidation_levels_engine --timeframes 1m,5m,15m,1h,4h --ttl-seconds 900 --publish-heartbeat-sec 60 --symbol-refresh-sec 60'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_liquidation_levels_engine.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_liquidation_levels_engine.err
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

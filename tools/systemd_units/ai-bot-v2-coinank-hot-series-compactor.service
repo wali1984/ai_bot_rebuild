@@ -1,0 +1,38 @@
+[Unit]
+Description=AI Bot V2 CoinAnk bounded resumable non-authoritative hot-series compactor
+After=redis.service
+Wants=redis.service
+ConditionPathExists=/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_coinank_hot_series_compactor.py
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI BOT REBUILD/v2/backend"
+Environment="PYTHONDONTWRITEBYTECODE=1"
+Environment="LIVE_GATE=blocked_human_only"
+Environment="V2_LIVE=0"
+Environment="REDIS_URL=redis://127.0.0.1:6379/0"
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m app.cli.v2_coinank_hot_series_compactor --max-keys 128 --max-bytes-read 67108864 --max-runtime-seconds 45 --json
+TimeoutStartSec=60
+Nice=10
+MemoryHigh=384M
+MemoryMax=512M
+TasksMax=32
+UMask=0077
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectHome=read-only
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=default.target

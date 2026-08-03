@@ -1,0 +1,70 @@
+{
+  "brand": {
+    "name": "NERVYX ONE",
+    "descriptor": "Adaptive Market Intelligence",
+    "tagline": "Sense. Decide. Adapt."
+  },
+  "colors": {
+    "canvas": "#070A12",
+    "surface": "#101522",
+    "surfaceElevated": "#171E2E",
+    "primary": "#7C5CFF",
+    "primaryBlue": "#4B7BFF",
+    "signal": "#22D3C5",
+    "proof": "#5CF2B3",
+    "textPrimary": "#F6F7FB",
+    "textMuted": "#94A3B8",
+    "warning": "#FFB547",
+    "danger": "#FF5D7A",
+    "info": "#54B7FF"
+  },
+  "gradients": {
+    "neural": "linear-gradient(135deg, #7C5CFF 0%, #4B7BFF 52%, #22D3C5 100%)"
+  },
+  "typography": {
+    "display": "Inter Display",
+    "interface": "Inter",
+    "data": "DejaVu Sans Mono"
+  },
+  "radius": {
+    "sm": "10px",
+    "md": "16px",
+    "lg": "24px",
+    "xl": "32px"
+  },
+  "themes": {
+    "midnightNeural": {
+      "background": "#070A12",
+      "surface": "#101522",
+      "surface2": "#171E2E",
+      "text": "#F6F7FB",
+      "muted": "#94A3B8",
+      "accent": "#22D3C5"
+    },
+    "polarSignal": {
+      "background": "#F3F6FB",
+      "surface": "#FFFFFF",
+      "surface2": "#E9EEF7",
+      "text": "#101522",
+      "muted": "#5D697C",
+      "accent": "#7C5CFF"
+    },
+    "opsTerminal": {
+      "background": "#030507",
+      "surface": "#0A0D10",
+      "surface2": "#11161B",
+      "text": "#F6F7FB",
+      "muted": "#8A969F",
+      "accent": "#5CF2B3"
+    }
+  },
+  "modules": {
+    "NERVYX SENSE": "Data ingestion and market-state trust",
+    "NERVYX CORE": "PPO + MASA inference",
+    "NERVYX SHIFT": "Regime and strategy routing",
+    "NERVYX GUARD": "Risk, trust, and execution gates",
+    "NERVYX REPLAY": "Decision evidence and reconstruction",
+    "NERVYX EXECUTE": "Paper/live order lifecycle",
+    "NERVYX OBSERVE": "Monitoring, soak, and operational proof"
+  }
+}

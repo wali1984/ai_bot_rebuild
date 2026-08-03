@@ -1,0 +1,63 @@
+{
+  "adapter_native_mutation_methods": [
+    "place_order",
+    "cancel",
+    "change_initial_leverage",
+    "change_margin_type",
+    "change_position_mode"
+  ],
+  "all_mutation_methods_refused": true,
+  "credentials_values_exposed": false,
+  "defensive_getattr_refused_unknown_names": {
+    "futures_create_order": "ExchangeMutationFrozenError",
+    "place_order_v2": "ExchangeMutationFrozenError",
+    "set_leverage_async": "ExchangeMutationFrozenError",
+    "withdraw_to": "ExchangeMutationFrozenError"
+  },
+  "extra_frozen_method_names": [
+    "place_order",
+    "cancel_order",
+    "modify_order",
+    "test_order",
+    "batch_order",
+    "set_leverage",
+    "set_margin_mode",
+    "set_position_side",
+    "transfer",
+    "withdraw"
+  ],
+  "freeze_error_code": "EXCHANGE_MUTATION_FROZEN",
+  "go_no_go": "V2_EXCHANGE_ADAPTER_MUTATION_FREEZE_READY",
+  "leaked_methods_by_name": {},
+  "leverage_changed": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "margin_mode_changed": false,
+  "readonly_method_names": [
+    "account_info_v3",
+    "position_risk"
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "refused_methods_by_name": {
+    "batch_order": "EXCHANGE_MUTATION_FROZEN",
+    "cancel": "EXCHANGE_MUTATION_FROZEN",
+    "cancel_order": "EXCHANGE_MUTATION_FROZEN",
+    "change_initial_leverage": "EXCHANGE_MUTATION_FROZEN",
+    "change_margin_type": "EXCHANGE_MUTATION_FROZEN",
+    "change_position_mode": "EXCHANGE_MUTATION_FROZEN",
+    "modify_order": "EXCHANGE_MUTATION_FROZEN",
+    "place_order": "EXCHANGE_MUTATION_FROZEN",
+    "set_leverage": "EXCHANGE_MUTATION_FROZEN",
+    "set_margin_mode": "EXCHANGE_MUTATION_FROZEN",
+    "set_position_side": "EXCHANGE_MUTATION_FROZEN",
+    "test_order": "EXCHANGE_MUTATION_FROZEN",
+    "transfer": "EXCHANGE_MUTATION_FROZEN",
+    "withdraw": "EXCHANGE_MUTATION_FROZEN"
+  },
+  "ts_est": "20260525T231604EST",
+  "ts_human_est": "2026-05-25 23:21:36 EDT",
+  "ts_iso_est": "2026-05-25T23:21:36-0400",
+  "underlying_adapter_module": "v2.backend.app.services.binance_usdm_adapter.service",
+  "wrapper_module": "v2.backend.app.services.exchange_mutation_freeze"
+}

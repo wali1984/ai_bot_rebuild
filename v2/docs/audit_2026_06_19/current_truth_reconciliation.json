@@ -1,0 +1,54 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "data_source": "redis-cli get v2:paper:closed_trades (645 rows)",
+  "initial_capital_usd": 10000.0,
+  "closed_trades": {
+    "count": 645,
+    "win_count": 196,
+    "loss_count": 449,
+    "win_rate": 0.3039,
+    "gross_realized_pnl_usd": 61.2935,
+    "fees_usd": 26.0448,
+    "slippage_usd": 13.0224,
+    "net_realized_pnl_usd": 22.2262,
+    "check_gross_minus_fees_minus_slip": 22.2262,
+    "reconciles": true,
+    "win_pnl": 232.6358,
+    "loss_pnl": -210.4096,
+    "profit_factor": 1.1056,
+    "avg_win_usd": 1.1869,
+    "avg_loss_usd": -0.4686,
+    "pnl_by_exit_reason": {
+      "TIER_1_STOP_LOSS": -65.3165,
+      "TIER_2_PROFIT_BANK": 57.7472,
+      "TIER_2_PROFIT_LOCK": 0.2196,
+      "TIER_2_TAKE_PROFIT": 155.1516,
+      "TIER_2_TRAILING_STOP": -135.9697,
+      "TIER_4_MAX_HOLD_TIME": 10.394
+    }
+  },
+  "portfolio_state": {
+    "source": "redis-cli get v2:portfolio:state",
+    "account_mode": "paper_shadow_only",
+    "initial_capital": 10000.0,
+    "cash_balance": 10000.0,
+    "open_position_notional": 67512.28,
+    "unrealized_pnl_usd": 719.36,
+    "reported_realized_pnl_usd": 0.0,
+    "reported_equity": 10719.36,
+    "expected_equity": 10741.59,
+    "equity_gap_usd": -22.23
+  },
+  "accounting_reconciliation": {
+    "finding": "ACCOUNTING_BUG",
+    "severity": "HIGH",
+    "description": "v2:portfolio:state shows realized_pnl_usd=0.0 despite 645 closed trades with net $22.23 realized PnL in v2:paper:closed_trades. The portfolio equity calculation ($10,719.36) does NOT include closed trade realized PnL. Expected equity: $10,000 + $22.23 realized + $719.36 unrealized = $10,741.59. Gap: $10,741.59 - $10,719.36 = $22.23",
+    "raw_evidence": [
+      "redis-cli get v2:portfolio:state | jq .realized_pnl_usd  => 0.0",
+      "redis-cli get v2:paper:closed_trades | python3 -c 'import json,sys; rows=json.loads(sys.stdin.read()); print(sum(float(r.get(\"realized_pnl_usd\",0) or 0) for r in rows))'  => 22.2262",
+      "redis-cli get v2:portfolio:state | jq .equity  => 10719.35922535"
+    ],
+    "confidence": "HIGH",
+    "blocker": true
+  }
+}

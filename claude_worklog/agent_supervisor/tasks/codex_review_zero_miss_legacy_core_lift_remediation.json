@@ -1,0 +1,40 @@
+{
+  "agent": "codex",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "codex_governor_disposition": {
+    "disposition": "superseded_obsolete_not_a_pass",
+    "does_not_approve_canary": true,
+    "does_not_approve_live": true,
+    "does_not_approve_shutdown": true,
+    "does_not_claim_codex_pass": true,
+    "reason": "stale historical Codex review descriptor retired by full-rebuild self-healing governor; current final_readiness/codex packets supersede this descriptor",
+    "set_at_utc": "2026-05-23T01:34:32Z"
+  },
+  "forbidden": [
+    "old_redis_write",
+    "exchange_mutation",
+    "live_gate_change",
+    "live_symbols_non_empty",
+    "live_or_canary_approval",
+    "legacy_shutdown_approval",
+    "bridge_only_marked_migrated",
+    "wrapper_only_marked_full_parity",
+    "smoke_pass_with_unresolved_imports",
+    "frontend_hides_missing_core_systems"
+  ],
+  "lane": "zero_miss_legacy_core_lift_remediation_review",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "prompt": "Review claude_zero_miss_legacy_core_lift_remediation. Codex must fail if any blocker is hidden, any unresolved import is treated as pass, any bridge-only subsystem is marked migrated, any config key is silently dropped, any old Redis write or exchange mutation appears, live_gate changes, live_symbols is non-empty, or frontend truth hides the remaining gaps. CODEX_GO_NO_GO.md must contain exactly ZERO_MISS_REMEDIATION_CODEX_PASS or ZERO_MISS_REMEDIATION_CODEX_FAIL.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/remediation/codex_review/CODEX_ZERO_MISS_REMEDIATION_REVIEW.md",
+    "claude_worklog/final_readiness/zero_miss_legacy_core_lift/latest/remediation/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "risk_level": "L2",
+  "status": "superseded_obsolete",
+  "task_id": "codex_review_zero_miss_legacy_core_lift_remediation",
+  "task_timeout_seconds": 3600
+}

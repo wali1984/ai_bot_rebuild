@@ -1,28 +1,38 @@
 {
-  "task_id": "012b_api_lineage_enforcement",
   "agent": "claude",
-  "risk_level": "L1",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/v2_architecture/",
     "claude_worklog/v2_architecture_remediation/"
   ],
+  "auto_commit": true,
+  "commit_message": "Close API lineage enforcement architecture gap",
+  "completed_at": "2026-06-15T19:54:42Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "012a_database_lineage_constraints"
+  ],
+  "emit_files": true,
+  "max_attempts": 3,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_tasks_on_failure": [],
+  "next_tasks_on_success": [
+    "012c_feature_explainability_completeness"
+  ],
+  "normalized_from_artifact": true,
+  "priority": 110,
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the API lineage enforcement gap. Inputs: claude_worklog/v2_architecture/05_API_CONTRACTS.md, claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md, claude_worklog/v2_requirements/*.md, claude_worklog/agent_supervisor/ollama_context/012b_api_contract_context.md (if present). Output full updated claude_worklog/v2_architecture/05_API_CONTRACTS.md and summary claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md using BEGIN_FILE blocks only. Requirements: add request/response validation for lineage fields, missing attribution error classes, endpoint-level enforcement for prediction/signal/orchestrator/risk/execution, and scaffoldable test vectors.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/v2_architecture/05_API_CONTRACTS.md",
     "claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md"
   ],
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Close only the API lineage enforcement gap. Inputs: claude_worklog/v2_architecture/05_API_CONTRACTS.md, claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md, claude_worklog/v2_requirements/*.md, claude_worklog/agent_supervisor/ollama_context/012b_api_contract_context.md (if present). Output full updated claude_worklog/v2_architecture/05_API_CONTRACTS.md and summary claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md using BEGIN_FILE blocks only. Requirements: add request/response validation for lineage fields, missing attribution error classes, endpoint-level enforcement for prediction/signal/orchestrator/risk/execution, and scaffoldable test vectors.",
-  "auto_commit": true,
-  "commit_message": "Close API lineage enforcement architecture gap",
-  "max_attempts": 3,
-  "priority": 110,
-  "depends_on": [
-    "012a_database_lineage_constraints"
-  ],
-  "next_tasks_on_success": [
-    "012c_feature_explainability_completeness"
-  ],
-  "next_tasks_on_failure": [],
-  "normalized_from_artifact": true
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-06-15T19:54:42Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/012b_api_lineage_enforcement.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "012b_api_lineage_enforcement",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

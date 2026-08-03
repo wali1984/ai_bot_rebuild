@@ -1,0 +1,18 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI BOT V2 KuCoin public REST loop (paper-only, V2 namespace only)
+After=network-online.target redis.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'while true; do "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_kucoin_ingestor_worker --write-evidence --fetch-public-rest --fetch-timeframes 1m --write-v2-redis --v2-redis-ttl-seconds 900 >> "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-kucoin-public-rest-loop.log" 2>> "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-kucoin-public-rest-loop.err"; sleep 300; done'
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

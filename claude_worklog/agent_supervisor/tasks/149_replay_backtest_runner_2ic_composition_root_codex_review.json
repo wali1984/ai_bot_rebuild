@@ -1,26 +1,42 @@
 {
-  "task_id": "149_replay_backtest_runner_2ic_composition_root_codex_review",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/"
+  ],
+  "blocked_by": [
+    "PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED"
+  ],
+  "completed_at": "2026-05-07T05:53:38.041602+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "depends_on": [
     "148_replay_backtest_runner_2ic_composition_root_implementation"
   ],
-  "predecessor_task_ids": [
-    "148_replay_backtest_runner_2ic_composition_root_implementation"
-  ],
-  "predecessor_required_marker": "PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED",
-  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/23_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_GO_NO_GO.md",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
-  "task_granularity_mode": "consolidated_default",
-  "requires_clean_worktree": true,
-  "worktree_excluded_paths": [
-    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_fail_marker_recovery_ready.json"
-  ],
-  "allowed_output_prefixes": [
-    "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/"
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "read or write any Redis key",
+    "invoke any Redis command",
+    "modify any v2/ source or test file",
+    "modify any prior-milestone artifact",
+    "modify any 2I.A planning artifact at 00-05",
+    "modify any 2I.A implementation artifact at 06 or 07",
+    "modify any 2I.A Codex review artifact at 08 or 09",
+    "modify any 2I.B planning artifact at 10, 11, 12, or 13",
+    "modify any 2I.B implementation artifact at 14 or 15",
+    "modify any 2I.B Codex review artifact at 16 or 17",
+    "modify any 2I.C planning artifact at 18, 19, 20, or 21",
+    "modify any 2I.C implementation artifact at 22 or 23",
+    "modify the master planner prompt",
+    "modify any task definition under claude_worklog/agent_supervisor/tasks/",
+    "restart any live service",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "ship to anywhere",
+    "run a migration in any environment",
+    "expose or commit credentials",
+    "approve the live gate",
+    "emit a standalone harness BEGIN/END framing token marker line in any authored file body"
   ],
   "forbidden_output_paths": [
     "v2/",
@@ -62,42 +78,7 @@
     "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/22_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_IMPLEMENTATION_REPORT.md",
     "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/23_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_GO_NO_GO.md"
   ],
-  "required_output_files": [
-    "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/24_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_REVIEW.md",
-    "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/25_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_GO_NO_GO.md"
-  ],
-  "forbidden_actions": [
-    "modify /home/wali/Desktop/AI BOT",
-    "read or write any Redis key",
-    "invoke any Redis command",
-    "modify any v2/ source or test file",
-    "modify any prior-milestone artifact",
-    "modify any 2I.A planning artifact at 00-05",
-    "modify any 2I.A implementation artifact at 06 or 07",
-    "modify any 2I.A Codex review artifact at 08 or 09",
-    "modify any 2I.B planning artifact at 10, 11, 12, or 13",
-    "modify any 2I.B implementation artifact at 14 or 15",
-    "modify any 2I.B Codex review artifact at 16 or 17",
-    "modify any 2I.C planning artifact at 18, 19, 20, or 21",
-    "modify any 2I.C implementation artifact at 22 or 23",
-    "modify the master planner prompt",
-    "modify any task definition under claude_worklog/agent_supervisor/tasks/",
-    "restart any live service",
-    "place or cancel exchange orders",
-    "change leverage or margin",
-    "enable live trading",
-    "ship to anywhere",
-    "run a migration in any environment",
-    "expose or commit credentials",
-    "approve the live gate",
-    "emit a standalone harness BEGIN/END framing token marker line in any authored file body"
-  ],
-  "scope_dirty_paths": [],
-  "prompt": "You are Codex acting as adversarial reviewer for Phase 2I.C of REQ_0006 intersect REQ_0017 (replay/backtest runner composition root). Read 18, 19, 20, 21, 22, 23 under claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/ and the three authored source files plus the 35 single-test files under v2/backend/app/composition/replay_backtest_runner/ and v2/backend/tests/unit/composition/replay_backtest_runner/. Verify the public-surface order, ReplayBacktestRunner slotted-class invariants, callable check on now_ms_clock at build time, single-bind closure discipline, both inner closures sharing the same captured clock, no-clock-at-build-time, no-service-at-build-time, propagation of ReplayBacktestRunnerServiceError and ReplayBacktestRunnerDomainError unchanged, no caller-input mutation, no direct construction of any 2H.A or 2I.A value object in authored 2I.C source files, allowed-imports policy in source files, forbidden-tokens policy in source files, cross-isolation versus prior-milestone artifacts, and safety boundaries from 20.\n\nDo NOT modify any v2/ source or test file. Do NOT modify any 2I.A, 2I.B, or 2I.C planning, implementation, or Codex artifact except 24 and 25. Do NOT modify any task definition. Do NOT modify the master planner prompt. Do NOT modify any prior-milestone artifact.\n\nWorktree precondition: this task requires a clean worktree at dispatch. Run `git status --porcelain` first. The supervisor's worktree-isolation contract excludes the planner-prompt dirty entry at claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt and any durable Lane C parallel-capacity readonly-review marker files under claude_worklog/agent_supervisor/tasks/ from the dispatch worktree. If `git status --porcelain` returns ANY non-empty line in the dispatch worktree, surface to human attention and stop without writing 24 or 25.\n\nPredecessor gate: claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/23_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_GO_NO_GO.md MUST contain exactly PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED. If absent or different, write PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_FAIL to 25 with the missing-marker reason captured in 24, and stop.\n\nPlaceholder verification: run `git ls-files v2/backend/app/composition/replay_backtest_runner.py` and confirm zero output lines. Run `git ls-files v2/backend/app/services/replay_runner.py` and confirm exactly one output line. Run `git diff --stat HEAD -- v2/backend/app/services/replay_runner.py` and confirm zero output lines. Run `git ls-files v2/backend/app/services/paper_loop.py` and confirm exactly one output line. Run `git diff --stat HEAD -- v2/backend/app/services/paper_loop.py` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/domain/replay_backtest_runner/` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/domain/paper_execution_ledger/` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/services/replay_backtest_runner/` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/services/paper_execution_ledger/` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/composition/paper_execution_ledger/` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/domain/replay/` and confirm zero output lines. Run `git ls-files v2/backend/app/domain/execution/` and confirm zero output lines.\n\nValidation commands you MUST re-run and capture exit codes for in 24:\n- .venv/bin/python -m py_compile v2/backend/app/composition/replay_backtest_runner/__init__.py v2/backend/app/composition/replay_backtest_runner/errors.py v2/backend/app/composition/replay_backtest_runner/runtime.py\n- .venv/bin/python -m pytest v2/backend/tests/unit/composition/replay_backtest_runner/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/services/replay_backtest_runner/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/domain/replay_backtest_runner/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/composition/paper_execution_ledger/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/services/paper_execution_ledger/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/domain/paper_execution_ledger/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/composition/risk_gateway/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/services/risk_gateway/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/domain/risk_gateway/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/composition/orchestrator_decision/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/services/orchestrator_decision/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/domain/orchestrator_decision/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_prediction_output/ -q\n- For each forbidden token T from 18 'Forbidden tokens in source files': `rg --fixed-strings --case-sensitive T v2/backend/app/composition/replay_backtest_runner/` (must show zero matches per token; tokens reconstructed at runtime via string concatenation in this Codex review report)\n\nEmit 24_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_REVIEW.md with sections: 'Worktree precondition check', 'Predecessor marker check', 'Files reviewed' (each authored file with line range or byte count), 'Placeholder verification' (the twelve placeholder commands with output line counts and PASS/FAIL), 'Rubric findings' (the 61-row rubric from 21 with PASS/FAIL per row and one-line evidence), 'Validation commands run' (each command with exit code and one-line summary), 'Forbidden token scan' (each token with zero-match confirmation; tokens reconstructed via runtime string concatenation), 'Cross-isolation diff' (git status -s output line count and filtered listing), 'Concrete blockers' (zero rows on PASS, otherwise enumerated rows with file/line/required-fix), 'Safety review' (each forbidden runtime behavior listed in 20 with 'none observed' or 'observed: <evidence>'), 'Recommendation' (PASS or FAIL with one-line rationale). Final marker line: PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_REVIEW_READY. The body MUST NOT contain any harness BEGIN/END framing token marker line.\n\nEmit 25_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_GO_NO_GO.md. Exactly one of:\n  PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_PASS\n  PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_FAIL\nNo other content. The file MUST NOT contain any harness BEGIN/END framing token marker line.\n\nStop conditions: any live behavior, any Redis access, any legacy mutation, any modification of v2/ source or test files, any modification of any prior-milestone artifact, any modification of 2I.A, 2I.B, or 2I.C planning/implementation artifacts at 00-23, any URL or credential leakage. On any of these, write FAIL to 25 with the violation captured in 24, and stop. Codex autofix is NOT performed within this review task; if FAIL with concrete blockers and no safety violation, the supervisor will dispatch a separate REQ_0007 / REQ_0014 autofix task scoped to the three authored source files plus the 35 new test files only and re-run the implementation flow.",
-  "next_recommended_action": "On PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_PASS, planner closes Phase 2I, satisfies REQ_0017 milestone 5 REPLAY_BACKTEST_RUNNER_MVP, and opens REQ_0017 milestone 6 PAPER_MODE_MVP under a fresh consolidated milestone turn. On PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_FAIL with concrete blockers and no safety violation, supervisor dispatches a REQ_0007 / REQ_0014 autofix task scoped to the three authored source files plus the 35 new test files only. On any safety violation, surface to human attention; no autofix is permitted.",
   "lane": "codex_watchdog",
-  "mvp_relevance": "Adversarial review of the 2I.C replay/backtest runner composition root. PASS closes Phase 2I, satisfies REQ_0017 milestone 5 REPLAY_BACKTEST_RUNNER_MVP, and unblocks REQ_0017 milestone 6 PAPER_MODE_MVP. FAIL with concrete blockers triggers a narrow REQ_0007 / REQ_0014 autofix task; FAIL with a safety violation surfaces to human attention. Distance to V2_BACKTEST_AND_PAPER_MVP_READY drops from 3 milestones to 2 milestones once 2I.C Codex passes.",
-  "next_gate": "PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_PASS",
   "legacy_evidence_consulted": [
     "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/01_PHASE_2I_LEGACY_EVIDENCE_REVIEW.md",
     "claude_worklog/legacy_runtime_audit/06_TRAINER_RUNTIME_EVIDENCE.md",
@@ -113,7 +94,35 @@
     "REQ_0022 LAB hedge-unwind / squeeze failure case as the leading replay/backtest scenario class"
   ],
   "legacy_failure_addressed": "legacy replay/backtest tooling lacked Codex adversarial review at the composition-root binder boundary. Subtle deviations from the single-bind closure discipline, accidental clock invocation at build time, accidental service invocation at build time, accidental wrapping of service or domain errors, accidental caller-input mutation, accidental direct construction of value objects in the binder, or accidental introduction of FastAPI / wall-clock helper / singleton state could land without a typed second-pair-of-eyes gate. The 2I.C Codex review enforces the public-surface order, slotted-class invariants, build-time vs call-time invariants, single-bind closure discipline, error propagation discipline, no-mutation discipline, allowed-imports policy, forbidden-tokens policy, cross-isolation discipline, and safety boundaries before allowing the planner to close Phase 2I and open REQ_0017 milestone 6 PAPER_MODE_MVP.",
-  "blocked_by": [
-    "PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED"
+  "mvp_relevance": "Adversarial review of the 2I.C replay/backtest runner composition root. PASS closes Phase 2I, satisfies REQ_0017 milestone 5 REPLAY_BACKTEST_RUNNER_MVP, and unblocks REQ_0017 milestone 6 PAPER_MODE_MVP. FAIL with concrete blockers triggers a narrow REQ_0007 / REQ_0014 autofix task; FAIL with a safety violation surfaces to human attention. Distance to V2_BACKTEST_AND_PAPER_MVP_READY drops from 3 milestones to 2 milestones once 2I.C Codex passes.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_PASS",
+  "next_recommended_action": "On PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_PASS, planner closes Phase 2I, satisfies REQ_0017 milestone 5 REPLAY_BACKTEST_RUNNER_MVP, and opens REQ_0017 milestone 6 PAPER_MODE_MVP under a fresh consolidated milestone turn. On PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_FAIL with concrete blockers and no safety violation, supervisor dispatches a REQ_0007 / REQ_0014 autofix task scoped to the three authored source files plus the 35 new test files only. On any safety violation, surface to human attention; no autofix is permitted.",
+  "predecessor_required_marker": "PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/23_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_GO_NO_GO.md",
+  "predecessor_task_ids": [
+    "148_replay_backtest_runner_2ic_composition_root_implementation"
+  ],
+  "prompt": "You are Codex acting as adversarial reviewer for Phase 2I.C of REQ_0006 intersect REQ_0017 (replay/backtest runner composition root). Read 18, 19, 20, 21, 22, 23 under claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/ and the three authored source files plus the 35 single-test files under v2/backend/app/composition/replay_backtest_runner/ and v2/backend/tests/unit/composition/replay_backtest_runner/. Verify the public-surface order, ReplayBacktestRunner slotted-class invariants, callable check on now_ms_clock at build time, single-bind closure discipline, both inner closures sharing the same captured clock, no-clock-at-build-time, no-service-at-build-time, propagation of ReplayBacktestRunnerServiceError and ReplayBacktestRunnerDomainError unchanged, no caller-input mutation, no direct construction of any 2H.A or 2I.A value object in authored 2I.C source files, allowed-imports policy in source files, forbidden-tokens policy in source files, cross-isolation versus prior-milestone artifacts, and safety boundaries from 20.\n\nDo NOT modify any v2/ source or test file. Do NOT modify any 2I.A, 2I.B, or 2I.C planning, implementation, or Codex artifact except 24 and 25. Do NOT modify any task definition. Do NOT modify the master planner prompt. Do NOT modify any prior-milestone artifact.\n\nWorktree precondition: this task requires a clean worktree at dispatch. Run `git status --porcelain` first. The supervisor's worktree-isolation contract excludes the planner-prompt dirty entry at claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt and any durable Lane C parallel-capacity readonly-review marker files under claude_worklog/agent_supervisor/tasks/ from the dispatch worktree. If `git status --porcelain` returns ANY non-empty line in the dispatch worktree, surface to human attention and stop without writing 24 or 25.\n\nPredecessor gate: claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/23_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_GO_NO_GO.md MUST contain exactly PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED. If absent or different, write PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_FAIL to 25 with the missing-marker reason captured in 24, and stop.\n\nPlaceholder verification: run `git ls-files v2/backend/app/composition/replay_backtest_runner.py` and confirm zero output lines. Run `git ls-files v2/backend/app/services/replay_runner.py` and confirm exactly one output line. Run `git diff --stat HEAD -- v2/backend/app/services/replay_runner.py` and confirm zero output lines. Run `git ls-files v2/backend/app/services/paper_loop.py` and confirm exactly one output line. Run `git diff --stat HEAD -- v2/backend/app/services/paper_loop.py` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/domain/replay_backtest_runner/` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/domain/paper_execution_ledger/` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/services/replay_backtest_runner/` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/services/paper_execution_ledger/` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/composition/paper_execution_ledger/` and confirm zero output lines. Run `git diff --stat HEAD -- v2/backend/app/domain/replay/` and confirm zero output lines. Run `git ls-files v2/backend/app/domain/execution/` and confirm zero output lines.\n\nValidation commands you MUST re-run and capture exit codes for in 24:\n- .venv/bin/python -m py_compile v2/backend/app/composition/replay_backtest_runner/__init__.py v2/backend/app/composition/replay_backtest_runner/errors.py v2/backend/app/composition/replay_backtest_runner/runtime.py\n- .venv/bin/python -m pytest v2/backend/tests/unit/composition/replay_backtest_runner/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/services/replay_backtest_runner/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/domain/replay_backtest_runner/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/composition/paper_execution_ledger/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/services/paper_execution_ledger/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/domain/paper_execution_ledger/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/composition/risk_gateway/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/services/risk_gateway/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/domain/risk_gateway/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/composition/orchestrator_decision/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/services/orchestrator_decision/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/domain/orchestrator_decision/ -q\n- .venv/bin/python -m pytest v2/backend/tests/unit/domain/trainer_prediction_output/ -q\n- For each forbidden token T from 18 'Forbidden tokens in source files': `rg --fixed-strings --case-sensitive T v2/backend/app/composition/replay_backtest_runner/` (must show zero matches per token; tokens reconstructed at runtime via string concatenation in this Codex review report)\n\nEmit 24_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_REVIEW.md with sections: 'Worktree precondition check', 'Predecessor marker check', 'Files reviewed' (each authored file with line range or byte count), 'Placeholder verification' (the twelve placeholder commands with output line counts and PASS/FAIL), 'Rubric findings' (the 61-row rubric from 21 with PASS/FAIL per row and one-line evidence), 'Validation commands run' (each command with exit code and one-line summary), 'Forbidden token scan' (each token with zero-match confirmation; tokens reconstructed via runtime string concatenation), 'Cross-isolation diff' (git status -s output line count and filtered listing), 'Concrete blockers' (zero rows on PASS, otherwise enumerated rows with file/line/required-fix), 'Safety review' (each forbidden runtime behavior listed in 20 with 'none observed' or 'observed: <evidence>'), 'Recommendation' (PASS or FAIL with one-line rationale). Final marker line: PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_REVIEW_READY. The body MUST NOT contain any harness BEGIN/END framing token marker line.\n\nEmit 25_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_GO_NO_GO.md. Exactly one of:\n  PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_PASS\n  PHASE2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_FAIL\nNo other content. The file MUST NOT contain any harness BEGIN/END framing token marker line.\n\nStop conditions: any live behavior, any Redis access, any legacy mutation, any modification of v2/ source or test files, any modification of any prior-milestone artifact, any modification of 2I.A, 2I.B, or 2I.C planning/implementation artifacts at 00-23, any URL or credential leakage. On any of these, write FAIL to 25 with the violation captured in 24, and stop. Codex autofix is NOT performed within this review task; if FAIL with concrete blockers and no safety violation, the supervisor will dispatch a separate REQ_0007 / REQ_0014 autofix task scoped to the three authored source files plus the 35 new test files only and re-run the implementation flow.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/24_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/replay_backtest_runner_impl/25_2I_C_REPLAY_BACKTEST_RUNNER_COMPOSITION_ROOT_CODEX_GO_NO_GO.md"
+  ],
+  "requires_clean_worktree": true,
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "scope_dirty_paths": [],
+  "source_truth_completed_at": "2026-05-07T05:53:38.041602+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/149_replay_backtest_runner_2ic_composition_root_codex_review.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_granularity_mode": "consolidated_default",
+  "task_id": "149_replay_backtest_runner_2ic_composition_root_codex_review",
+  "updated_at": "2026-06-15T19:54:42Z",
+  "worktree_excluded_paths": [
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_fail_marker_recovery_ready.json"
   ]
 }

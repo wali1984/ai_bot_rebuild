@@ -1,0 +1,24 @@
+[Unit]
+Description=AI Bot V2 - Full Paper-Only Startup Manifest Supervisor (verify-only)
+After=network-online.target redis-server.service
+Wants=network-online.target
+
+# This unit file is GENERATED as a file artifact. It is NOT auto-
+# installed. Operator must explicitly run
+#   systemctl --user enable --now ai-bot-v2-full-paper-startup-runtime.service
+# after reviewing the verification report.
+# The unit invokes a verify-only CLI which never starts/stops any
+# daemon, never loads any API key value, never writes legacy Redis,
+# never calls the exchange, and never approves anything.
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/AI BOT REBUILD
+Environment=PYTHONPATH=%h/Desktop/AI BOT REBUILD
+ExecStart=%h/Desktop/AI BOT REBUILD/.venv/bin/python -m v2.backend.app.cli.v2_full_paper_only_startup_manifest_runtime
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+[Install]
+WantedBy=default.target

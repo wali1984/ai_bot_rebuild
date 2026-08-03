@@ -1,17 +1,26 @@
 {
-  "task_id": "055_trainer_parity_2e1a_codex_rereview",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
   ],
+  "completed_at": "2026-05-11T20:37:08.202180+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "If pass, mark REQ_0006 2E1A complete and allow master planner to continue. If fail, create remediation task.",
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Re-review the trainer parity 2E1A remediation after the prior Codex blockers. Verify: success-path audit end_ts_ms comes from adapter clock_ms, not runner result; validation log explicitly documents zero failures, zero errors, zero warnings; tests pass; no live trainer restart; no Redis writes; no legacy mutation; no exchange actions; no secrets. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain exactly one line: PHASE2E1A_TRAINER_PARITY_IMPL_CODEX_PASS or PHASE2E1A_TRAINER_PARITY_IMPL_CODEX_FAIL.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/21_CODEX_REREVIEW_AFTER_REMEDIATION.md",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/22_CODEX_GO_NO_GO_AFTER_REMEDIATION.md"
   ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Re-review the trainer parity 2E1A remediation after the prior Codex blockers. Verify: success-path audit end_ts_ms comes from adapter clock_ms, not runner result; validation log explicitly documents zero failures, zero errors, zero warnings; tests pass; no live trainer restart; no Redis writes; no legacy mutation; no exchange actions; no secrets. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain exactly one line: PHASE2E1A_TRAINER_PARITY_IMPL_CODEX_PASS or PHASE2E1A_TRAINER_PARITY_IMPL_CODEX_FAIL.",
-  "next_recommended_action": "If pass, mark REQ_0006 2E1A complete and allow master planner to continue. If fail, create remediation task."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-11T20:37:08.202180+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/055_trainer_parity_2e1a_codex_rereview.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "055_trainer_parity_2e1a_codex_rereview",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

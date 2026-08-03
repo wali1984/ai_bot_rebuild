@@ -1,0 +1,15 @@
+{
+  "acceptance_rule": "operator #18: >=3 proof-backed, protected, adaptively-closed, accounting-reconciled lifecycles (first + two more cycles)",
+  "all_lifecycles": [],
+  "fills_detected": 0,
+  "first_lifecycle": null,
+  "lifecycles_completed": 0,
+  "lifecycles_fully_valid_proof_protected_reconciled": 0,
+  "live_gate": "blocked_human_only",
+  "observed_minutes": 40.0,
+  "paper_only": true,
+  "restart_reconstruction_events": [],
+  "schema": "paper_lifecycle_acceptance_v1",
+  "still_open_at_end": [],
+  "verdict": "NO_FILL_OBSERVED"
+}

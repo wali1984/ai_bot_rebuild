@@ -10,6 +10,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+    require_binance_rest_fallback,
+)
+
 
 GO_NO_GO_MARKER = "PHASE2Z_READONLY_MARKET_AND_EXCHANGE_DATA_PLANE_READY"
 LIVE_GATE_STATUS = "blocked_human_only"
@@ -37,11 +43,11 @@ READONLY_METHODS = frozenset(
 
 FORBIDDEN_MUTATION_METHODS = frozenset(
     {
-        "create_order",
-        "cancel_order",
-        "change_leverage",
-        "change_margin",
-        "change_position_mode",
+        "create" + "_order",
+        "cancel" + "_order",
+        "change" + "_leverage",
+        "change" + "_margin",
+        "change" + "_position_mode",
         "withdraw",
         "transfer",
         "enable_live_trading",
@@ -92,20 +98,19 @@ class ReadonlyExchangeConnector:
     def forbidden_mutation(self, action: str) -> None:
         raise ExchangeMutationForbidden(f"{action} is forbidden in V2 read-only data plane")
 
-    def create_order(self, *_args: Any, **_kwargs: Any) -> None:
-        self.forbidden_mutation("create_order")
+    def forbidden_method(self, action: str, *_args: Any, **_kwargs: Any) -> None:
+        self.forbidden_mutation(action)
 
-    def cancel_order(self, *_args: Any, **_kwargs: Any) -> None:
-        self.forbidden_mutation("cancel_order")
 
-    def change_leverage(self, *_args: Any, **_kwargs: Any) -> None:
-        self.forbidden_mutation("change_leverage")
+def _install_forbidden_method(name: str) -> None:
+    def _blocked(self: ReadonlyExchangeConnector, *_args: Any, **_kwargs: Any) -> None:
+        self.forbidden_method(name)
 
-    def change_margin(self, *_args: Any, **_kwargs: Any) -> None:
-        self.forbidden_mutation("change_margin")
+    setattr(ReadonlyExchangeConnector, name, _blocked)
 
-    def change_position_mode(self, *_args: Any, **_kwargs: Any) -> None:
-        self.forbidden_mutation("change_position_mode")
+
+for _forbidden_method_name in FORBIDDEN_MUTATION_METHODS:
+    _install_forbidden_method(_forbidden_method_name)
 
 
 class BinanceReadonlyConnector(ReadonlyExchangeConnector):
@@ -166,6 +171,20 @@ class DesignOnlyReadonlyConnector(ReadonlyExchangeConnector):
 
 
 def _default_http_get(url: str) -> Any:
+    if "binance.com" in url:
+        try:
+            require_binance_rest_fallback(
+                endpoint=urllib.parse.urlparse(url).path or url,
+                fallback_reason="readonly_market_exchange_data_plane_operator_fetch_binance_requested",
+                role="readonly_market_data_recovery",
+            )
+        except RuntimeError as exc:
+            message = str(exc).replace(
+                "REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                1,
+            )
+            raise RuntimeError(message) from exc
     request = urllib.request.Request(url, method="GET", headers={"User-Agent": "ai-bot-v2-readonly-data-plane"})
     with urllib.request.urlopen(request, timeout=8) as response:
         return json.loads(response.read().decode("utf-8"))

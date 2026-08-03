@@ -87,6 +87,14 @@ def _route_writes_to(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Dict[st
         "DATA_PLANE_FILE",
         local_dir / "v2_feature_pipeline_and_ta_data_plane.json",
     )
+    monkeypatch.setattr(
+        worker,
+        "SYMBOL_UNIVERSE_PUBLIC_PAYLOAD_CANDIDATES",
+        [
+            tmp_path / "v2" / "frontend" / "public" / "operator_runtime" / "symbol_universe" / "latest" / "symbol_universe_status.json",
+            tmp_path / "v2" / "frontend" / "public" / "symbol_universe" / "latest" / "symbol_universe_status.json",
+        ],
+    )
     return {"public": public_dir, "local": local_dir, "worker": worker_dir}
 
 

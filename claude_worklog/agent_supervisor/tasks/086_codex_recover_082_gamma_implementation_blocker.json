@@ -1,103 +1,5 @@
 {
-  "task_id": "086",
-  "task_name": "codex_recover_082_gamma_implementation_blocker",
-  "status": "pending",
-  "created_at": "2026-05-04",
-  "created_by": "master_rebuild_planner_turn14",
   "agent": "codex",
-  "risk_level": "L1",
-  "max_attempts": 3,
-  "requirement": "REQ_0006_PHASE2_IMPLEMENT_TRAINER_PARITY_SERVICE",
-  "phase": "2E1C.gamma",
-  "remediates_task": "082_trainer_parity_2e1c_gamma_implementation",
-  "depends_on": [
-    "085_codex_recover_planner_dirty_tree_dispatch_hold"
-  ],
-  "preconditions": {
-    "git_tree_must_be_clean": true,
-    "no_active_claude_child": true,
-    "predecessor_marker_required": "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN14_RECONCILIATION_AND_086_RECOVERY_DISPATCH.md",
-    "predecessor_ready_token": "PLANNER_PHASE_2E1C_GAMMA_TURN14_RECONCILIATION_AND_086_RECOVERY_DISPATCH_READY"
-  },
-  "remediation_authority": [
-    "REQ_0007_CODEX_AUTOFIX_NON_LIVE_BLOCKERS",
-    "REQ_0011_PARALLEL_CODEX_REVIEW_AND_AUTOFIX_LANE",
-    "REQ_0014_CODEX_HUMAN_ATTENTION_AUTONOMOUS_RECOVERY",
-    "REQ_0015_PLANNER_LEVEL_HUMAN_ATTENTION_CODEX_AUTORECOVERY"
-  ],
-  "blocker_classification": "emit_scope_blowout",
-  "blocker_evidence": {
-    "queue_signal": "human_attention_required_count=1; attention_reason=max_attempts 3 exhausted; last reason: task_failed",
-    "last_summary": "missing required output files: v2/backend/app/domain/trainer_liveness_observation_collector/* (36 missing files across modules + GO_NO_GO/report)",
-    "interpretation": "single consolidated emit of 36 required output files across 3 consecutive attempts indicates output-budget exhaustion, not spec or path defect"
-  },
-  "objective": "Diagnose why task 082 (2E1C.gamma observation collector implementation) failed three consecutive attempts and produce a non-live recovery plan that allows the gamma implementation to land safely. Either re-emit task 082 with tightened required_output_files, or split 082 into narrow successor tasks 086A/086B/086C, per planner-profile policy. Do not place gamma implementation directly inside this task; this task only diagnoses, plans, and re-stages.",
-  "inputs_to_read": [
-    "claude_worklog/agent_supervisor/tasks/082_trainer_parity_2e1c_gamma_implementation.json",
-    "claude_worklog/agent_supervisor/status/queue_status.json",
-    "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
-    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/88_PHASE_2E1C_GAMMA_OBSERVATION_COLLECTOR_SPEC.md",
-    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/87_2E1C_DELTA_CODEX_GO_NO_GO.md",
-    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/69_2E1C_BETA_FINAL_CODEX_GO_NO_GO.md",
-    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/53_2E1C_ALPHA_CODEX_REREVIEW_GO_NO_GO.md",
-    "v2/backend/app/domain/trainer_liveness/",
-    "v2/backend/app/domain/trainer_liveness_composition/",
-    "v2/backend/tests/unit/domain/trainer_liveness/",
-    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN14_RECONCILIATION_AND_086_RECOVERY_DISPATCH.md"
-  ],
-  "diagnostic_steps": [
-    "Inventory the exact required_output_files list inside task 082 and count modules vs tests vs docs.",
-    "Cross-reference against the gamma spec at 88_PHASE_2E1C_GAMMA_OBSERVATION_COLLECTOR_SPEC.md and confirm the spec is internally consistent and does not itself contain ambiguity.",
-    "Compare against the prior alpha/beta/delta task definitions to estimate per-attempt feasible emit volume in the current harness.",
-    "Confirm none of task 082's required outputs touch forbidden paths (no AI BOT, no Redis, no live keys).",
-    "Confirm no path-remap violation, no marker leakage, and no path-prefix refusal contributed to the failure (these were already addressed in turns 12-13)."
-  ],
-  "remediation_choices": [
-    {
-      "choice": "patch_and_retry",
-      "when_to_choose": "spec is consistent and the only defect is required_output_files cardinality; a single tightened emit can plausibly land in one attempt",
-      "actions": [
-        "Re-emit claude_worklog/agent_supervisor/tasks/082_trainer_parity_2e1c_gamma_implementation.json with required_output_files reduced to a coherent core subset (module skeleton + protocol + collector + first batch of tests + GO_NO_GO).",
-        "Move the remaining files (in_memory reader, history buffer, additional tests) into a follow-up task 086B that the supervisor will queue automatically after 082 passes.",
-        "Document the tightening in 90_GAMMA_082_RECOVERY_PLAN.md and justify why the new emit volume is feasible."
-      ]
-    },
-    {
-      "choice": "split_into_successors",
-      "when_to_choose": "even a tightened core emit exceeds plausible single-attempt budget, or the spec naturally cleaves along reader / collector / history boundaries",
-      "actions": [
-        "Mark task 082 as superseded_by_codex_evidence under REQ_0014 authority and record the supersession in 90_GAMMA_082_RECOVERY_PLAN.md.",
-        "Stage task 086A_trainer_parity_2e1c_gamma_reader_protocol.json (reader protocol + in-memory reader + reader tests).",
-        "Stage task 086B_trainer_parity_2e1c_gamma_observation_collector.json (collector module + collector tests).",
-        "Stage task 086C_trainer_parity_2e1c_gamma_observation_history.json (rolling history buffer + history tests + GO_NO_GO + sub-phase report).",
-        "Each successor must declare depends_on relative to the prior successor."
-      ]
-    }
-  ],
-  "required_output_files": [
-    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/89_GAMMA_082_FAILURE_DIAGNOSIS.md",
-    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/90_GAMMA_082_RECOVERY_PLAN.md",
-    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/91_GAMMA_082_RECOVERY_GO_NO_GO.md",
-    "claude_worklog/security/CODEX_086_SECRET_SCAN_2026_05_04.txt"
-  ],
-  "conditional_output_files": {
-    "if_choice_patch_and_retry": [
-      "claude_worklog/agent_supervisor/tasks/082_trainer_parity_2e1c_gamma_implementation.json"
-    ],
-    "if_choice_split_into_successors": [
-      "claude_worklog/agent_supervisor/tasks/086A_trainer_parity_2e1c_gamma_reader_protocol.json",
-      "claude_worklog/agent_supervisor/tasks/086B_trainer_parity_2e1c_gamma_observation_collector.json",
-      "claude_worklog/agent_supervisor/tasks/086C_trainer_parity_2e1c_gamma_observation_history.json"
-    ]
-  },
-  "validation": [
-    "All emitted JSON task files must parse as valid JSON.",
-    "All emitted markdown files must be ASCII-clean and contain no protocol marker leakage (no stray BEGIN_FILE / END_FILE inside body content).",
-    "High-confidence secret scan over emitted files and full repo diff must return zero hits before commit.",
-    "If patch_and_retry chosen, the re-emitted 082 task definition must reduce required_output_files count strictly below the current count and must not introduce any new path outside the v2/ allowed prefix.",
-    "If split_into_successors chosen, each successor task's required_output_files must be disjoint and together must cover the original gamma spec module surface (reader protocol, in-memory reader, observation collector, observation history, plus tests, plus GO_NO_GO and sub-phase report).",
-    "Recovery plan and GO_NO_GO must explicitly state which choice was selected and why, with reference to the diagnostic findings."
-  ],
   "allowed_paths": [
     "v2/",
     "claude_worklog/tools/",
@@ -108,6 +10,36 @@
     "claude_worklog/autonomous_control_plane/",
     "claude_worklog/agent_supervisor_reliability/"
   ],
+  "blocker_classification": "emit_scope_blowout",
+  "blocker_evidence": {
+    "interpretation": "single consolidated emit of 36 required output files across 3 consecutive attempts indicates output-budget exhaustion, not spec or path defect",
+    "last_summary": "missing required output files: v2/backend/app/domain/trainer_liveness_observation_collector/* (36 missing files across modules + GO_NO_GO/report)",
+    "queue_signal": "human_attention_required_count=1; attention_reason=max_attempts 3 exhausted; last reason: task_failed"
+  },
+  "completed_at": "2026-06-15T20:15:37Z",
+  "conditional_output_files": {
+    "if_choice_patch_and_retry": [
+      "claude_worklog/agent_supervisor/tasks/082_trainer_parity_2e1c_gamma_implementation.json"
+    ],
+    "if_choice_split_into_successors": [
+      "claude_worklog/agent_supervisor/tasks/086A_trainer_parity_2e1c_gamma_reader_protocol.json",
+      "claude_worklog/agent_supervisor/tasks/086B_trainer_parity_2e1c_gamma_observation_collector.json",
+      "claude_worklog/agent_supervisor/tasks/086C_trainer_parity_2e1c_gamma_observation_history.json"
+    ]
+  },
+  "created_at": "2026-05-04",
+  "created_by": "master_rebuild_planner_turn14",
+  "depends_on": [
+    "085_codex_recover_planner_dirty_tree_dispatch_hold"
+  ],
+  "diagnostic_steps": [
+    "Inventory the exact required_output_files list inside task 082 and count modules vs tests vs docs.",
+    "Cross-reference against the gamma spec at 88_PHASE_2E1C_GAMMA_OBSERVATION_COLLECTOR_SPEC.md and confirm the spec is internally consistent and does not itself contain ambiguity.",
+    "Compare against the prior alpha/beta/delta task definitions to estimate per-attempt feasible emit volume in the current harness.",
+    "Confirm none of task 082's required outputs touch forbidden paths (no AI BOT, no Redis, no live keys).",
+    "Confirm no path-remap violation, no marker leakage, and no path-prefix refusal contributed to the failure (these were already addressed in turns 12-13)."
+  ],
+  "fail_blockers": [],
   "forbidden_actions": [
     "modify /home/wali/Desktop/AI BOT",
     "write or delete Redis keys",
@@ -122,6 +54,71 @@
     "implement gamma module code directly inside this task (this task only diagnoses, plans, and re-stages)",
     "approve or dispatch task 083 (Codex review of gamma) inside this task"
   ],
+  "inputs_to_read": [
+    "claude_worklog/agent_supervisor/tasks/082_trainer_parity_2e1c_gamma_implementation.json",
+    "claude_worklog/agent_supervisor/status/queue_status.json",
+    "claude_worklog/agent_supervisor/status/master_rebuild_planner_status.json",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/88_PHASE_2E1C_GAMMA_OBSERVATION_COLLECTOR_SPEC.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/87_2E1C_DELTA_CODEX_GO_NO_GO.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/69_2E1C_BETA_FINAL_CODEX_GO_NO_GO.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/53_2E1C_ALPHA_CODEX_REREVIEW_GO_NO_GO.md",
+    "v2/backend/app/domain/trainer_liveness/",
+    "v2/backend/app/domain/trainer_liveness_composition/",
+    "v2/backend/tests/unit/domain/trainer_liveness/",
+    "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN14_RECONCILIATION_AND_086_RECOVERY_DISPATCH.md"
+  ],
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/086_codex.log",
+  "max_attempts": 3,
+  "next_action": "Codex PASS recorded (TASK_086_V2_SIDE_SCOPE_CODEX_PASS).",
+  "objective": "Diagnose why task 082 (2E1C.gamma observation collector implementation) failed three consecutive attempts and produce a non-live recovery plan that allows the gamma implementation to land safely. Either re-emit task 082 with tightened required_output_files, or split 082 into narrow successor tasks 086A/086B/086C, per planner-profile policy. Do not place gamma implementation directly inside this task; this task only diagnoses, plans, and re-stages.",
+  "phase": "2E1C.gamma",
+  "pid_or_job_id": 252468,
+  "preconditions": {
+    "git_tree_must_be_clean": true,
+    "no_active_claude_child": true,
+    "predecessor_marker_required": "claude_worklog/autonomous_control_plane/PLANNER_PHASE_2E1C_GAMMA_DISPATCH_NOTE_TURN14_RECONCILIATION_AND_086_RECOVERY_DISPATCH.md",
+    "predecessor_ready_token": "PLANNER_PHASE_2E1C_GAMMA_TURN14_RECONCILIATION_AND_086_RECOVERY_DISPATCH_READY"
+  },
+  "ready_marker": "PHASE_2E1C_GAMMA_082_RECOVERY_READY",
+  "remediates_task": "082_trainer_parity_2e1c_gamma_implementation",
+  "remediation_authority": [
+    "REQ_0007_CODEX_AUTOFIX_NON_LIVE_BLOCKERS",
+    "REQ_0011_PARALLEL_CODEX_REVIEW_AND_AUTOFIX_LANE",
+    "REQ_0014_CODEX_HUMAN_ATTENTION_AUTONOMOUS_RECOVERY",
+    "REQ_0015_PLANNER_LEVEL_HUMAN_ATTENTION_CODEX_AUTORECOVERY"
+  ],
+  "remediation_choices": [
+    {
+      "actions": [
+        "Re-emit claude_worklog/agent_supervisor/tasks/082_trainer_parity_2e1c_gamma_implementation.json with required_output_files reduced to a coherent core subset (module skeleton + protocol + collector + first batch of tests + GO_NO_GO).",
+        "Move the remaining files (in_memory reader, history buffer, additional tests) into a follow-up task 086B that the supervisor will queue automatically after 082 passes.",
+        "Document the tightening in 90_GAMMA_082_RECOVERY_PLAN.md and justify why the new emit volume is feasible."
+      ],
+      "choice": "patch_and_retry",
+      "when_to_choose": "spec is consistent and the only defect is required_output_files cardinality; a single tightened emit can plausibly land in one attempt"
+    },
+    {
+      "actions": [
+        "Mark task 082 as superseded_by_codex_evidence under REQ_0014 authority and record the supersession in 90_GAMMA_082_RECOVERY_PLAN.md.",
+        "Stage task 086A_trainer_parity_2e1c_gamma_reader_protocol.json (reader protocol + in-memory reader + reader tests).",
+        "Stage task 086B_trainer_parity_2e1c_gamma_observation_collector.json (collector module + collector tests).",
+        "Stage task 086C_trainer_parity_2e1c_gamma_observation_history.json (rolling history buffer + history tests + GO_NO_GO + sub-phase report).",
+        "Each successor must declare depends_on relative to the prior successor."
+      ],
+      "choice": "split_into_successors",
+      "when_to_choose": "even a tightened core emit exceeds plausible single-attempt budget, or the spec naturally cleaves along reader / collector / history boundaries"
+    }
+  ],
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/89_GAMMA_082_FAILURE_DIAGNOSIS.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/90_GAMMA_082_RECOVERY_PLAN.md",
+    "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/91_GAMMA_082_RECOVERY_GO_NO_GO.md",
+    "claude_worklog/security/CODEX_086_SECRET_SCAN_2026_05_04.txt"
+  ],
+  "requirement": "REQ_0006_PHASE2_IMPLEMENT_TRAINER_PARITY_SERVICE",
+  "risk_level": "L1",
+  "started_at": "2026-06-15T20:09:22Z",
+  "status": "completed",
   "stop_conditions": [
     "any forbidden_actions condition is encountered or required",
     "secret scan returns any hit",
@@ -138,5 +135,15 @@
     "either the re-emitted 082 task or the 086A/086B/086C successor task chain is on disk and parseable",
     "post-task supervisor commit + push lands all recovery artifacts in a single bundled commit with no live, legacy, Redis, exchange, or deploy actions performed"
   ],
-  "ready_marker": "PHASE_2E1C_GAMMA_082_RECOVERY_READY"
+  "task_id": "086",
+  "task_name": "codex_recover_082_gamma_implementation_blocker",
+  "updated_at": "2026-06-15T20:15:37Z",
+  "validation": [
+    "All emitted JSON task files must parse as valid JSON.",
+    "All emitted markdown files must be ASCII-clean and contain no protocol marker leakage (no stray BEGIN_FILE / END_FILE inside body content).",
+    "High-confidence secret scan over emitted files and full repo diff must return zero hits before commit.",
+    "If patch_and_retry chosen, the re-emitted 082 task definition must reduce required_output_files count strictly below the current count and must not introduce any new path outside the v2/ allowed prefix.",
+    "If split_into_successors chosen, each successor task's required_output_files must be disjoint and together must cover the original gamma spec module surface (reader protocol, in-memory reader, observation collector, observation history, plus tests, plus GO_NO_GO and sub-phase report).",
+    "Recovery plan and GO_NO_GO must explicitly state which choice was selected and why, with reference to the diagnostic findings."
+  ]
 }

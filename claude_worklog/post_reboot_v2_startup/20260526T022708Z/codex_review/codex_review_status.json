@@ -1,0 +1,61 @@
+{
+  "fixes_applied": [
+    "Quoted user-systemd ExecStart paths for V2 paper/read-only loop units under AI BOT REBUILD so they no longer fail with status=203/EXEC.",
+    "Quoted PYTHONPATH/LIVE_GATE Environment assignments in those unit files.",
+    "Added SuccessExitStatus=2 for the final-operator-decision event-watcher unit so an explicit blocked operator state is not surfaced as a failed user-systemd unit.",
+    "Added the v2_post_reboot_gnome_terminal_startup lane to the Report Center registry and regenerated the Report Center index.",
+    "Refreshed the risk gateway runtime worker status in fail-closed mode with live_gate=blocked_human_only and live_symbols=[]."
+  ],
+  "go_no_go": "V2_POST_REBOOT_GNOME_TERMINAL_STARTUP_CODEX_PASS",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "no_exchange_mutation_detected": true,
+    "no_legacy_data_deletion_or_redis_trim": true,
+    "real_order_attempted": false,
+    "real_order_submitted": false
+  },
+  "verification": {
+    "active_v2_service_rows": 29,
+    "failed_or_activating_v2_service_rows": 0,
+    "legacy_process_count": 0,
+    "redis_counts": {
+      "exchange:order:*": 0,
+      "live_orders:*": 0,
+      "orchestrator:*": 0,
+      "v2:*": 257,
+      "v2:features:*": 62,
+      "v2:market:*": 60,
+      "v2:orchestrator:*": 3,
+      "v2:paper:*": 39,
+      "v2:prediction:*": 50,
+      "v2:replay:*": 0,
+      "v2:risk:*": 1
+    },
+    "report_center_lane": {
+      "go_no_go": "V2_POST_REBOOT_GNOME_TERMINAL_STARTUP_READY",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "report_id": "v2_post_reboot_gnome_terminal_startup",
+      "stale": false,
+      "status": "READY"
+    },
+    "risk_status": {
+      "fail_closed": true,
+      "last_run_ts": "2026-05-26T03:03:37Z",
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "missing_runtime_evidence": true,
+      "risk_action": "deny",
+      "risk_reason_code": "deny_default",
+      "runtime_evidence_status": "MISSING_RUNTIME_EVIDENCE"
+    },
+    "startup_dangerous_log_match_count": 0,
+    "v2_gnome_terminal_window_count": 22
+  },
+  "verified_at": "2026-05-26T03:04:41Z"
+}

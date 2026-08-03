@@ -1,49 +1,46 @@
 {
-  "task_id": "191_phase2x_b_external_manual_position_quarantine_codex_remediation",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "lane": "codex_watchdog",
-  "mvp_relevance": "Unblock Phase 2X external manual position quarantine domain Codex pass by removing the per-call clock invocation and emitting Phase 2X.B remediation evidence so downstream REQ_0013 phase-1 quarantine prerequisites can consume the typed ManualPositionFlag / ExternalPositionQuarantineRecord value objects after V2_BACKTEST_AND_PAPER_MVP_READY.",
-  "blocked_by": [
-    "190_phase2x_external_manual_position_quarantine_domain_codex_review"
-  ],
-  "next_gate": "PHASE2X_B_EXTERNAL_MANUAL_POSITION_QUARANTINE_REMEDIATION_IMPL_AND_VALIDATION_PASSED",
-  "legacy_evidence_consulted": [
-    "claude_worklog/legacy_readonly_audit/08_FAILURE_CASE_REGISTER.md lines 7-27 LAB hedge-unwind residual exposure",
-    "claude_worklog/phase2_core_rebuild/legacy_evidence/02_CURRENT_LEGACY_FAILURE_SIGNALS.md line 25 external/manual position quarantine missing",
-    "claude_worklog/requirements_inbox/REQ_0013_SMC_LIQUIDITY_SHADOW_FEATURES.md line 31 manual-position SMC misuse prohibition",
-    "claude_worklog/requirements_inbox/REQ_0022_LEGACY_FAILURE_HEDGE_UNWIND_AND_SQUEEZE_RISK.md lines 26-47 required risk-gateway rules before closing a hedge or protective leg"
-  ],
-  "legacy_failure_addressed": "LAB hedge-unwind / short-squeeze residual exposure plus REQ_0013 manual-position SMC misuse safety rule; the typed flag and record cannot be consumed downstream until Phase 2X reaches Codex pass through this remediation.",
-  "depends_on": [
-    "190_phase2x_external_manual_position_quarantine_domain_codex_review"
-  ],
-  "predecessor_task_ids": [
-    "190_phase2x_external_manual_position_quarantine_domain_codex_review"
-  ],
-  "predecessor_required_marker": "PHASE2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_FAIL",
-  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/09_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_GO_NO_GO.md",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
-  "task_granularity_mode": "consolidated_default",
-  "requires_clean_worktree": true,
-  "scope_dirty_paths": [],
-  "worktree_excluded_paths": [
-    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
-    "claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/PLANNER_TURN_2X_DOMAIN_READY_AND_CODEX_REVIEW_QUEUED.md",
-    "claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/PLANNER_TURN_2X_B_OPEN_CODEX_REMEDIATION_FOR_CLOCK_POLICY_AND_DIFF_SCOPE.md",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_closed_loop_recovery_128_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_closed_loop_recovery_177_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_closed_loop_recovery_180_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_fail_marker_recovery_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_non_live_recovery_ready.json",
-    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready.json"
-  ],
   "allowed_output_prefixes": [
     "v2/backend/app/composition/external_manual_position_quarantine/",
     "v2/backend/tests/unit/composition/external_manual_position_quarantine/",
     "claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/"
+  ],
+  "blocked_by": [
+    "190_phase2x_external_manual_position_quarantine_domain_codex_review"
+  ],
+  "completed_at": "2026-05-09T23:54:39.783794+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "190_phase2x_external_manual_position_quarantine_domain_codex_review"
+  ],
+  "emit_files": true,
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "read or write any Redis key",
+    "invoke any Redis command",
+    "restart any live service",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "deploy",
+    "run a production migration",
+    "expose or commit credentials",
+    "approve the live gate",
+    "invoke any Binance HTTP API or any other live exchange API",
+    "introduce any execution-side surface in Phase 2X.B",
+    "introduce any new lineage ID in Phase 2X.B",
+    "modify any Phase 2X domain or services source under v2/backend/app/domain/external_manual_position_quarantine/ or v2/backend/app/services/external_manual_position_quarantine/",
+    "modify any Phase 2X domain or services test under v2/backend/tests/unit/domain/external_manual_position_quarantine/ or v2/backend/tests/unit/services/external_manual_position_quarantine/",
+    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/00_PHASE_2X_SCOPE.md",
+    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/01_PHASE_2X_LEGACY_EVIDENCE_REVIEW.md",
+    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/02_PHASE_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_SPEC.md",
+    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/03_PHASE_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_TEST_PLAN.md",
+    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/04_PHASE_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_SAFETY_BOUNDARIES.md",
+    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/05_PHASE_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_GO_NO_GO_REQUEST.md",
+    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/06_IMPLEMENTATION_REPORT.md",
+    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/07_GO_NO_GO.md",
+    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/08_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_REVIEW.md",
+    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/09_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_GO_NO_GO.md"
   ],
   "forbidden_output_paths": [
     "/home/wali/Desktop/AI BOT",
@@ -128,6 +125,25 @@
     "claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/08_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_REVIEW.md",
     "claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/09_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_GO_NO_GO.md"
   ],
+  "lane": "codex_watchdog",
+  "legacy_evidence_consulted": [
+    "claude_worklog/legacy_readonly_audit/08_FAILURE_CASE_REGISTER.md lines 7-27 LAB hedge-unwind residual exposure",
+    "claude_worklog/phase2_core_rebuild/legacy_evidence/02_CURRENT_LEGACY_FAILURE_SIGNALS.md line 25 external/manual position quarantine missing",
+    "claude_worklog/requirements_inbox/REQ_0013_SMC_LIQUIDITY_SHADOW_FEATURES.md line 31 manual-position SMC misuse prohibition",
+    "claude_worklog/requirements_inbox/REQ_0022_LEGACY_FAILURE_HEDGE_UNWIND_AND_SQUEEZE_RISK.md lines 26-47 required risk-gateway rules before closing a hedge or protective leg"
+  ],
+  "legacy_failure_addressed": "LAB hedge-unwind / short-squeeze residual exposure plus REQ_0013 manual-position SMC misuse safety rule; the typed flag and record cannot be consumed downstream until Phase 2X reaches Codex pass through this remediation.",
+  "mvp_relevance": "Unblock Phase 2X external manual position quarantine domain Codex pass by removing the per-call clock invocation and emitting Phase 2X.B remediation evidence so downstream REQ_0013 phase-1 quarantine prerequisites can consume the typed ManualPositionFlag / ExternalPositionQuarantineRecord value objects after V2_BACKTEST_AND_PAPER_MVP_READY.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "PHASE2X_B_EXTERNAL_MANUAL_POSITION_QUARANTINE_REMEDIATION_IMPL_AND_VALIDATION_PASSED",
+  "next_recommended_action": "Dispatch task 192_phase2x_b_external_manual_position_quarantine_codex_rereview after the Phase 2X.B remediation commit lands and the local validation marker file 11_PHASE_2X_B_REMEDIATION_GO_NO_GO.md contains PHASE2X_B_EXTERNAL_MANUAL_POSITION_QUARANTINE_REMEDIATION_IMPL_AND_VALIDATION_PASSED.",
+  "predecessor_required_marker": "PHASE2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_FAIL",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/09_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_GO_NO_GO.md",
+  "predecessor_task_ids": [
+    "190_phase2x_external_manual_position_quarantine_domain_codex_review"
+  ],
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. You are executing Phase 2X.B remediation for the failed Phase 2X external manual position quarantine domain Codex review. The Phase 2X local validation marker at claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/07_GO_NO_GO.md is PHASE2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_IMPL_AND_VALIDATION_PASSED and the Phase 2X Codex review marker at claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/09_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_GO_NO_GO.md is PHASE2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_FAIL. Two blockers are recorded in claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/08_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_REVIEW.md: (1) Step 6 runtime-clock policy mismatch where the implementation invokes _now_ms_clock() per runtime call and the test asserts calls == 1, while the Phase 2X.B Codex policy requires zero per-call invocation because risk_decision_ts_ms remains authoritative and the clock is reserved for a future timestamping extension; (2) Step 10 no-prior-milestone-byte-mutation diff non-empty due to task-190 supervisor JSON and PLANNER_TURN_2X_DOMAIN_READY_AND_CODEX_REVIEW_QUEUED.md committed in the same Phase 2X commit window outside the exclusion set. You must perform these actions and only these actions: (a) Edit v2/backend/app/composition/external_manual_position_quarantine/runtime.py to remove the per-call _now_ms_clock() invocation and the per-call int / nonnegative validation inside _external_manual_position_quarantine_now while preserving the build-time callable(now_ms_clock) check, the now_ms_clock parameter, and the closure capture of _now_ms_clock; add a single short comment inside build_external_position_quarantine_runtime stating that the clock is reserved for a future Phase 2X timestamping extension and must not be invoked per call because risk_decision_ts_ms remains authoritative. (b) Use git mv to rename v2/backend/tests/unit/composition/external_manual_position_quarantine/test_runtime_invokes_clock_exactly_once_per_call.py to v2/backend/tests/unit/composition/external_manual_position_quarantine/test_runtime_does_not_invoke_clock_per_call.py and rewrite the renamed file so the test function is named test_runtime_does_not_invoke_clock_per_call and asserts calls == 0, keeping the same RiskDecisionRecord helper and the same ManualPositionFlag(state=MANUAL_POSITION_QUARANTINED, live_blocked=True), the same trainer-parity fixture row (model_version=hybrid_trainer_v2026_05, checkpoint_id=ckpt_hedge_close_residual_exposure_blocked_2026_05, confidence_raw=0.72, confidence_calibrated=0.69, trainer_worker_liveness=alive). (c) Write claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/10_PHASE_2X_B_REMEDIATION_REPORT.md describing the Phase 2X.B patch, the targeted pytest result, the smoke import result, and a short statement that no Phase 2X 00-09 doc was modified, no Phase 2X domain or services source was modified, no Phase 2X domain or services test was modified, and no execution-side surface or new lineage ID was introduced. End the report with the single tail marker PHASE_2X_B_REMEDIATION_REPORT_READY on its own final line. (d) Write claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/11_PHASE_2X_B_REMEDIATION_GO_NO_GO.md containing exactly one line: PHASE2X_B_EXTERNAL_MANUAL_POSITION_QUARANTINE_REMEDIATION_IMPL_AND_VALIDATION_PASSED. Run PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. ./.venv/bin/python -m pytest -p no:cacheprovider v2/backend/tests/unit/domain/external_manual_position_quarantine/ v2/backend/tests/unit/services/external_manual_position_quarantine/ v2/backend/tests/unit/composition/external_manual_position_quarantine/ -x -q and confirm 30 passed (the rename keeps the test count constant). Run PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. python3 -c \"from v2.backend.app.domain.external_manual_position_quarantine import ManualPositionFlag, MANUAL_POSITION_QUARANTINED, MANUAL_POSITION_NOT_PRESENT, ExternalPositionQuarantineRecord, ExternalManualPositionQuarantineDomainError; from v2.backend.app.services.external_manual_position_quarantine import assemble_external_position_quarantine_record, ExternalManualPositionQuarantineServiceError; from v2.backend.app.composition.external_manual_position_quarantine import ExternalManualPositionQuarantineRuntime, build_external_position_quarantine_runtime, ExternalManualPositionQuarantineRuntimeCompositionError; print('ok')\" and confirm stdout is ok. Run grep -nR \"redis\\\\|aioredis\\\\|redis.asyncio\\\\|fastapi\\\\|starlette\" v2/backend/app/composition/external_manual_position_quarantine/ v2/backend/tests/unit/composition/external_manual_position_quarantine/ and confirm empty output. Stage exactly the four required output files plus the deleted old test file and create exactly one git commit titled \"Phase 2X.B remediate per-call clock policy and replace clock-invocation test\" so that the resulting HEAD~1..HEAD diff is fully self-contained inside the Phase 2X.B allowed prefixes. Do not modify /home/wali/Desktop/AI BOT. Do not write or delete any Redis key. Do not restart live services. Do not place or cancel orders. Do not change leverage or margin. Do not enable live trading. Do not deploy. Do not run a production migration. Do not expose or commit any credential. Do not approve the live gate. Do not introduce any execution-side surface. Do not introduce any new lineage ID. Do not modify any Phase 2X 00-09 doc. Do not modify any v2 source or test outside the two listed Phase 2X.B paths.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "v2/backend/app/composition/external_manual_position_quarantine/runtime.py",
     "v2/backend/tests/unit/composition/external_manual_position_quarantine/test_runtime_does_not_invoke_clock_per_call.py",
@@ -139,34 +155,27 @@
       "v2/backend/tests/unit/composition/external_manual_position_quarantine/test_runtime_invokes_clock_exactly_once_per_call.py"
     ]
   },
-  "forbidden_actions": [
-    "modify /home/wali/Desktop/AI BOT",
-    "read or write any Redis key",
-    "invoke any Redis command",
-    "restart any live service",
-    "place or cancel exchange orders",
-    "change leverage or margin",
-    "enable live trading",
-    "deploy",
-    "run a production migration",
-    "expose or commit credentials",
-    "approve the live gate",
-    "invoke any Binance HTTP API or any other live exchange API",
-    "introduce any execution-side surface in Phase 2X.B",
-    "introduce any new lineage ID in Phase 2X.B",
-    "modify any Phase 2X domain or services source under v2/backend/app/domain/external_manual_position_quarantine/ or v2/backend/app/services/external_manual_position_quarantine/",
-    "modify any Phase 2X domain or services test under v2/backend/tests/unit/domain/external_manual_position_quarantine/ or v2/backend/tests/unit/services/external_manual_position_quarantine/",
-    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/00_PHASE_2X_SCOPE.md",
-    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/01_PHASE_2X_LEGACY_EVIDENCE_REVIEW.md",
-    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/02_PHASE_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_SPEC.md",
-    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/03_PHASE_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_TEST_PLAN.md",
-    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/04_PHASE_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_SAFETY_BOUNDARIES.md",
-    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/05_PHASE_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_GO_NO_GO_REQUEST.md",
-    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/06_IMPLEMENTATION_REPORT.md",
-    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/07_GO_NO_GO.md",
-    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/08_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_REVIEW.md",
-    "modify any byte content of claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/09_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_GO_NO_GO.md"
-  ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. You are executing Phase 2X.B remediation for the failed Phase 2X external manual position quarantine domain Codex review. The Phase 2X local validation marker at claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/07_GO_NO_GO.md is PHASE2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_IMPL_AND_VALIDATION_PASSED and the Phase 2X Codex review marker at claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/09_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_GO_NO_GO.md is PHASE2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_FAIL. Two blockers are recorded in claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/08_2X_EXTERNAL_MANUAL_POSITION_QUARANTINE_DOMAIN_CODEX_REVIEW.md: (1) Step 6 runtime-clock policy mismatch where the implementation invokes _now_ms_clock() per runtime call and the test asserts calls == 1, while the Phase 2X.B Codex policy requires zero per-call invocation because risk_decision_ts_ms remains authoritative and the clock is reserved for a future timestamping extension; (2) Step 10 no-prior-milestone-byte-mutation diff non-empty due to task-190 supervisor JSON and PLANNER_TURN_2X_DOMAIN_READY_AND_CODEX_REVIEW_QUEUED.md committed in the same Phase 2X commit window outside the exclusion set. You must perform these actions and only these actions: (a) Edit v2/backend/app/composition/external_manual_position_quarantine/runtime.py to remove the per-call _now_ms_clock() invocation and the per-call int / nonnegative validation inside _external_manual_position_quarantine_now while preserving the build-time callable(now_ms_clock) check, the now_ms_clock parameter, and the closure capture of _now_ms_clock; add a single short comment inside build_external_position_quarantine_runtime stating that the clock is reserved for a future Phase 2X timestamping extension and must not be invoked per call because risk_decision_ts_ms remains authoritative. (b) Use git mv to rename v2/backend/tests/unit/composition/external_manual_position_quarantine/test_runtime_invokes_clock_exactly_once_per_call.py to v2/backend/tests/unit/composition/external_manual_position_quarantine/test_runtime_does_not_invoke_clock_per_call.py and rewrite the renamed file so the test function is named test_runtime_does_not_invoke_clock_per_call and asserts calls == 0, keeping the same RiskDecisionRecord helper and the same ManualPositionFlag(state=MANUAL_POSITION_QUARANTINED, live_blocked=True), the same trainer-parity fixture row (model_version=hybrid_trainer_v2026_05, checkpoint_id=ckpt_hedge_close_residual_exposure_blocked_2026_05, confidence_raw=0.72, confidence_calibrated=0.69, trainer_worker_liveness=alive). (c) Write claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/10_PHASE_2X_B_REMEDIATION_REPORT.md describing the Phase 2X.B patch, the targeted pytest result, the smoke import result, and a short statement that no Phase 2X 00-09 doc was modified, no Phase 2X domain or services source was modified, no Phase 2X domain or services test was modified, and no execution-side surface or new lineage ID was introduced. End the report with the single tail marker PHASE_2X_B_REMEDIATION_REPORT_READY on its own final line. (d) Write claude_worklog/phase2_core_rebuild/external_manual_position_quarantine_impl/11_PHASE_2X_B_REMEDIATION_GO_NO_GO.md containing exactly one line: PHASE2X_B_EXTERNAL_MANUAL_POSITION_QUARANTINE_REMEDIATION_IMPL_AND_VALIDATION_PASSED. Run PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. ./.venv/bin/python -m pytest -p no:cacheprovider v2/backend/tests/unit/domain/external_manual_position_quarantine/ v2/backend/tests/unit/services/external_manual_position_quarantine/ v2/backend/tests/unit/composition/external_manual_position_quarantine/ -x -q and confirm 30 passed (the rename keeps the test count constant). Run PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. python3 -c \"from v2.backend.app.domain.external_manual_position_quarantine import ManualPositionFlag, MANUAL_POSITION_QUARANTINED, MANUAL_POSITION_NOT_PRESENT, ExternalPositionQuarantineRecord, ExternalManualPositionQuarantineDomainError; from v2.backend.app.services.external_manual_position_quarantine import assemble_external_position_quarantine_record, ExternalManualPositionQuarantineServiceError; from v2.backend.app.composition.external_manual_position_quarantine import ExternalManualPositionQuarantineRuntime, build_external_position_quarantine_runtime, ExternalManualPositionQuarantineRuntimeCompositionError; print('ok')\" and confirm stdout is ok. Run grep -nR \"redis\\\\|aioredis\\\\|redis.asyncio\\\\|fastapi\\\\|starlette\" v2/backend/app/composition/external_manual_position_quarantine/ v2/backend/tests/unit/composition/external_manual_position_quarantine/ and confirm empty output. Stage exactly the four required output files plus the deleted old test file and create exactly one git commit titled \"Phase 2X.B remediate per-call clock policy and replace clock-invocation test\" so that the resulting HEAD~1..HEAD diff is fully self-contained inside the Phase 2X.B allowed prefixes. Do not modify /home/wali/Desktop/AI BOT. Do not write or delete any Redis key. Do not restart live services. Do not place or cancel orders. Do not change leverage or margin. Do not enable live trading. Do not deploy. Do not run a production migration. Do not expose or commit any credential. Do not approve the live gate. Do not introduce any execution-side surface. Do not introduce any new lineage ID. Do not modify any Phase 2X 00-09 doc. Do not modify any v2 source or test outside the two listed Phase 2X.B paths.",
-  "next_recommended_action": "Dispatch task 192_phase2x_b_external_manual_position_quarantine_codex_rereview after the Phase 2X.B remediation commit lands and the local validation marker file 11_PHASE_2X_B_REMEDIATION_GO_NO_GO.md contains PHASE2X_B_EXTERNAL_MANUAL_POSITION_QUARANTINE_REMEDIATION_IMPL_AND_VALIDATION_PASSED."
+  "requires_clean_worktree": true,
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "scope_dirty_paths": [],
+  "source_truth_completed_at": "2026-05-09T23:54:39.783794+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/191_phase2x_b_external_manual_position_quarantine_codex_remediation.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_granularity_mode": "consolidated_default",
+  "task_id": "191_phase2x_b_external_manual_position_quarantine_codex_remediation",
+  "updated_at": "2026-06-15T19:54:42Z",
+  "worktree_excluded_paths": [
+    "claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt",
+    "claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/PLANNER_TURN_2X_DOMAIN_READY_AND_CODEX_REVIEW_QUEUED.md",
+    "claude_worklog/phase2_core_rebuild/v2_backtest_and_paper_mvp_ready/PLANNER_TURN_2X_B_OPEN_CODEX_REMEDIATION_FOR_CLOCK_POLICY_AND_DIFF_SCOPE.md",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_closed_loop_recovery_128_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_closed_loop_recovery_177_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_closed_loop_recovery_180_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_fail_marker_recovery_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_non_live_recovery_ready.json",
+    "claude_worklog/agent_supervisor/tasks/parallel_capacity_readonly_review_codex_parallel_readonly_review_ready.json"
+  ]
 }

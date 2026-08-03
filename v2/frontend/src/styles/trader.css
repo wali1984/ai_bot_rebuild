@@ -1,0 +1,202 @@
+.trader-page {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 18% 0%, color-mix(in oklch, var(--accent, #38bdf8) 10%, transparent) 0, transparent 34rem),
+    var(--bg-base);
+  color: var(--text-primary);
+  padding: 24px;
+}
+
+.trader-page__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.trader-page__kicker {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.trader-page__title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.trader-page__subtitle {
+  margin: 6px 0 0;
+  max-width: 820px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.trader-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.trader-panel {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--glass-border, var(--border));
+  border-radius: 14px;
+  background: var(--glass-bg, color-mix(in oklch, var(--bg-panel) 96%, black));
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  backdrop-filter: blur(16px) saturate(135%);
+  box-shadow: 0 14px 40px color-mix(in oklch, black 26%, transparent);
+}
+
+.trader-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.trader-panel__title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.trader-panel__body {
+  padding: 16px;
+}
+
+.trader-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* Uniform card size: every KPI card is the same height and scrolls internally
+   if its content exceeds — no stretched cards, no blank space (operator rule). */
+.trader-metric-card {
+  position: relative;
+  min-width: 0;
+  height: 104px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--glass-border, var(--border));
+  border-radius: 12px;
+  background: var(--glass-bg, var(--bg-elevated));
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  backdrop-filter: blur(14px) saturate(135%);
+  padding: 12px 14px;
+  box-shadow: 0 8px 24px color-mix(in oklch, black 20%, transparent);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+/* Sheen — a faint light line across the top edge reads as a glass surface. */
+.trader-metric-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--glass-accent, 124, 92, 255), 0.5), transparent);
+  pointer-events: none;
+}
+
+.trader-metric-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--glass-accent, 124, 92, 255), 0.4);
+  box-shadow: 0 12px 30px color-mix(in oklch, black 28%, transparent),
+    0 0 0 1px rgba(var(--glass-accent, 124, 92, 255), 0.14);
+}
+
+/* Thin, unobtrusive scrollbar for the rare card whose content overflows. */
+.trader-metric-card::-webkit-scrollbar {
+  width: 5px;
+}
+.trader-metric-card::-webkit-scrollbar-thumb {
+  background: rgba(var(--glass-accent, 124, 92, 255), 0.3);
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trader-metric-card {
+    transition: none;
+  }
+  .trader-metric-card:hover {
+    transform: none;
+  }
+}
+
+.trader-metric-card__label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.trader-metric-card__value {
+  display: block;
+  min-height: 22px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.trader-metric-card__meta {
+  display: block;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.trader-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (min-width: 1600px) {
+  .trader-page {
+    padding: 28px;
+  }
+}
+
+@media (max-width: 1199px) {
+  .trader-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .trader-page {
+    padding: 16px;
+  }
+
+  .trader-page__header {
+    flex-direction: column;
+  }
+
+  .trader-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

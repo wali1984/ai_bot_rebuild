@@ -1,0 +1,61 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "controls": [
+    "symbol_pick",
+    "symbol_watch",
+    "symbol_ban",
+    "symbol_lock",
+    "service_restart_request",
+    "backtest_run_request",
+    "pipeline_refresh",
+    "risk_threshold_draft",
+    "read_only_probe_request"
+  ],
+  "credentials_values_exposed": false,
+  "disabled_until_approval": [
+    "enable_live",
+    "enable_canary",
+    "order_buttons",
+    "leverage_change",
+    "margin_change",
+    "redis_trim",
+    "legacy_restart",
+    "checkpoint_load"
+  ],
+  "go_no_go": "WEBSITE_TRADING_PLATFORM_RUNTIME_READY",
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "show": [
+    "service status",
+    "ingestor status",
+    "provider freshness",
+    "symbol universe",
+    "picked/watched/banned/locked symbols",
+    "feature/TA coverage",
+    "trainer mode",
+    "risk state",
+    "orchestrator state",
+    "paper trader state",
+    "paper PnL",
+    "edge metrics",
+    "backtest status",
+    "missing components",
+    "old Redis write blockers",
+    "live gate"
+  ],
+  "source_labels_required_on_every_page": [
+    "V2_NATIVE",
+    "COPIED_LEGACY_IN_V2",
+    "V2_BRIDGE_FROM_LEGACY_REDIS",
+    "PLACEHOLDER",
+    "OPERATOR_REQUIRED"
+  ],
+  "ts_est": "20260526T012145EST",
+  "ts_iso_est": "2026-05-26T01:33:20-0400",
+  "website_backend_active": true,
+  "website_backend_unit": "ai-bot-v2-public-website-backend.service",
+  "writes_exchange_orders": false
+}

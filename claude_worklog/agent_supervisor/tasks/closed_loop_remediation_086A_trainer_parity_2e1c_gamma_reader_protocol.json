@@ -1,0 +1,40 @@
+{
+  "codex_pair_task_id": "086A_trainer_parity_2e1c_gamma_reader_protocol",
+  "created_at": "2026-06-15T20:13:05Z",
+  "fail_blockers": [
+    "1. v2/backend/app/adapters/redis_v2/errors.py defines `class RedisStreamReaderError(Exception)` with `__init__(self, code: str, *, field: str | None = None)` storing `code` and `field`, `__str__` returning `f\"{code} ({field})\"` when field is non-None else `code`. No inheritance from gamma/beta/alpha/delta error types.",
+    "1. __init__ public surface re-exports exactly RedisStreamReaderError and RedisStreamLatestIdReader via __all__ in that exact order; no extras; no submodule re-exports; no _ -prefixed leaks; no re-export of gamma/beta/alpha/delta public symbols; no re-export from client.py or streams.py.",
+    "1. v2/backend/app/adapters/redis_v2/url_env.py defines `read_v2_redis_url(*, env: object | None = None) -> str` with the eight-step contract from spec 104. The module imports os and the existing RedisStreamReaderError from v2.backend.app.adapters.redis_v2.errors, and nothing else. The module MUST NOT contain `import redis`, `from redis`, `redis.asyncio`, `aioredis`, or `hiredis`. The module MUST NOT log, print, or emit the URL.",
+    "1. url_env.py implements the eight-step `read_v2_redis_url` contract from spec 104 in exact order. The signature is `def read_v2_redis_url(*, env: object | None = None) -> str`.",
+    "1. `StreamLatestIdReader`",
+    "1. If `reader` does not have a callable attribute `latest_stream_id`,",
+    "1. If `history` is not a `tuple`, raise",
+    "1. **Never make broad refactors unless explicitly requested.**",
+    "1. v2/backend/app/adapters/redis_v2/errors.py defines `class RedisStreamReaderError(Exception)` with `__init__(self, code: str, *, field: str | None = None)` storing `code` and `field`, `__str__` returning `f\"{code} ({field})\"` when field is non-None else `code`. No inheritance from gamma/beta/alpha/delta error types.",
+    "1. __init__ public surface re-exports exactly RedisStreamReaderError and RedisStreamLatestIdReader via __all__ in that exact order; no extras; no submodule re-exports; no _ -prefixed leaks; no re-export of gamma/beta/alpha/delta public symbols; no re-export from client.py or streams.py.",
+    "1. v2/backend/app/adapters/redis_v2/url_env.py defines `read_v2_redis_url(*, env: object | None = None) -> str` with the eight-step contract from spec 104. The module imports os and the existing RedisStreamReaderError from v2.backend.app.adapters.redis_v2.errors, and nothing else. The module MUST NOT contain `import redis`, `from redis`, `redis.asyncio`, `aioredis`, or `hiredis`. The module MUST NOT log, print, or emit the URL.",
+    "1. url_env.py implements the eight-step `read_v2_redis_url` contract from spec 104 in exact order. The signature is `def read_v2_redis_url(*, env: object | None = None) -> str`.",
+    "1. `StreamLatestIdReader`",
+    "1. If `reader` does not have a callable attribute `latest_stream_id`,",
+    "1. If `history` is not a `tuple`, raise",
+    "1. **Never make broad refactors unless explicitly requested.**"
+  ],
+  "file_lock_group": "086A_trainer_parity_2e1c_gamma_reader_protocol",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "status": "pending",
+  "task_id": "closed_loop_remediation_086A_trainer_parity_2e1c_gamma_reader_protocol",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-06-15T20:13:05Z"
+}

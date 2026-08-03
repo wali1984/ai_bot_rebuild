@@ -1,0 +1,22 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI Bot V2 Native Trainer Authenticated-Sample Waiting Observer
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=LIVE_GATE=blocked_human_only
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_native_cuda_trainer_persistent_loop --mode waiting-for-authenticated-samples --repo-root "/home/wali/Desktop/AI BOT REBUILD" --ledger-path "/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3" --trusted-cost-store-root "/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled-training-enrichment-cas" --interval-seconds 30 --max-rows 250000
+Restart=always
+RestartSec=5
+CPUQuota=1600%
+MemoryHigh=72G
+MemoryMax=75G
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=default.target

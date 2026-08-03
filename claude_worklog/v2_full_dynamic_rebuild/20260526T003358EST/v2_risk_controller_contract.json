@@ -1,0 +1,41 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "cannot_be_bypassed_by": [
+    "Claude",
+    "Codex 5.5",
+    "Codex Spark 5.3"
+  ],
+  "checks": [
+    "symbol_allowed",
+    "data_freshness",
+    "spread",
+    "slippage",
+    "fee_drag",
+    "expected_edge_after_cost",
+    "max_drawdown",
+    "max_daily_loss",
+    "max_position_notional",
+    "max_total_exposure",
+    "max_symbol_exposure",
+    "cooldown",
+    "churn",
+    "consecutive_losses",
+    "volatility_spike",
+    "liquidation_risk",
+    "orderbook_depth",
+    "feature_stale_or_missing",
+    "kill_switch"
+  ],
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_RISK_CONTROLLER_CONTRACT_READY",
+  "live_symbols": [],
+  "output_namespace": "v2:risk:decisions",
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "risk_caps_source": "operator-selected via website settings; if unset fail-closed",
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "writes_exchange_orders": false
+}

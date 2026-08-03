@@ -1,0 +1,15 @@
+{
+  "checked_patterns": [
+    "v2:market:ohlcv_closed:binance:*:1m",
+    "v2:market:ohlcv_closed:binance:*:5m",
+    "v2:market:ohlcv_closed:binance:*:15m",
+    "v2:market:ohlcv_closed:binance:*:1h",
+    "v2:market:ohlcv_closed:binance:*:4h"
+  ],
+  "generated_at": "2026-06-12T21:57:09Z",
+  "live_order_allowed": false,
+  "reason": "NO_SYMBOL_WITH_CANONICAL_CLOSED_CANDLE_COVERAGE",
+  "routes_to_live": false,
+  "status": "BLOCKED",
+  "success": false
+}

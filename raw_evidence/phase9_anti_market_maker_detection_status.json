@@ -1,0 +1,58 @@
+{
+  "schema_version": "v2_anti_market_maker_detection_status_v1",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "audit_findings": {
+    "existing_infrastructure": [
+      "toxicity_proxy (computed from ob_spread + ob_imbalance in feature_intelligence/service.py)",
+      "spoof_score (from CoinAPI websocket in native_ingestors/coinapi_wsds.py)",
+      "evaluate_toxicity_block (in risk_legacy_gates/evaluators.py)",
+      "ob_imbalance (in all_timeframe publisher and tensor_builder)"
+    ],
+    "detectors_implemented_before_phase9": ["TOXICITY_PROXY (partial — score only)"],
+    "detectors_missing_before_phase9": [
+      "sweep_up_down",
+      "spoof_wall_pull (only spoof_score, no full detector)",
+      "liquidity_hunt",
+      "depth_tape_divergence",
+      "stop_run_risk"
+    ]
+  },
+  "fixes_applied": [
+    {
+      "fix": "Created anti_market_maker_detector.py with 6 independent detectors",
+      "file": "v2/backend/app/services/paper_trade_management/anti_market_maker_detector.py",
+      "detectors": {
+        "detect_sweep": "Large price sweep with volume spike; honours sweep_up_detected/sweep_down_detected flags",
+        "detect_spoof_wall_pull": "Spoof/wall pull from spoof_detected flag or spoof_score > 0.65",
+        "detect_liquidity_hunt": "High liquidation count (5m), proximity to liquidation clusters, or flag",
+        "detect_depth_tape_divergence": "depth_vs_tape_divergence feature, or derived from ob_imbalance vs taker_buy_ratio",
+        "detect_toxic_flow": "toxicity_proxy > 0.65, or high order_flow_imbalance; uses existing feature pipeline",
+        "detect_stop_run_risk": "stop_run_risk_score, or 2+ of: large wick, round-number touch, liq burst 1m"
+      },
+      "actions": {
+        "ENTRY_BLOCK": "Block new entries when detector fires",
+        "EXIT_ACCELERATE": "Accelerate exit on open position when detector fires",
+        "SIZE_REDUCE": "Reduce position sizing when detector fires"
+      },
+      "invariants": {
+        "fail_safe": "All detectors return detected=False when data is missing",
+        "mutates_exchange": false,
+        "live_gate": "blocked_human_only"
+      }
+    },
+    {
+      "fix": "evaluate_all_detectors() composite function",
+      "detail": "Runs all 6 detectors, combines entry_blocked/exit_accelerated/size_reduced signals. Returns per-detector dict."
+    }
+  ],
+  "tests": {
+    "test_file": "v2/backend/tests/unit/services/paper_trade_management/test_phase9_anti_market_maker.py",
+    "test_count": 31,
+    "result": "PASS",
+    "run_command": "PYTHONPATH=v2/backend .venv/bin/pytest v2/backend/tests/unit/services/paper_trade_management/test_phase9_anti_market_maker.py -v"
+  },
+  "wiring_note": "Detectors are implemented as pure functions. Wiring into paper_online_runtime.py entry/exit path is a follow-on task (Phase 10 wiring checklist). feature_family_classifier.py already classifies sweep_spoof_wall family (Phase 2).",
+  "phase_status": "PHASE_9_COMPLETE",
+  "live_gate": "blocked_human_only",
+  "places_real_order": false
+}

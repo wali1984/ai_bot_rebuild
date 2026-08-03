@@ -1,0 +1,373 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "canonical_25_symbols": [
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BANKUSDT",
+    "BARDUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "FARTCOINUSDT",
+    "HIGHUSDT",
+    "LINKUSDT",
+    "LTCUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "UNIUSDT",
+    "WIFUSDT",
+    "XRPUSDT"
+  ],
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_FEATURE_COVERAGE_BY_SYMBOL_READY",
+  "live_symbols": [],
+  "per_symbol": [
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": false,
+      "missing": [
+        "ohlcv"
+      ],
+      "ohlcv_key_count": 0,
+      "prediction_key_count": 2,
+      "symbol": "1000BONKUSDT",
+      "technical_analysis_key_count": 2
+    },
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": false,
+      "missing": [
+        "ta"
+      ],
+      "ohlcv_key_count": 4,
+      "prediction_key_count": 2,
+      "symbol": "1000FLOKIUSDT",
+      "technical_analysis_key_count": 0
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": false,
+      "missing": [
+        "ta"
+      ],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "1000PEPEUSDT",
+      "technical_analysis_key_count": 0
+    },
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 2,
+      "prediction_key_count": 2,
+      "symbol": "1000SHIBUSDT",
+      "technical_analysis_key_count": 1
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "ALICEUSDT",
+      "technical_analysis_key_count": 2
+    },
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 2,
+      "prediction_key_count": 2,
+      "symbol": "ASTERUSDT",
+      "technical_analysis_key_count": 1
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 3,
+      "prediction_key_count": 2,
+      "symbol": "AUCTIONUSDT",
+      "technical_analysis_key_count": 2
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "AVNTUSDT",
+      "technical_analysis_key_count": 1
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": false,
+      "missing": [
+        "ta"
+      ],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "BANKUSDT",
+      "technical_analysis_key_count": 0
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 3,
+      "prediction_key_count": 2,
+      "symbol": "BARDUSDT",
+      "technical_analysis_key_count": 2
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 2,
+      "prediction_key_count": 2,
+      "symbol": "BTCUSDT",
+      "technical_analysis_key_count": 2
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 2,
+      "prediction_key_count": 2,
+      "symbol": "DOGEUSDT",
+      "technical_analysis_key_count": 1
+    },
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": false,
+      "missing": [
+        "ta"
+      ],
+      "ohlcv_key_count": 2,
+      "prediction_key_count": 2,
+      "symbol": "ETHUSDT",
+      "technical_analysis_key_count": 0
+    },
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "FARTCOINUSDT",
+      "technical_analysis_key_count": 1
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "HIGHUSDT",
+      "technical_analysis_key_count": 2
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": false,
+      "missing": [
+        "ohlcv"
+      ],
+      "ohlcv_key_count": 0,
+      "prediction_key_count": 2,
+      "symbol": "LINKUSDT",
+      "technical_analysis_key_count": 1
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": false,
+      "missing": [
+        "ta"
+      ],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "LTCUSDT",
+      "technical_analysis_key_count": 0
+    },
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 2,
+      "prediction_key_count": 2,
+      "symbol": "PENGUUSDT",
+      "technical_analysis_key_count": 2
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": false,
+      "missing": [
+        "ta"
+      ],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "PIPPINUSDT",
+      "technical_analysis_key_count": 0
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "RAVEUSDT",
+      "technical_analysis_key_count": 1
+    },
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "RIVERUSDT",
+      "technical_analysis_key_count": 1
+    },
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": false,
+      "missing": [
+        "ta"
+      ],
+      "ohlcv_key_count": 2,
+      "prediction_key_count": 2,
+      "symbol": "SOLUSDT",
+      "technical_analysis_key_count": 0
+    },
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": false,
+      "missing": [
+        "ohlcv"
+      ],
+      "ohlcv_key_count": 0,
+      "prediction_key_count": 2,
+      "symbol": "UNIUSDT",
+      "technical_analysis_key_count": 1
+    },
+    {
+      "features_latest_key_count": 1,
+      "has_full_coverage": true,
+      "missing": [],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "WIFUSDT",
+      "technical_analysis_key_count": 2
+    },
+    {
+      "features_latest_key_count": 2,
+      "has_full_coverage": false,
+      "missing": [
+        "ta"
+      ],
+      "ohlcv_key_count": 1,
+      "prediction_key_count": 2,
+      "symbol": "XRPUSDT",
+      "technical_analysis_key_count": 0
+    }
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "symbols_with_full_coverage": [
+    "1000SHIBUSDT",
+    "ALICEUSDT",
+    "ASTERUSDT",
+    "AUCTIONUSDT",
+    "AVNTUSDT",
+    "BARDUSDT",
+    "BTCUSDT",
+    "DOGEUSDT",
+    "FARTCOINUSDT",
+    "HIGHUSDT",
+    "PENGUUSDT",
+    "RAVEUSDT",
+    "RIVERUSDT",
+    "WIFUSDT"
+  ],
+  "symbols_with_partial_coverage": [
+    {
+      "missing": [
+        "ohlcv"
+      ],
+      "symbol": "1000BONKUSDT"
+    },
+    {
+      "missing": [
+        "ta"
+      ],
+      "symbol": "1000FLOKIUSDT"
+    },
+    {
+      "missing": [
+        "ta"
+      ],
+      "symbol": "1000PEPEUSDT"
+    },
+    {
+      "missing": [
+        "ta"
+      ],
+      "symbol": "BANKUSDT"
+    },
+    {
+      "missing": [
+        "ta"
+      ],
+      "symbol": "ETHUSDT"
+    },
+    {
+      "missing": [
+        "ohlcv"
+      ],
+      "symbol": "LINKUSDT"
+    },
+    {
+      "missing": [
+        "ta"
+      ],
+      "symbol": "LTCUSDT"
+    },
+    {
+      "missing": [
+        "ta"
+      ],
+      "symbol": "PIPPINUSDT"
+    },
+    {
+      "missing": [
+        "ta"
+      ],
+      "symbol": "SOLUSDT"
+    },
+    {
+      "missing": [
+        "ohlcv"
+      ],
+      "symbol": "UNIUSDT"
+    },
+    {
+      "missing": [
+        "ta"
+      ],
+      "symbol": "XRPUSDT"
+    }
+  ],
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "writes_exchange_orders": false
+}

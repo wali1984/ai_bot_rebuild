@@ -1,0 +1,32 @@
+{
+  "schema_version": "zero_exception_task_status_v1",
+  "task_id": "claude_v2_zero_exception_parity_misc_state_keys_running_partial_20260531",
+  "status": "done",
+  "generated_est": "2026-06-03T18:38:54-0400",
+  "generated_utc": "2026-06-03T22:38:54Z",
+  "implemented_files": [
+    "v2/backend/app/cli/v2_misc_state_keys_publisher.py",
+    "v2/backend/app/services/website/redis_bridge_contracts.py"
+  ],
+  "public_payload": "v2/frontend/public/operator_runtime/v2_misc_state_keys/latest/v2_misc_state_keys_status.json",
+  "verification_commands": [
+    "PYTHONPATH=$PWD ./.venv/bin/python3 -m pytest -q v2/backend/tests/unit/services/website/test_website_contracts.py",
+    "PYTHONPATH=$PWD ./.venv/bin/python3 -m v2.backend.app.cli.v2_misc_state_keys_publisher --write-v2-redis --write-evidence"
+  ],
+  "live_safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "approves_live": false,
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "writes_legacy_redis": false,
+    "places_exchange_orders": false
+  },
+  "evidence": {
+    "classification": "V2_MISC_STATE_KEYS_PUBLISHED",
+    "v2_keys_written_count": 29,
+    "v2_symbol_universe_contract_key_count": 1,
+    "v2_market_state_key_count": 1,
+    "v2_market_state_symbol_key_count": 27
+  }
+}

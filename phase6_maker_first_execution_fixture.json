@@ -1,0 +1,33 @@
+{
+  "marker": "PHASE6_MAKER_FIRST_EXECUTION_FIXTURE",
+  "generated_utc": "2026-07-11T17:50:00Z",
+  "patched_files": [
+    "v2/backend/app/services/live_gate/phase7_readiness.py",
+    "v2/backend/tests/unit/cli/test_v2_live_canary_dry_run.py"
+  ],
+  "execution_payload_preview": {
+    "local_payload_only": true,
+    "exchange_endpoint": null,
+    "exchange_transport": null,
+    "order_type": "LIMIT",
+    "time_in_force": "GTX",
+    "post_only": true,
+    "maker_first": true,
+    "taker_fallback_allowed_without_operator": false,
+    "taker_fallback_condition": "only_if_waiting_worsens_expected_net_and_operator_approves",
+    "internal_stop_management": true,
+    "stop_order_submitted": false,
+    "reduce_only_emergency_supported": true,
+    "reduce_only_emergency_path": "reduce_only_close_or_cancel_path_before_transport",
+    "dry_run_only": true,
+    "order_submitted": false,
+    "test_order_submitted": false,
+    "exchange_leverage_mutated": false,
+    "exchange_margin_mutated": false,
+    "places_real_order": false
+  },
+  "tests": [
+    "test_live_canary_dry_run_emits_maker_first_no_execute_preview"
+  ],
+  "status": "PASSED"
+}

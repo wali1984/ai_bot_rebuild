@@ -1,0 +1,718 @@
+{
+  "summary": "Diagnose the latest_unclosed admission funnel (histogram + finality-provability) and map the 100-row paper gate, cohort isolation, and exact live-path dry-run harness",
+  "agentCount": 5,
+  "logs": [],
+  "result": [
+    {
+      "subsystem": "native_trainer trusted-replay champion/challenger strict freeze admission funnel (model_edge_recovery_challenger.freeze_dataset_from_archive over durable_feature_snapshot_archive)",
+      "key_facts": [
+        "Archive read by the strict freeze: /home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive (default_archive_root, durable_feature_snapshot_archive.py:60-62). Holds ~3,475,089 manifest entries / ~3,475,098 blobs (~3.475M snapshots). The freeze reads only the NEWEST 60,000 via iter_snapshots(limit=60000, newest_first=True) at challenger.py:611-617.",
+        "EXACT _row_reject_reasons HISTOGRAM over the real newest-60,000 window: LATEST_UNCLOSED_KLINE_EXCLUSION_UNPROVEN = 59,766 (the ONLY reason firing). 234 snapshots pass _row_reject. Zero LABEL_*, COST_*, OPEN_CANDLE_REJECTED, CONTENT_SHA256_*, MTF_SNAPSHOT_ID_MISSING, or timestamp reasons fired.",
+        "The 59,766 rejected rows are all source=trainer_prediction_payload (snapshot_id v2_fsnap_*), each with latest_unclosed_kline_excluded=null (JSON null). candle_closed_confirmed=True on all of them (so OPEN_CANDLE_REJECTED does NOT fire). The 234 passing rows are the offline profiled importer cohort (215 profiled_training + 19 profiled_pit), all with latest_unclosed_kline_excluded=True.",
+        "The reject at challenger.py:300-301 fires because snapshot.get('latest_unclosed_kline_excluded') is not True (value is None). Deterministic finality verdict: NOT provable from in-snapshot receipts. A real v2_fsnap blob carries feature_cutoff, decision_time, available_at, candle_closed_confirmed=True, 646 numeric features, source_hashes (feature-vector hashes only), and an int source_availability mask. It does NOT carry candle_close_time, source_read_receipts, feature_source_receipt_sha256s, source_lineage_material, or any per-candle close-time lineage. The 'no candle with close_time>cutoff included' condition therefore cannot be checked, and feature_cutoff is not even always boundary-aligned (2086/5761 unaligned).",
+        "Cost is NOT the next wall: the same v2_fsnap snapshots carry full explicit PIT cost evidence (features fee_bps + expected_slippage_bps + expected_funding_bps present 5761/5761; _explicit_cost_evidence returns OK for all). latest_unclosed_kline_excluded is the single binding gate of the funnel.",
+        "SMOKING GUN on the producer semantics: live Redis v2:features:snapshot:* (schema v2_native_feature_snapshot_v2) stamp latest_unclosed_kline_excluded = bool(unfinished_kline_excluded_count) at v2_feature_pipeline_native_loop.py:2922-2925. Across 400 live snapshots unfinished_kline_excluded_count is always 0, so the flag is emitted as False 400/400 (never True). candle_closed_confirmed split 319 True / 81 False.",
+        "Two independent producer-side losses: (1) SEMANTIC - the feature pipeline only sets the flag True when it physically dropped a forming candle (count>0); in the closed-candle read path count is always 0 so it emits False, never True; (2) PROPAGATION - the trainer publisher (hybrid_cuda_trainer/publisher.py:2731-2734) archives via build_archive_record_from_prediction_payload whose embedded feature_snapshot omits the field entirely, so the archived record is null (not even False). The archive writer deliberately refuses to synthesize the claim (durable_feature_snapshot_archive.py:215-223).",
+        "An honest producer path already exists and works: profiled_training_challenger_importer_v1.py:489-504 reconstructs from the immutable profiled PIT ledger (feature_freshness_state=AUTHENTICATED_PROFILED_PIT_RECONSTRUCTED) and legitimately stamps latest_unclosed_kline_excluded=True plus source_provenance_receipt_sha256s. This is the 234-row passing cohort in the window."
+      ],
+      "file_pointers": [
+        {
+          "file": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/model_edge_recovery_challenger.py",
+          "line": 300,
+          "what": "The binding reject: 'if snapshot.get(\"latest_unclosed_kline_excluded\") is not True: reasons.append(LATEST_UNCLOSED_KLINE_EXCLUSION_UNPROVEN)' — fires 59,766/60,000."
+        },
+        {
+          "file": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/model_edge_recovery_challenger.py",
+          "line": 611,
+          "what": "freeze_dataset_from_archive reads newest 60,000 snapshots (scan_limit=60000, newest_first=True) then applies _row_reject_reasons."
+        },
+        {
+          "file": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/durable_feature_snapshot_archive.py",
+          "line": 60,
+          "what": "default_archive_root -> .local_data/v2_native_trainer/durable_feature_snapshot_archive (the archive the freeze reads)."
+        },
+        {
+          "file": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/durable_feature_snapshot_archive.py",
+          "line": 210,
+          "what": "Archive writer resolves latest_unclosed_kline_excluded from feature_snapshot/payload only; for trainer_prediction_payload it resolves to None and stamps null at line 231."
+        },
+        {
+          "file": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/durable_feature_snapshot_archive.py",
+          "line": 215,
+          "what": "Design comment: writer must NOT manufacture the producer admission claim from adjacent PIT fields; absent/malformed claim stays absent and is fail-closed. This is the deliberate publisher-gating."
+        },
+        {
+          "file": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/hybrid_cuda_trainer/publisher.py",
+          "line": 2731,
+          "what": "Producer of the 59,766 rejected v2_fsnap records: build_archive_record_from_prediction_payload + append_snapshot; its embedded feature_snapshot omits latest_unclosed_kline_excluded."
+        },
+        {
+          "file": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/cli/v2_feature_pipeline_native_loop.py",
+          "line": 2922,
+          "what": "Source stamp latest_unclosed_kline_excluded = bool(unfinished_kline_excluded_count); count is always 0 in the closed-candle path so it emits False, never True."
+        },
+        {
+          "file": "/home/wali/Desktop/AI BOT REBUILD/v2/backend/app/services/native_trainer/profiled_training_challenger_importer_v1.py",
+          "line": 491,
+          "what": "The honest producer path: stamps latest_unclosed_kline_excluded=True from authenticated profiled PIT reconstruction with source_provenance_receipt_sha256s; this is the only cohort that passes."
+        }
+      ],
+      "decision": "The latest_unclosed admission funnel is NOT in-tree repairable at the challenger/validator level over the existing archive — it is PUBLISHER-GATED. The immutable receipts needed to PROVE finality (a candle-close-time lineage of included sources, or a receipt hash binding the exclusion evidence) are genuinely ABSENT from all 59,766 rejected v2_fsnap snapshots; they carry only feature_cutoff/decision_time/available_at/candle_closed_confirmed and 646 aggregated feature floats, from which 'the latest still-open candle was excluded' cannot be honestly derived (candle_closed_confirmed is a separate producer boolean; feature_cutoff is not reliably boundary-aligned). Worse, even the live producer never emits the claim as True: it computes bool(unfinished_kline_excluded_count) which is 0 (=>False) in the closed-candle read path, and the trainer publisher drops the field entirely into the archive (=>null). An honest fix therefore requires a re-publish, not a retroactive in-tree upgrader: either change the feature-pipeline semantics to emit True when finality actually holds AND have the trainer publisher propagate the flag + candle-close lineage into the archived record, or run the already-correct profiled_training_challenger_importer at scale (it legitimately stamps True with provenance receipts). The existing 3.4M archived blobs are immutable and cannot be validated to True.",
+      "risks": [
+        "Do NOT build a validator that infers latest_unclosed_kline_excluded=True from feature_cutoff alignment + candle_closed_confirmed: this is exactly the 'manufacture a producer admission claim from adjacent PIT fields' the archive writer deliberately forbids (durable_feature_snapshot_archive.py:215-223) and would re-introduce lookahead risk without proof (2086/5761 cutoffs are not cleanly boundary-aligned; candle_closed_confirmed is a distinct claim).",
+        "The feature-pipeline semantic bool(unfinished_kline_excluded_count) is arguably wrong for this purpose: it conflates 'no forming candle existed to drop' (count 0 -> False) with 'a forming candle was excluded' (count>0 -> True). Flipping it naively to always-True would defeat the finality gate; the honest version must positively prove closed-boundary cutoff AND absence of any included candle with close_time>cutoff, which requires carrying candle-close lineage the snapshot currently lacks.",
+        "Fixing the producer only helps FORWARD snapshots; the newest-60,000 freeze window will keep rejecting until enough re-published (or profiled-importer) rows accumulate in the newest window, so the paper/A-grade deadlock persists during the backfill.",
+        "The honest offline producer (profiled_training_challenger_importer_v1) and related offline trainers are under the deliberate Codex 99-codex-repair-hold (RefuseManualStart) per operator memory; scaling that path is itself operator-gated, not a free code change."
+      ],
+      "recommended_actions": [
+        "Record the verdict: funnel is publisher-gated. The single binding reject is LATEST_UNCLOSED_KLINE_EXCLUSION_UNPROVEN (59,766/60,000); cost/label are NOT the wall (v2_fsnap carry full explicit cost evidence).",
+        "Producer fix option A (forward re-publish, honest): in v2_feature_pipeline_native_loop.py:2922 replace bool(unfinished_kline_excluded_count) with a positive finality proof (feature_cutoff on a closed-candle boundary AND no ingested candle with close_time>cutoff), and additionally emit the supporting candle-close lineage; then make hybrid_cuda_trainer/publisher.py's embedded feature_snapshot carry latest_unclosed_kline_excluded so build_archive_record_from_prediction_payload preserves it instead of stamping null.",
+        "Producer fix option B (already-built honest path): scale profiled_training_challenger_importer_v1 (which legitimately stamps latest_unclosed_kline_excluded=True with source_provenance_receipt_sha256s from the immutable profiled PIT ledger) to backfill the archive's newest window — subject to the operator repair-hold release gate.",
+        "Do NOT attempt a retroactive in-tree validator/upgrader over the existing 3.4M blobs — the finality evidence is absent and immutable; any such upgrader would be fabricating the claim.",
+        "After a producer fix lands, re-run this exact histogram script (iter_snapshots newest 60,000 + _row_reject_reasons Counter) to confirm LATEST_UNCLOSED count falls and to surface the NEXT gate (expected: label-stage FUTURE_CANDLE_HORIZON_MISSING_* or canonical-5m-label reasons, since cost is already satisfied)."
+      ]
+    },
+    {
+      "decision": "A 100-row PAPER checkpoint can be made normally paper-eligible WITHOUT the per-trade engineering-canary exception and WITHOUT touching the strict 1000 champion gate, but it requires (a) reusing the existing paper-recovery lane, not a brand-new subsystem, and (b) ONE tiny code change to promote the recovery train-row gate from telemetry to an enforced precondition. There is NO distinct 'autonomous paper checkpoint' train-row gate today: the only two train-row gates are the strict-1000 champion/challenger promotion gate (run_champion_challenger, must stay) and the paper-recovery 256-row floor (PaperRecoveryPolicyV1, env-tunable down to 1). The recovery checkpoint meta already carries the exact 'paper_provisional' classification (paper_only / recovery_checkpoint / non_promotable / checkpoint_promotion_authorized=false / live_eligible=false), which is distinct from the engineering_canary classification. Minimal wiring: set PAPER_RECOVERY_MIN_TRAIN_ROWS=100, train via v2_paper_recovery_model.py --train (already trains at >=1 row; corpus yields 272), route via v2_paper_recovery_cycle.py --mode fresh (NOT engineering_canary, so no canary arm / no per-trade economic bypass), and add a hard precondition in v2_paper_recovery_cycle.run() that refuses injection unless paper_recovery_train_gate_satisfied is true so 100 becomes a real gate rather than a status field.",
+      "subsystem": "Paper-recovery checkpoint gating + training corpus (v2 native_trainer paper_recovery lane and the paper trade-management loop)",
+      "key_facts": [
+        "Two train-row gates exist and they are the ONLY ones. STRICT (must stay): run_champion_challenger(min_train_rows=1000) at model_edge_recovery_challenger.py:1565, enforced at :1602-1603 (blocker 'INSUFFICIENT_TRAIN_ROWS') -- this is the CHAMPION PROMOTION gate. PAPER-RECOVERY: PaperRecoveryPolicyV1.minimum_recovery_train_rows=256 at paper_recovery_policy_v1.py:133, env-overridable via PAPER_RECOVERY_MIN_TRAIN_ROWS with floor min=1 at :326-328.",
+        "There is NO distinct 'autonomous paper checkpoint' / PAPER_MIN_TRAIN_ROWS gate anywhere. The paper loop itself enforces no train-row gate; it consumes predictions from Redis (v2:prediction:{symbol}:{tf}) and gates on signal transport integrity, market_state_integrity_score>=70, valid_for_paper==True, plus economic + hard controls -- never on checkpoint train_rows.",
+        "The recovery train-row gate is TELEMETRY-ONLY today. v2_paper_recovery_cycle.run() computes paper_recovery_train_gate(train_rows=_recovery_checkpoint_train_rows(), min_train_rows=256) into status fields (v2_paper_recovery_cycle.py:335-342) but injects the prediction regardless -- there is no code path that refuses injection when the gate is unsatisfied. So train_rows never actually blocks a paper fill.",
+        "The recovery model trains at an EFFECTIVE floor of >=1 row: v2_paper_recovery_model.py:180 uses `if len(xs) < min(min_rows, 1)` (min(200,1)=1), so --min-rows 200 is a no-op; the 272 count is simply what the labeled corpus yielded, not an enforced minimum.",
+        "Corpus for the 272-row recovery checkpoint = durable_feature_snapshot_ledger.sqlite3 (feature_snapshot_records WHERE strict_training_eligible=1, frozen_envelope.feature_values, 39-wide) LABELED by forward 5m return from canonical_finalized_5m_label_archive.sqlite3 (canonical_5m_candles close-to-close, +/-5bps deadband -> short/hold/long). Both DBs exist; 355 strict-eligible rows currently on disk (272 survive labeling). A >=100-row admission is feasible from the same corpus with no PIT reconstruction.",
+        "The on-disk meta .local_models/paper_recovery/paper_recovery_checkpoint_v1.json already exists with train_rows=272, holdout_accuracy=0.279, trained 2026-07-25, and stamps the FULL paper_provisional classification (paper_only=true, recovery_checkpoint=true, non_promotable=true, checkpoint_promotion_authorized=false, live_eligible=false, routes_to_live=false, economic_quality_claimed=false). No new meta fields are needed for a 100-row variant.",
+        "CLASSIFICATION: 'paper_provisional' == RECOVERY_CHECKPOINT_TAGS (paper_recovery_policy_v1.py:47-55): paper_only/recovery_checkpoint/non_promotable/checkpoint_promotion_authorized=false/live_eligible=false/routes_to_live=false. 'engineering_canary' == ENGINEERING_CANARY_TAGS (:57-67): adds engineering_canary/synthetic_candidate/excluded_from_economic_metrics/excluded_from_training/excluded_from_checkpoint_promotion and requires a single-use ID-bound arm. PAPER_PROVISIONAL_100_ROW_CHECKPOINT = RECOVERY_CHECKPOINT_TAGS with train_rows>=100; it is NOT engineering_canary.",
+        "The per-trade engineering exception is the single-use canary arm. In the paper loop it fires ONLY when intent.engineering_canary is True AND paper_recovery_only is True (v2_trade_management_paper_loop.py:44920), which then applies apply_economic_control_exception to strip the 3 economic block reasons (:27588-27593; canary_arm_v1.py:263-281 BYPASSABLE_ECONOMIC_BLOCK_REASONS = circuit-breaker/bucket-quarantine/loss-cluster). A 'fresh'-mode recovery prediction never sets engineering_canary, so this whole block is skipped -> NO per-trade exception.",
+        "Recovery cycle modes (v2_paper_recovery_cycle.py:438-441): engineering_replay / fresh / engineering_canary. Only engineering_canary creates the arm (:385-398). --mode fresh reads the recovery model's published prediction and injects it at the canonical single entry point carrying valid_for_paper=True, paper_eligible=True, market_state_integrity_score=100, plus paper_recovery_only/pit_waiver tags -- routing through canonical orchestrator->risk->paper under the NORMAL economic + hard controls.",
+        "A fresh recovery prediction does NOT claim ordinary_paper_admission (claims_ordinary_paper_admission at ordinary_paper_admission.py:716-736 needs schema_version/mode/quality_sizing_weight, none of which the injectable sets), so it is admitted via the LEGACY branch of _paper_signal_integrity_gate (v2_trade_management_paper_loop.py:42614-42622: market_state_id present + integrity>=70 + valid_for_paper==True). pit_waiver/paper_recovery_only do not hard-block paper but PaperRecoveryPolicyV1.deny_live_route (:147-171) guarantees they can never route live."
+      ],
+      "file_pointers": [
+        {
+          "file": "v2/backend/app/services/native_trainer/model_edge_recovery_challenger.py",
+          "line": 1565,
+          "what": "STRICT champion gate default min_train_rows=1000 (run_champion_challenger); enforcement at 1602-1603 emits INSUFFICIENT_TRAIN_ROWS. MUST NOT be touched."
+        },
+        {
+          "file": "v2/backend/app/services/paper_recovery/paper_recovery_policy_v1.py",
+          "line": 133,
+          "what": "minimum_recovery_train_rows=256 default -- the natural home for the 100-row paper floor."
+        },
+        {
+          "file": "v2/backend/app/services/paper_recovery/paper_recovery_policy_v1.py",
+          "line": 326,
+          "what": "env override PAPER_RECOVERY_MIN_TRAIN_ROWS parsed with floor min=1; set to 100 to enforce a 100-row paper floor without touching the strict gate."
+        },
+        {
+          "file": "v2/backend/app/services/paper_recovery/paper_recovery_policy_v1.py",
+          "line": 47,
+          "what": "RECOVERY_CHECKPOINT_TAGS (paper_provisional classification) vs ENGINEERING_CANARY_TAGS at line 57 -- the two checkpoint classes."
+        },
+        {
+          "file": "v2/backend/app/services/trainer_corpus_sprint/sprint_arm_v1.py",
+          "line": 261,
+          "what": "paper_recovery_train_gate(train_rows, min_train_rows) -- computes paper_recovery_train_gate_satisfied; currently used only for telemetry."
+        },
+        {
+          "file": "v2/backend/app/cli/v2_paper_recovery_cycle.py",
+          "line": 335,
+          "what": "run() computes the train-gate status fields but injects regardless -- ADD a hard precondition here (refuse injection unless paper_recovery_train_gate_satisfied) to make 100 a real gate."
+        },
+        {
+          "file": "v2/backend/app/cli/v2_paper_recovery_cycle.py",
+          "line": 385,
+          "what": "engineering_canary is the ONLY mode that creates the single-use canary arm (per-trade exception); use --mode fresh to avoid it."
+        },
+        {
+          "file": "v2/backend/app/cli/v2_paper_recovery_model.py",
+          "line": 180,
+          "what": "train() effective floor is >=1 row (min(min_rows,1)); the 200 default is a no-op. A 100-row checkpoint is just corpus-limited output."
+        },
+        {
+          "file": "v2/backend/app/cli/v2_paper_recovery_model.py",
+          "line": 41,
+          "what": "corpus sources: LEDGER=durable_feature_snapshot_ledger.sqlite3 + LABEL_ARCHIVE=canonical_finalized_5m_label_archive.sqlite3."
+        },
+        {
+          "file": "v2/backend/app/cli/v2_paper_recovery_model.py",
+          "line": 77,
+          "what": "_load_eligible_rows: strict_training_eligible=1, frozen_envelope.feature_values (39-wide); _forward_return_label at 109 uses canonical_5m_candles forward 5m close-to-close."
+        },
+        {
+          "file": "v2/backend/app/cli/v2_paper_recovery_model.py",
+          "line": 246,
+          "what": "checkpoint meta contract fields (paper_only/recovery_checkpoint/non_promotable/checkpoint_promotion_authorized=false/live_eligible=false/routes_to_live=false/economic_quality_claimed=false) -- the paper_provisional contract."
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 44920,
+          "what": "the per-trade engineering exception: fires only when engineering_canary AND paper_recovery_only both True; a fresh-mode paper_provisional prediction skips this entirely."
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 27588,
+          "what": "apply_economic_control_exception invoked only when paper_recovery_canary_arm_valid is True -- the bypass a fresh 100-row checkpoint deliberately does NOT get."
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 42614,
+          "what": "_paper_signal_integrity_gate legacy branch that actually admits a fresh recovery prediction (market_state_id + integrity>=70 + valid_for_paper==True); no train_rows gate on the normal path."
+        },
+        {
+          "file": "v2/backend/app/services/paper_recovery/canary_arm_v1.py",
+          "line": 263,
+          "what": "apply_economic_control_exception + BYPASSABLE_ECONOMIC_BLOCK_REASONS (circuit-breaker/quarantine/loss-cluster) -- the exact controls the per-trade arm strips and that the normal path must keep."
+        },
+        {
+          "file": ".local_models/paper_recovery/paper_recovery_checkpoint_v1.json",
+          "line": 1,
+          "what": "live on-disk meta: train_rows=272, paper_provisional tags already present; template for the 100-row variant."
+        }
+      ],
+      "risks": [
+        "The recovery train-row gate is telemetry-only today (v2_paper_recovery_cycle.py:335-342 computes it but never blocks). Setting PAPER_RECOVERY_MIN_TRAIN_ROWS=100 alone does NOT create a hard 100-row gate -- without adding an enforcement precondition, a checkpoint with <100 rows would still inject. Making 100 a genuine gate requires the small run() change.",
+        "In --mode fresh the economic controls (performance circuit breaker / bucket quarantine / high-confidence loss cluster) are NOT bypassed. If those controls are currently HALTED (the exact condition the canary arm was built to work around), a fresh 100-row recovery prediction will be blocked and produce no fills -- 'normally paper-eligible' yields fills only when the economic circuit permits. This is by design but may look like the checkpoint 'not working'.",
+        "A fresh recovery prediction does not claim ordinary_paper_admission, so it is admitted via the legacy integrity branch rather than the full ordinary-transport revalidation. Do NOT spoof ordinary_paper_admission provenance to force the 'ordinary' path -- that would fabricate transport evidence and violate the evidence-integrity rule.",
+        "The recovery injectable stamps decision_time/feature_cutoff to CURRENT time (v2_paper_recovery_cycle.py:141-152) to clear the freshness/temporal gates while keeping lineage truthful. This is acceptable for a paper_provisional lane but means the timestamps are not the original snapshot's decision time; any downstream analytics must treat these as recovery-lane, not organic, signals.",
+        "holdout_accuracy on the current 272-row checkpoint is 0.279 (near random for 3 classes). A 100-row checkpoint will be even weaker. This lane is for exercising the paper plumbing / generating training data, NOT for economic quality -- economic_quality_claimed stays false and it must never feed promotion or live.",
+        "PaperRecoveryPolicyV1 is disabled unless PAPER_RECOVERY_MODE_ENABLED is set (paper_recovery_policy_v1.py:304); the run() driver returns DISABLED without it. Enabling the recovery lane is the actual switch, and it is currently under the operator/Codex repair-hold context noted in project memory -- confirm the hold before relying on this lane."
+      ],
+      "recommended_actions": [
+        "Do NOT create a parallel subsystem. Reuse the existing paper-recovery lane: it already provides the paper_provisional classification, the checkpoint meta contract, the corpus loaders, and the canonical single-entry-point injection.",
+        "Config: set PAPER_RECOVERY_MIN_TRAIN_ROWS=100 so the paper floor is an explicit 100 (still far below the untouched strict 1000). This changes only the recovery-lane telemetry threshold.",
+        "Minimal code change (one site): in v2/backend/app/cli/v2_paper_recovery_cycle.py run(), after computing train_gate_status_fields (line ~335) and before injecting at line ~380, refuse injection (return a REJECTED/BLOCKED status) when train_gate_status_fields['paper_recovery_train_gate_satisfied'] is not True. This converts the 100-row gate from telemetry into a real NORMAL paper gate without touching model_edge_recovery_challenger.py at all.",
+        "Train the checkpoint on the trainer CUDA env via subprocess: LEGACY_TRAINER_PYTHON -m v2.backend.app.cli.v2_paper_recovery_model --train (it already trains on the admitted cohort and stamps the paper_provisional meta). Optionally add a real --min-rows enforcement by fixing v2_paper_recovery_model.py:180 from min(min_rows,1) to max(min_rows,1) if you want the 100-row floor enforced at train time too.",
+        "Route predictions with v2_paper_recovery_cycle.py --mode fresh (never engineering_canary). This guarantees no canary arm is created, so the paper loop's per-trade economic bypass (v2_trade_management_paper_loop.py:44920) is skipped and the prediction flows through the normal economic + hard controls.",
+        "Classify the artifact as PAPER_PROVISIONAL_100_ROW_CHECKPOINT == RECOVERY_CHECKPOINT_TAGS (paper_eligible=true, checkpoint_promotable=false, live_eligible=false, non_promotable=true); explicitly NOT engineering_canary (no excluded_from_economic_metrics, no single-use arm). No new meta fields are required -- the existing meta already encodes this.",
+        "If a cleaner long-term separation is wanted, introduce a dedicated PaperProvisionalCheckpointPolicy(minimum_paper_provisional_train_rows=100) mirroring PaperRecoveryPolicyV1 and consult it at the same run() precondition, keeping strict-1000 and recovery-256 as separate constants. This is optional; the env+one-line approach above is the minimal path.",
+        "Keep live BLOCKED: verify PaperRecoveryPolicyV1.deny_live_route still refuses every recovery/pit_waiver-tagged artifact on any live path, and that live_gate stays blocked_human_only end-to-end before enabling PAPER_RECOVERY_MODE_ENABLED."
+      ]
+    },
+    {
+      "subsystem": "Paper-trading performance circuit breaker + strict-governance cohort selection (v2_trade_management_paper_loop.py) and paper-recovery canary economic-control exception",
+      "key_facts": [
+        "The breaker state is computed by _paper_performance_circuit_breaker_status() at v2/backend/app/cli/v2_trade_management_paper_loop.py:25486. It derives ALL blocking decisions (rolling-25/50 PF+expectancy, bucket quarantine, first-bootstrap-close, high-confidence loss cluster) from source_rows = _paper_performance_source_rows(closed_rows) at :25491, then returns status/state = 'HALTED_PERFORMANCE' if any block_reasons (:25635-25636).",
+        "The governing cohort selector _paper_performance_source_rows (:23764) filters the FULL closed list ONLY by: row.paper_only is True, a realized bps is present, and NOT _paper_row_excluded_from_strict_governance (excludes RISK_CONTROLLER_EXPLORATION / A_PLUS_BOOTSTRAP_REDUCED_SIZE / reconstructed tiers, :23690-23761). There is NO cohort_id, strategy_id, checkpoint_id, or time/activation filter — so every disciplined (POSITIVE_EDGE_PROBATION) strict row from July-17 governs the breaker forever.",
+        "Both callers pass the entire closed_trades list: pre-cycle at :42900 uses existing_closed_rows (from the ledger's closed_trades), end-of-cycle at :48789 uses `closes` (merged full closed list). The single result is published to the one global Redis key v2:paper:performance_circuit_breaker_status at :49931 (TTL heartbeat) and to the public file at :399. closed_trades itself lives at PAPER_CLOSED_TRADES_REDIS_KEY = v2:paper:closed_trades (:192).",
+        "The halt blocks entries in _paper_block_new_entry_by_performance_circuit (:27506): it appends PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED when performance_circuit_breaker_status.new_entries_allowed is not True (:27514-27515).",
+        "Existing per-trade economic-control exception = the engineering-canary arm. apply_economic_control_exception (services/paper_recovery/canary_arm_v1.py:263) strips ONLY BYPASSABLE_ECONOMIC_BLOCK_REASONS (:33-38 = performance circuit breaker + bucket quarantine + high-confidence loss cluster). It is applied per-intent at v2_trade_management_paper_loop.py:44920-44945 and consumed in the gate at :27588-27593. It is single-use (per-prediction_id ARM_KEY, 900s TTL, :26-28), engineering-only, and stamps trades excluded_from_economic_metrics/training/checkpoint (:44943-44945) — so it cannot sustainably supply a 100-row evidence cohort.",
+        "A precedent already exists for letting a whole TIER through the global halt WITHOUT any per-trade arm: exploration_clean_global_halt_allowed (:27601-27640). A RISK_CONTROLLER_EXPLORATION intent that is paper_only, not routes_to_live/places_real_order/counts_as_A_plus/final_a_plus/live_ready, and hits ONLY the global halt (not a bucket/cluster-specific block) is admitted at a mandatory size haircut. This is the structural template for a provisional-cohort carve-out.",
+        "Cohort-identity infrastructure already partly exists but the breaker ignores it: rows are stamped via _with_paper_session_metadata (:2004-2020) with paper_session_id/session_id/reset_session_id + starting_equity_usd; session identity is resolved by _paper_session_identity (:4590) from PAPER_SESSION_REDIS_KEY = v2:paper:session (:193), loaded at :42803-42811 giving paper_session_id and starting_equity_usd/initial_capital (:42880). Rows also carry strategy_id (:682,:2217) and checkpoint_id (:2167).",
+        "The breaker's own min-count guards make a fresh cohort start ACTIVE: rolling windows only block at _n_src>=5 (PF/expectancy, :25609-25614) and >=10 (:25615-25618), so a new <5-row cohort cannot self-halt on rolling stats — a 100-row provisional cohort would build its own honest window from zero.",
+        "Live path is structurally safe in the payload: the breaker always returns paper_only True, routes_to_live False, places_real_order False, live_path_changed False (:25638-25641); any cohort variant inherits this."
+      ],
+      "file_pointers": [
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 25486,
+          "what": "_paper_performance_circuit_breaker_status() — computes HALTED_PERFORMANCE; add optional cohort_id/activation cutoff param here"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 25491,
+          "what": "source_rows = _paper_performance_source_rows(closed_rows) — the row set the breaker governs on; the cohort filter must apply here"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 23764,
+          "what": "_paper_performance_source_rows selector — currently only strict-tier filtered, no cohort/time boundary; extend to require paper_strategy_cohort_id match (and fall back to EMPTY, not global, for a cohort)"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 23775,
+          "what": "existing fallback that re-admits ANY strict row when paper_only rows are empty — a cohort-scoped call MUST NOT reuse this fallback or it re-inherits the historical halt"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 27506,
+          "what": "_paper_block_new_entry_by_performance_circuit — where the halt blocks entries; select the cohort vs global breaker payload here by intent.paper_strategy_cohort_id"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 27601,
+          "what": "exploration_clean_global_halt_allowed carve-out — structural template for admitting a provisional cohort under the global halt without a per-trade exception"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 2004,
+          "what": "_with_paper_session_metadata — the existing per-row identity stamp (paper_session_id + starting_equity_usd); add paper_strategy_cohort_id/activation_utc/initial_paper_equity alongside"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 42803,
+          "what": "paper_session_state load from v2:paper:session — authoritative source where cohort_id + activation_time + initial_paper_equity should live (not relabeling rows)"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 49931,
+          "what": "Redis publish of the single global breaker key v2:paper:performance_circuit_breaker_status; add a second cohort-scoped key here"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 48789,
+          "what": "end-of-cycle breaker call over `closes` (full list) — call twice: global + cohort-filtered"
+        },
+        {
+          "file": "v2/backend/app/services/paper_recovery/canary_arm_v1.py",
+          "line": 263,
+          "what": "apply_economic_control_exception — the per-trade economic bypass the new cohort design must AVOID relying on"
+        },
+        {
+          "file": "v2/backend/app/services/paper_recovery/canary_arm_v1.py",
+          "line": 33,
+          "what": "BYPASSABLE_ECONOMIC_BLOCK_REASONS — the exact three controls (breaker/quarantine/cluster) the canary strips per-trade"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 193,
+          "what": "PAPER_SESSION_REDIS_KEY = v2:paper:session and PAPER_CLOSED_TRADES_REDIS_KEY = v2:paper:closed_trades"
+        }
+      ],
+      "decision": "The funnel IS in-tree cohort-isolation repairable, cleanly and safely, without the per-trade canary exception and without erasing history. Minimal design: (1) Add three new fields authored in v2:paper:session and copied onto each filled row via the existing _with_paper_session_metadata path (:2004): paper_strategy_cohort_id (str), paper_cohort_activation_utc (activation_time), paper_cohort_initial_equity_usd (initial_paper_equity). Historical July-17 rows keep their old/absent cohort id and are NEVER relabeled. (2) Parameterize _paper_performance_circuit_breaker_status (:25486) and _paper_performance_source_rows (:23764) with an optional cohort_id/activation cutoff; when set, the selector ADDITIONALLY requires row.paper_strategy_cohort_id == cohort_id (or exit_price_utc >= activation_utc) and — critically — falls back to EMPTY (=> ACTIVE), never to the global fallback at :23775. (3) Compute TWO payloads per cycle: the unchanged global breaker over all strict rows (stays HALTED_PERFORMANCE for the losing cohort, still published to v2:paper:performance_circuit_breaker_status) and a cohort-scoped breaker over only the new cohort's rows (published to v2:paper:performance_circuit_breaker_status:{cohort_id}). (4) In _paper_block_new_entry_by_performance_circuit (:27506) route each intent to the breaker matching its paper_strategy_cohort_id — provisional-cohort intents evaluate against their own fresh breaker (ACTIVE at <5 rows via the existing min-count guards), mirroring the existing exploration_clean_global_halt_allowed tier carve-out (:27601). The two breakers coexist because each is a pure function over a filtered slice of closed_trades written to its own key; nothing mutates closed_trades and no historical row is relabeled, so the strict losing cohort's global HALTED_PERFORMANCE remains fully in force for any intent carrying the old/no cohort id. Live stays BLOCKED (payload paper_only/routes_to_live/places_real_order unchanged, :25638-25641).",
+      "risks": [
+        "If the cohort-scoped _paper_performance_source_rows reuses the existing empty-set fallback at :23775 (which re-admits ANY strict row), a cohort with no own rows would silently inherit the entire historical losing set and stay HALTED — the fallback MUST be cohort-aware and return EMPTY for a scoped call. This is the single most dangerous subtlety.",
+        "Rows without paper_strategy_cohort_id (all pre-change history) must be treated as belonging to the historical/global cohort only; a null/absent cohort id must NOT match the new cohort filter, or the losing rows leak into the provisional breaker.",
+        "The gate at :27506 currently receives one performance_circuit_breaker_status; routing by intent cohort requires passing BOTH payloads (or a cohort->breaker map) into the gate, otherwise provisional intents would still be judged by the global halt.",
+        "The engineering-canary exception (canary_arm_v1.py:263) and the new cohort path both target the same three block reasons; they must remain independent — the cohort design should NOT set economic_control_exception_applied or the canary's excluded_from_training/checkpoint flags, because the whole point is that cohort trades COUNT as their own strict evidence.",
+        "activation_utc-based filtering depends on exit_price_utc parseability; unparseable timestamps must fail into the historical (governed) cohort, not the fresh one, to avoid a provisional cohort silently absorbing stale losses (same fail-closed posture the bucket-quarantine/cluster repair-epoch logic already uses).",
+        "Publishing a second Redis key means the 1000x tracker (v2_1000x_trajectory_tracker.py:77), admin.py:1469, a_plus_candidate_inventory.py:66 and market_contracts.py readers still read only the global key — UI/telemetry will not reflect the cohort breaker until those readers are extended (non-blocking, but a visibility gap)."
+      ],
+      "recommended_actions": [
+        "Add paper_strategy_cohort_id + paper_cohort_activation_utc + paper_cohort_initial_equity_usd to the v2:paper:session payload (authoritative), and stamp them onto filled rows in _with_paper_session_metadata (:2004) exactly like paper_session_id/starting_equity_usd — never rewrite historical closed_trades.",
+        "Refactor _paper_performance_source_rows (:23764) to accept an optional cohort_id (and/or activation_utc); when provided, require exact cohort match and replace the :23775 global fallback with an empty-list fallback for the scoped call.",
+        "Thread the same optional cohort_id through _paper_performance_circuit_breaker_status (:25486) and compute it twice at both call sites (:42900 pre-cycle, :48789 end-of-cycle): once global (unchanged) and once cohort-scoped.",
+        "Publish the cohort-scoped payload to a new key v2:paper:performance_circuit_breaker_status:{cohort_id} next to the existing global write at :49931; leave the global key semantics unchanged.",
+        "In _paper_block_new_entry_by_performance_circuit (:27506), select the breaker payload by intent.paper_strategy_cohort_id so provisional-cohort intents are gated by their own fresh (ACTIVE) breaker, modeled on the exploration_clean_global_halt_allowed carve-out (:27601) — no canary arm, no economic_control_exception flags.",
+        "Add a focused unit test proving: (a) a July-17 losing strict row keeps the GLOBAL breaker HALTED_PERFORMANCE, and (b) a new cohort with <5 of its own rows yields ACTIVE with new_entries_allowed True, while (c) the global and cohort payloads are computed from disjoint row slices with closed_trades unmutated and paper_only/routes_to_live/places_real_order all safe.",
+        "Confirm with the operator before implementing: this touches strict performance governance (Change Protocol requires approval for risk/gate changes); keep LIVE BLOCKED and the historical cohort untouched."
+      ]
+    },
+    {
+      "subsystem": "Live execution / Binance USD-M order transport dry-run harness (Phase 10, submit=false)",
+      "key_facts": [
+        "The canonical exact live-path dry-run harness ALREADY EXISTS: v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py (module app.cli.run_pass3b_exact_live_path_dry_run; repo-root bash wrapper ./run_pass3b_exact_live_path_dry_run). It does NOT need to be assembled from scratch.",
+        "It drives the single production live-order function evaluate_live_order_transport() in v2/backend/app/services/live_gate/binance_live_order_transport.py:1014 — the exact same function called by the real trader loops v2_trader_runtime_loop.py, v2_live_order_transport_state_lineage_and_write_guard_repair.py, v2_live_transport_balance_aware_hold_and_first_order_monitor.py, and v2_exchange_filter_risk_profile_alignment_and_min_order_execution.py.",
+        "Full real plumbing exercised: real signed WS-API account.status/account.position/openOrders.status reads (BinanceUSDMAdapter.signed_ws_read execute=True), Redis-cached exchange filters, adaptive-allocator sizing (allocate_live_candidate), exchange-filter quantity rounding (ROUND_DOWN to step_size) + min-notional (min_executable_order), required-initial-margin calc (notional/max_leverage), preemptive-edge-control decision, and the live-canary preflight state machine.",
+        "Order-intent schema = LiveOrderCandidate (transport:325) -> build_binance_order_plan/build_order_intent; the intent hardcodes would_submit_order=False, would_submit_test_order=False, places_real_order=False.",
+        "Mark price comes from the SIGNAL-embedded price (price_target_after_cost/price_target); for the ENGINEERING_CANARY_PROBE fallback it is hardcoded 50000 (run_pass3b:294). No live mark-price Redis key is read.",
+        "Symbol filters (LOT_SIZE/MIN_NOTIONAL/PRICE_FILTER) come from Redis cache keys first: v2:exchange:symbol_filters:{symbol}, v2:symbol_filters:{symbol}, v2:binance:symbol_filters:{symbol}, v2:exchange:symbol_filters (transport:75, _fetch_symbol_filters_from_cache:275), then public REST /fapi/v1/exchangeInfo fallback only if REST fallback allowed.",
+        "Binance leverage-bracket + commission reads are READ-ONLY: fetch_and_cache_leverage_brackets runs one signed USER_DATA GET /fapi/v1/leverageBracket cached to v2:binance_usdm:leverage_bracket:* (evidence:757). No submission, no leverage/margin mutation.",
+        "SIX no-submit guarantees: (1) pre-run validate_disabled_live_control aborts if live control armed; (2) dry_run_runtime_payload forces order_transport_submit_enabled=False/live_trading_enabled=False/live_blocked=True/release_mode=NON_LIVE/live_canary_enabled=False; (3) transport_submit_enabled requires order_transport_submit_enabled AND release-mode-approved -> False -> blocker LIVE_ORDER_TRANSPORT_SUBMIT_NOT_ENABLED; (4) live_gate('blocked_human_only') != LIVE_GATE_ENABLED('enabled_operator_approved') -> LIVE_GATE_RUNTIME_NOT_ENABLED, so `if not blockers:` (transport:1446) is never true and the submit branch (transport:1480) is unreachable; (5) SubmitGuardTransport.submit_market_order raises AssertionError PASS3B_SUBMIT_GUARD_CALLED; (6) ReadOnlyRedisOverlay.set raises RuntimeError blocking all Redis writes.",
+        "Persisted dry-run receipt: main() writes <output-dir>/<run_id>/pass3b_exact_live_path_report.json and PASS3B_EXACT_LIVE_PATH_DRY_RUN_<run_id>.md with explicit fields submit_allowed=false, submit_function_called, live_order_submitted=false, places_real_order=false, exchange_action_taken=false, leverage_changed=false, margin_mode_changed=false, redis_write_attempts_blocked, primary_blockers, status.",
+        "Live gate constants: LIVE_GATE_ENABLED='enabled_operator_approved' (runtime_execution_state.py:15); live_submit_release_mode_approved requires RELEASE_MODE_LIVE_CANARY_APPROVED (line 98). The NON_LIVE overlay never satisfies either."
+      ],
+      "file_pointers": [
+        {
+          "file": "v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py",
+          "line": 98,
+          "what": "main(): CLI entry (--redis-url/--output-dir), writes JSON+MD dry-run receipt per run_id"
+        },
+        {
+          "file": "v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py",
+          "line": 31,
+          "what": "REQUIRED_DISABLED: expected fail-closed state asserted pre/post run"
+        },
+        {
+          "file": "v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py",
+          "line": 63,
+          "what": "SubmitGuardTransport.submit_market_order raises AssertionError PASS3B_SUBMIT_GUARD_CALLED"
+        },
+        {
+          "file": "v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py",
+          "line": 43,
+          "what": "ReadOnlyRedisOverlay.set raises RuntimeError PASS3B_READ_ONLY_REDIS_WRITE_BLOCKED"
+        },
+        {
+          "file": "v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py",
+          "line": 120,
+          "what": "run_exact_live_path_dry_run(): pre-run armed-check, NON_LIVE overlay, real signed reads, guarded transport eval, receipt fields"
+        },
+        {
+          "file": "v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py",
+          "line": 182,
+          "what": "guarded call: evaluate_live_order_transport(..., redis_client=ReadOnlyRedisOverlay, transport=SubmitGuardTransport, dry_run=False)"
+        },
+        {
+          "file": "v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py",
+          "line": 319,
+          "what": "dry_run_runtime_payload(): forces NON_LIVE submit-disabled overlay, live_canary disabled, no leverage/margin mutation"
+        },
+        {
+          "file": "v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py",
+          "line": 380,
+          "what": "build_signed_read_context(): real WS-API signed reads + Redis-cached symbol filters; available=False if creds missing"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+          "line": 1014,
+          "what": "evaluate_live_order_transport(): THE single production live-order path exercised by pass3b"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+          "line": 1044,
+          "what": "transport_submit_enabled requires order_transport_submit_enabled AND release-mode-approved"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+          "line": 1078,
+          "what": "live_gate != LIVE_GATE_ENABLED -> LIVE_GATE_RUNTIME_NOT_ENABLED; line 1086 -> LIVE_ORDER_TRANSPORT_SUBMIT_NOT_ENABLED"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+          "line": 1446,
+          "what": "`if not blockers:` gate — submit branch only reached with ZERO blockers (never true in dry run)"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+          "line": 1480,
+          "what": "the ONLY real submit call site submitter.submit_market_order(...); dry_run=True bypasses it; pass3b blocks reaching it"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+          "line": 1177,
+          "what": "allocate_live_candidate(AllocationInput): real adaptive sizing/notional/qty from signed balances + Redis filters"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+          "line": 1227,
+          "what": "required_initial_margin=notional/max_leverage + INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER margin check"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+          "line": 1245,
+          "what": "quantity rounding to step_size + min_qty/min_notional/min_executable checks (LOT_SIZE/MIN_NOTIONAL)"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+          "line": 275,
+          "what": "_fetch_symbol_filters_from_cache(): symbol filters from Redis cache keys (templates at line 75)"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+          "line": 1518,
+          "what": "status: writes_exchange_orders/places_real_order/order_submitted tied to order_submitted(False); leverage/margin_mode changed hardcoded False"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/exchange_filter_sizing.py",
+          "line": 29,
+          "what": "min_executable_order(): Decimal ROUND_CEILING min executable qty/notional"
+        },
+        {
+          "file": "v2/backend/app/services/execution/binance_usdm_adapter.py",
+          "line": 167,
+          "what": "signed_ws_read(): read-only signed WS reads only; excludes order.place; places_real_order=False"
+        },
+        {
+          "file": "v2/backend/app/services/execution/order_intent_contract.py",
+          "line": 151,
+          "what": "build_order_intent(): would_submit_order/would_submit_test_order/places_real_order all False"
+        },
+        {
+          "file": "v2/backend/app/services/binance_usdm_leverage_bracket_evidence.py",
+          "line": 757,
+          "what": "fetch_and_cache_leverage_brackets(): single signed USER_DATA GET /fapi/v1/leverageBracket cached to v2:binance_usdm:leverage_bracket:* (read-only)"
+        },
+        {
+          "file": "v2/backend/app/services/live_gate/runtime_execution_state.py",
+          "line": 15,
+          "what": "LIVE_GATE_ENABLED='enabled_operator_approved'; line 98 live_submit_release_mode_approved requires RELEASE_MODE_LIVE_CANARY_APPROVED"
+        },
+        {
+          "file": "run_pass3b_exact_live_path_dry_run",
+          "line": 1,
+          "what": "repo-root bash wrapper: PYTHONPATH=v2/backend; exec python -m app.cli.run_pass3b_exact_live_path_dry_run"
+        }
+      ],
+      "decision": "The exact live-path DRY-RUN harness ALREADY EXISTS and does not need to be assembled: v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py (module app.cli.run_pass3b_exact_live_path_dry_run, plus repo-root shell wrapper ./run_pass3b_exact_live_path_dry_run). It drives the identical production live-order function evaluate_live_order_transport() in services/live_gate/binance_live_order_transport.py:1014 (the same function the four real trader loops call), exercising real signed WS account/position/openOrders reads, Redis-cached exchange filters, adaptive-allocator sizing, exchange-filter quantity rounding + min-notional, required-initial-margin calc, preemptive-edge-control, and the live-canary preflight state machine, then stops before submission. Submission is impossible via six independent guarantees (pre-run armed-check; forced NON_LIVE runtime overlay; submit-not-enabled + live-gate-not-enabled blockers making the submit branch unreachable; a SubmitGuardTransport that raises on any submit call; a ReadOnlyRedisOverlay that raises on any write; explicit places_real_order/exchange_action_taken=false in the persisted receipt). Run: PYTHONPATH=v2/backend .venv/bin/python -m app.cli.run_pass3b_exact_live_path_dry_run --redis-url redis://127.0.0.1:6379/0 --output-dir <dir>; it persists a JSON + Markdown dry-run receipt per run_id.",
+      "risks": [
+        "pass3b passes dry_run=False (run_pass3b:190) so it runs the REAL non-dry code path; the only thing preventing submission is that blockers is non-empty (submit-not-enabled + live-gate-not-enabled). If a refactor let the overlay's order_transport_submit_enabled or live_gate leak to enabled, the SubmitGuardTransport AssertionError is the last line of defense. Preserve all six guarantees together.",
+        "Mark price is the SIGNAL-embedded price (price_target_after_cost/price_target), not a freshly read live mark; the ENGINEERING_CANARY_PROBE fallback hardcodes 50000 (run_pass3b:294). Fine for a plumbing exercise, but do not treat pass3b notional/qty as production mark-accurate.",
+        "evaluate_live_order_transport._persist_transport_status (transport:1551) still writes filesystem artifacts under v2/frontend/public/... and claude_worklog/final_readiness/... even in pass3b (Redis writes ARE blocked by the overlay, these FS writes are not). Not an exchange action, but it is a side-effecting write during a nominally read-only run — expect those files to change.",
+        "run_pass3c_tiny_live_canary_readiness_check.py imports `from app.cli.n import ...` but app/cli/n.py does not exist in the tree (only run_pass3b_exact_live_path_dry_run.py). If pass3c is meant to chain off pass3b that import is broken; verify before relying on pass3c. Does not affect pass3b itself.",
+        "Signed reads require Binance read-only creds in v2/.env.local (BINANCE_API_KEY/SECRET or BINANCE_FUT_*). If absent, build_signed_read_context returns available=False and status=PASS3B_BLOCKED_SIGNED_READ_UNAVAILABLE — the no-submit proof still holds but the realistic-candidate preflight (state machine/reconciliation/canary caps/lifecycle) is skipped."
+      ],
+      "recommended_actions": [
+        "Run the existing harness in hard no-submit mode: cd '/home/wali/Desktop/AI BOT REBUILD' && PYTHONPATH=v2/backend .venv/bin/python -m app.cli.run_pass3b_exact_live_path_dry_run --redis-url redis://127.0.0.1:6379/0 --output-dir <scratchpad>/pass3b (or ./run_pass3b_exact_live_path_dry_run --redis-url ... --output-dir ...). It is read-only per its guards: no order, no leverage/margin change, no Redis write.",
+        "Read the persisted receipt <output-dir>/<run_id>/pass3b_exact_live_path_report.json and assert the no-submit invariants: submit_function_called=false, live_order_submitted=false, places_real_order=false, exchange_action_taken=false, leverage_changed=false, margin_mode_changed=false, redis_write_attempts_blocked present, status in {PASS3B_EXACT_LIVE_PATH_DRY_RUN_COMPLETE, PASS3B_BLOCKED_*, PASS3B_FAILED_LIVE_CONTROL_ARMED}.",
+        "Do NOT introduce a dry_run=True shortcut or relax the overlay to force COMPLETE — the value of pass3b is running the REAL non-dry branch while blockers+guard+overlay make submission impossible. Keep all six guarantees.",
+        "Ensure read-only Binance creds exist in v2/.env.local so build_signed_read_context returns available=True; otherwise the run is limited to the no-submit proof and skips the realistic-candidate live-canary preflight.",
+        "If persisting a dry-run receipt from any other entry point, reuse evaluate_live_order_transport() directly with a ReadOnlyRedisOverlay + SubmitGuardTransport + dry_run_runtime_payload overlay exactly as pass3b does — do not hand-roll a parallel transport; all four production loops funnel through this one function, so parity is guaranteed only by reusing it."
+      ]
+    },
+    {
+      "decision": "A NORMAL 100-row provisional cohort CAN complete a real paper fill+close through the hard controls — but only if it is routed at CURRENT (real-time) decision time on a microstructure-covered symbol/timeframe. The four blocks that stopped the last canary (PAPER_ALLOCATION_POINT_IN_TIME_CONTRACT_BLOCKED, dynamic-envelope reservation, BLOCK_LIQUIDATION_RISK, MICROSTRUCTURE_TRUST_SCORE_MISSING → target_notional=0) are NOT a structural OHLCV-lane deficiency; they are almost entirely a historical/sealed-replay point-in-time (PIT) artifact plus a symbol-coverage gap. The allocation-PIT contract (paper loop line 34488) rejects any component clock whose available_at/generated_at is AFTER the decision instant; a replay's past decision_time makes CURRENT market/microstructure/spread evidence look 'from the future,' which (a) directly triggers PAPER_ALLOCATION_POINT_IN_TIME_CONTRACT_BLOCKED (44835) and (b) voids the liquidation-ATR receipt (34411), which cascades into BLOCK_LIQUIDATION_RISK and target_notional=0. The microstructure lane is live and fresh right now (811 v2:microstructure:trust_score keys, supervisor PID 1802845 running), and for a real-time cohort the trust score is PRESENT (mostly action=REDUCE_SIZE, composite ~0.5-0.6 < 0.65) — REDUCE_SIZE only caps liquidity to 0.35 (a size reduction, paper loop 41667), it does NOT hard-block. MICROSTRUCTURE_TRUST_SCORE_MISSING (41634) fires only when the key is absent/stale or PIT-rejected as future-dated. At 1x leverage + real ATR stop + tiny notional, the liquidation-buffer math (allocator 2810) passes with huge margin. Residual real risks for a $10 provisional cohort: (1) select a symbol whose action is ALLOW/REDUCE_SIZE, not SHADOW_ONLY/NO_TRADE (those DO hard-block, 41653); (2) the exchange minimum-order floor (allocator 3068 BLOCK_EXCHANGE_MIN_ORDER) hard-blocks in paper mode if the REDUCE_SIZE-shrunk target falls below the venue min notional — so $10 with a 0.35 liquidity haircut must still clear the per-symbol min_notional.",
+      "subsystem": "Paper trade-management loop + adaptive-capital allocator (Phases 8-9 provisional lifecycle / hard allocation controls)",
+      "key_facts": [
+        "The four canary vetoes are causally CHAINED through the allocation-PIT contract, not independent: _paper_allocation_point_in_time_contract (v2_trade_management_paper_loop.py:34488) validates every component clock <= one immutable decision_time; any clock AFTER decision_time -> status != PASS -> risk_veto PAPER_ALLOCATION_POINT_IN_TIME_CONTRACT_BLOCKED (44835-44840). A non-PASS PIT then makes _paper_bind_liquidation_atr_evidence (34411-34412) refuse to bind the ATR stop receipt, which starves the allocator's liquidation math -> BLOCK_LIQUIDATION_RISK and target_notional=0.",
+        "For a SEALED/historical replay (the canary lane), the past decision_time makes CURRENT market evidence look future-dated. _read_v2_orderbook_microstructure (7461/7679) explicitly REJECTS trust scores whose available_at/generated_at > decision_time (7741-7755, status REJECTED_MICROSTRUCTURE_TRUST_AFTER_DECISION) -> microstructure_trust_score becomes None -> allocator sets liquidity=0.0 + MICROSTRUCTURE_TRUST_SCORE_MISSING (41634-41640). This is the mechanism behind the canary's 'missing' block; it is a replay-timing artifact, not the OHLCV lane lacking microstructure.",
+        "The microstructure lane is a SEPARATE live orderbook data lane, not derived from OHLCV: v2_microstructure_runtime_supervisor (running PID 1802845, --paper-candidates) + v2_direct_orderbook_recorder publish v2:microstructure:trust_score:{symbol}:{tf}. Verified 811 fresh keys at 17:15Z today; sampled action distribution ~54 REDUCE_SIZE / 2 ALLOW / 3 SHADOW_ONLY / 1 NO_TRADE.",
+        "REDUCE_SIZE is NOT a hard block: paper loop 41667-41680 caps liquidity to min(liquidity,0.35) and stamps REDUCED_BY_MICROSTRUCTURE_TRUST_GATE; entry proceeds at reduced size. Only microstructure_trust_score None (MISSING), invalid, or action in {NO_TRADE, SHADOW_ONLY, CLOSE_OR_REDUCE_ONLY} sets liquidity=0.0 and hard-blocks (41628-41666). The public/OHLCV book is policy-capped to LOW trust so it never reaches ALLOW-tier composite alone, but REDUCE_SIZE is sufficient for a NON-A+ provisional entry.",
+        "The A+ zero-tolerance gate (a_plus_trade_gate/service.py:365-399) rejects REDUCED_SIZE/public-book-only trust for FINAL A+ (COMPOSITE_MICROSTRUCTURE_TRUST_SCORE_MISSING at 375, REDUCED_SIZE_BOOTSTRAP_NOT_FINAL_A_PLUS at 386). This blocks A+ EXECUTION tier only; provisional/exploration cohorts fill at a lower tier and are not gated by A+, so REDUCE_SIZE microstructure does not stop a provisional fill.",
+        "Phase-8 limits are NOT the loop defaults. PaperExposureCaps (paper_trade_management/caps.py:7-24) defaults to max_open_positions_total=32, max_single_symbol_exposure_pct=0.08, max_total_paper_exposure_pct=0.60. The 1-position / tiny-notional provisional limits are applied per-cohort via the engineering_canary override fields engineering_canary_max_notional_usd + engineering_canary_max_open_positions (set to 5.0 and 1 in v2_paper_recovery_cycle.py:271-274), i.e. per-cohort configurability already exists on the recovery/canary path.",
+        "At 1x leverage the liquidation buffer passes trivially: _select_margin_configuration (allocator.py:2748-2828) computes liquidation_buffer = liquidation_distance - stop_distance_bps - reserve_bps and requires >= min_liquidation_buffer_bps; at 1x isolated the liquidation_distance is ~full-equity-wide, so a small ATR stop + tiny reserve leaves a large buffer. BLOCK_LIQUIDATION_RISK (2855) otherwise fires only when maintenance_margin_rate is missing (2851) or no safe leverage/margin config exists (3316-3338).",
+        "A distinct HARD boundary independent of PIT: allocator.py:3068-3111 BLOCK_EXCHANGE_MIN_ORDER. In paper mode the loop deliberately REFUSES to round a below-minimum target up to the venue minimum (to honor the risk budget) and hard-blocks. A $10 provisional cap shrunk by the 0.35 REDUCE_SIZE liquidity haircut can fall below a symbol's min_notional and block — so the provisional notional cap must retain headroom above per-symbol min_notional after the microstructure haircut.",
+        "Fill model: there is NO order-matching engine. Fills are synthesized at the observed entry/mark price (intent['fill_price'] set at 9189, fill_price_utc), position_from_fill builds a PaperNetPosition (lifecycle.py:2461/2487), and reconcile_paper_lifecycle (lifecycle.py:2162) marks positions to mark_prices and runs evaluate_exit (exits.py:392) each cycle.",
+        "Stop is persisted as stop_distance_bps / atr_stop_bps on the position and ledger row (exits.py effective_atr_stop_bps:339, close_reason TIER_1_ATR_VOLATILITY_STOP / TIER_2_TRAILING_STOP). Closes are inherently reduce-only in paper (classify_fill in netting.py nets down; build_close_event in outcomes.py); there is no live reduce-only exchange flag because paper never adds on close.",
+        "Persistence/reconciliation hop writes are batched at end of cycle (paper loop 49574-49666): v2:paper:closed_trades (49586), v2:paper:positions + v2:paper:open_positions (_write_paper_open_position_state, 3555/49612), v2:paper:ledger (49634), v2:portfolio:state (PAPER_PORTFOLIO_STATE_REDIS_KEY:189), v2:paper:accepted_fills (49620), v2:paper:outcome_labels (49648), v2:trainer:feedback:outcomes (49655); outcome-memory rebuilt from closes (49598)."
+      ],
+      "file_pointers": [
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 44835,
+          "what": "PAPER_ALLOCATION_POINT_IN_TIME_CONTRACT_BLOCKED veto — root gate; fires when allocation PIT status != PASS"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 34488,
+          "what": "_paper_allocation_point_in_time_contract — validates every component clock <= immutable decision_time; ALLOCATION_INPUT_TIME_AFTER_DECISION at 34517-34518 is what kills historical replays"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 34411,
+          "what": "_paper_bind_liquidation_atr_evidence: when PIT != PASS the ATR stop receipt is NOT bound (34412) -> cascades to allocator liquidation block / 1x pin"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 44785,
+          "what": "PAPER_CANDIDATE_DYNAMIC_ENVELOPE_RESERVATION_BLOCKED veto (the ~44787 site) when candidate dynamic-envelope rebind fails"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 44548,
+          "what": "DYNAMIC_ENVELOPE_RESERVATION_EVIDENCE_BLOCKED — envelope RESERVATION on exposure limits feeds cycle_reservation_build_reasons"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 44649,
+          "what": "PAPER_CYCLE_RESERVATION_SNAPSHOT_BLOCKED veto when reservation snapshot missing/build-rejected"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 41634,
+          "what": "MICROSTRUCTURE_TRUST_SCORE_MISSING: liquidity=0.0 hard block — only when trust score is None"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 41667,
+          "what": "REDUCE_SIZE / trust<minimum path: liquidity=min(liquidity,0.35) — a size reduction, NOT a block (the normal-cohort resolution)"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 41653,
+          "what": "MICROSTRUCTURE_ACTION_{NO_TRADE,SHADOW_ONLY,CLOSE_OR_REDUCE_ONLY} -> liquidity=0.0 hard block; select ALLOW/REDUCE_SIZE symbols to avoid"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 7741,
+          "what": "_read_v2_orderbook_microstructure PIT rejection: REJECTED_MICROSTRUCTURE_TRUST_AFTER_DECISION when available_at/generated_at > decision_time (why replay sees MISSING)"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 45856,
+          "what": "PAPER_REDUCED_ALLOCATION_POINT_IN_TIME_CONTRACT_BLOCKED — the reduced-size retry re-runs the same PIT gate"
+        },
+        {
+          "file": "v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+          "line": 2810,
+          "what": "Liquidation buffer = liquidation_distance - stop_distance_bps - reserve_bps; passes with huge margin at 1x + small ATR stop"
+        },
+        {
+          "file": "v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+          "line": 2855,
+          "what": "BLOCK_LIQUIDATION_RISK when maintenance_margin_rate missing/invalid (paper)"
+        },
+        {
+          "file": "v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+          "line": 3316,
+          "what": "BLOCK_LIQUIDATION_RISK 'no_safe_leverage_margin_configuration' when _select_margin_configuration returns None"
+        },
+        {
+          "file": "v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+          "line": 3068,
+          "what": "BLOCK_EXCHANGE_MIN_ORDER — PAPER hard-blocks (does NOT round up) if target_notional < exchange min_notional; the real $10-vs-venue-minimum boundary"
+        },
+        {
+          "file": "v2/backend/app/services/adaptive_capital_allocator/allocator.py",
+          "line": 1348,
+          "what": "Allocator-side microstructure trust validator: action REDUCE_SIZE or trust<minimum -> final_score=min(base,0.35), missing -> 0.0"
+        },
+        {
+          "file": "v2/backend/app/services/paper_trade_management/caps.py",
+          "line": 7,
+          "what": "PaperExposureCaps DEFAULTS (32 positions, 8%/60%) — NOT Phase-8; Phase-8 limits are per-cohort overrides, not the loop default"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_paper_recovery_cycle.py",
+          "line": 271,
+          "what": "Per-cohort provisional limits applied via engineering_canary_max_notional_usd=5.0 + engineering_canary_max_open_positions=1 (proof the caps ARE settable per cohort)"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_paper_recovery_cycle.py",
+          "line": 138,
+          "what": "_build_injectable sets decision_time=now with truthful feature lineage <= decision_time — the correct real-time pattern that clears the PIT gate (vs sealed replay)"
+        },
+        {
+          "file": "v2/backend/app/services/paper_trade_management/lifecycle.py",
+          "line": 2162,
+          "what": "reconcile_paper_lifecycle — marks positions to mark_prices, runs exits, emits new_close_events (the fill/close reconciler)"
+        },
+        {
+          "file": "v2/backend/app/services/paper_trade_management/lifecycle.py",
+          "line": 2461,
+          "what": "position_from_fill — synthesizes the paper position from the accepted fill (no matching engine; fill at observed price)"
+        },
+        {
+          "file": "v2/backend/app/services/paper_trade_management/exits.py",
+          "line": 392,
+          "what": "evaluate_exit — TIER_1_ATR_VOLATILITY_STOP / TIER_2_TRAILING_STOP stop logic; stop persisted as stop_distance_bps/atr_stop_bps"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 9189,
+          "what": "Fill-price assignment: intent['fill_price'] set from observed price + fill_price_utc (paper fill simulator entry point)"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 49584,
+          "what": "End-of-cycle persistence: v2:paper:closed_trades, positions, ledger, portfolio:state, accepted_fills, outcome_labels, trainer feedback"
+        },
+        {
+          "file": "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+          "line": 44920,
+          "what": "engineering_canary economic-control-exception bypass (PERFORMANCE_CIRCUIT_BREAKER/BUCKET_QUARANTINE/LOSS_CLUSTER only) — hard sizing/margin/stop/liquidation/exposure controls still enforced downstream"
+        }
+      ],
+      "risks": [
+        "If the provisional cohort is routed as a SEALED/historical replay (past decision_time), it WILL re-hit PAPER_ALLOCATION_POINT_IN_TIME_CONTRACT_BLOCKED and cascade to MICROSTRUCTURE_TRUST_SCORE_MISSING + BLOCK_LIQUIDATION_RISK + target_notional=0 — exactly the canary failure. The cohort MUST run at current decision_time with feature lineage <= now.",
+        "The microstructure trust lane is a live orderbook dependency (supervisor PID 1802845). If it is down, restarted, or lacks the chosen symbol/timeframe (read only covers 1m/5m/15m, line 7679-7681), microstructure_trust_score is None -> hard MICROSTRUCTURE_TRUST_SCORE_MISSING regardless of OHLCV quality. Symbol selection must be gated to microstructure-covered symbols.",
+        "Symbol-level microstructure action can be SHADOW_ONLY or NO_TRADE (observed in the sample), which is a HARD block (liquidity=0), not a reduce. A provisional cohort landing on such a symbol is blocked even at real-time; pick symbols whose action is ALLOW or REDUCE_SIZE.",
+        "BLOCK_EXCHANGE_MIN_ORDER is an independent hard block: a $10 cap after the 0.35 REDUCE_SIZE liquidity haircut can produce a target below the per-symbol venue min_notional, blocking the fill. The provisional notional/haircut must leave headroom above min_notional.",
+        "REDUCE_SIZE microstructure means the public/OHLCV lane can NEVER reach A+ EXECUTION tier (a_plus_trade_gate rejects reduced_size). A provisional cohort can fill at a lower (non-A+) tier, but it cannot satisfy the Phase-8 A+ zero-tolerance gate — so 'provisional fill' and 'A+ promotion' are different bars; do not conflate.",
+        "The engineering_canary bypass only excuses PERFORMANCE_CIRCUIT_BREAKER / BUCKET_QUARANTINE / LOSS_CLUSTER (44939-44942); it does NOT excuse PIT, microstructure, liquidation, exposure, or exchange-min controls — those remain hard for any cohort."
+      ],
+      "recommended_actions": [
+        "Run the provisional cohort at CURRENT decision_time (mirror v2_paper_recovery_cycle._build_injectable pattern: decision_time=now, feature_cutoff/available_at strictly < now), never as a sealed past-timestamp replay, so the allocation-PIT contract (34488) passes and the liquidation-ATR receipt binds.",
+        "Gate cohort symbol selection to microstructure-covered symbols whose live v2:microstructure:trust_score:{sym}:{tf} exists, is fresh (available_at <= decision_time), and has action in {ALLOW, REDUCE_SIZE}; explicitly exclude SHADOW_ONLY/NO_TRADE and any symbol lacking a 1m/5m/15m key. Confirm the microstructure supervisor (PID 1802845) is up before launching.",
+        "Set the provisional notional cap with headroom above the largest per-symbol exchange min_notional AFTER the 0.35 REDUCE_SIZE liquidity haircut, so allocator 3068 BLOCK_EXCHANGE_MIN_ORDER cannot fire; validate against min_order_notional for the chosen symbols before sizing (a flat $10 may be too tight on majors).",
+        "Pin leverage to 1x (lowest permitted_leverage_values) and require a real canonical feature-snapshot ATR stop so _paper_bind_liquidation_atr_evidence binds and _select_margin_configuration (2748) finds a safe config; verify maintenance_margin_rate is present to avoid BLOCK_LIQUIDATION_RISK at 2855.",
+        "Enforce the Phase-8 per-cohort limits (1 position, tiny notional, 1x, mandatory ATR stop, reduce-only, no pyramiding/averaging/hedging) via the existing per-cohort override channel (engineering_canary_max_notional_usd / engineering_canary_max_open_positions at v2_paper_recovery_cycle.py:271-274) rather than the 32-position PaperExposureCaps defaults; if a non-canary provisional tier is wanted, add an equivalent per-cohort cap injection that PaperExposureCaps.evaluate_exposure_caps reads.",
+        "Instrument the cohort to capture, per candidate, intent['paper_allocation_point_in_time_rejection_reasons'], allocator_microstructure_block_reason, allocator BLOCK_* decision, and target_notional_usdt, so the exact binding boundary (PIT clock field vs microstructure vs exchange-min) is observable rather than inferred.",
+        "Confirm the provisional cohort routes through the non-A+ (provisional/exploration) fill tier — not the A+ zero-tolerance gate — so REDUCE_SIZE microstructure does not force shadow-only; verify a fill lands in v2:paper:positions and a close in v2:paper:closed_trades end-to-end for one symbol before scaling."
+      ]
+    }
+  ],
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Recon"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "funnel-histogram-and-finality",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "aee2654dc6afcbf2b",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1784999574058,
+      "queuedAt": 1784999571440,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "native_trainer trusted-replay champion/challenger strict fr…",
+      "promptPreview": "AI BOT V2 paper-trading rebuild (repo root /home/wali/Desktop/AI BOT REBUILD). READ-ONLY: Bash (grep/rg/sqlite3/python3/redis-cli), Read, Grep. Do NOT edit files, restart services, write Redis, or place orders. Live trading is permanently blocked. Return EXACT file:line evidence. Use the repo venv (.venv/bin/python3) with PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD when running python. Be exhaust…",
+      "lastProgressAt": 1785000122705,
+      "tokens": 85129,
+      "toolCalls": 28,
+      "durationMs": 548647,
+      "resultPreview": "{\"subsystem\":\"native_trainer trusted-replay champion/challenger strict freeze admission funnel (model_edge_recovery_challenger.freeze_dataset_from_archive over durable_feature_snapshot_archive)\",\"key_facts\":[\"Archive read by the strict freeze: /home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive (default_archive_root, durable_feature_snapshot_archive.py:…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "paper-100-gate-and-checkpoint",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "a9dad03ddb21f5ff7",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1784999574323,
+      "queuedAt": 1784999571440,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "A 100-row PAPER checkpoint can be made normally paper-eligi…",
+      "promptPreview": "AI BOT V2 paper-trading rebuild (repo root /home/wali/Desktop/AI BOT REBUILD). READ-ONLY: Bash (grep/rg/sqlite3/python3/redis-cli), Read, Grep. Do NOT edit files, restart services, write Redis, or place orders. Live trading is permanently blocked. Return EXACT file:line evidence. Use the repo venv (.venv/bin/python3) with PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD when running python. Be exhaust…",
+      "lastProgressAt": 1784999892915,
+      "tokens": 97208,
+      "toolCalls": 23,
+      "durationMs": 318592,
+      "resultPreview": "{\"decision\":\"A 100-row PAPER checkpoint can be made normally paper-eligible WITHOUT the per-trade engineering-canary exception and WITHOUT touching the strict 1000 champion gate, but it requires (a) reusing the existing paper-recovery lane, not a brand-new subsystem, and (b) ONE tiny code change to promote the recovery train-row gate from telemetry to an enforced precondition. There is NO distinct…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "cohort-isolation-breaker",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "ad00fb0e24dbc2e60",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1784999574313,
+      "queuedAt": 1784999571440,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Paper-trading performance circuit breaker + strict-governan…",
+      "promptPreview": "AI BOT V2 paper-trading rebuild (repo root /home/wali/Desktop/AI BOT REBUILD). READ-ONLY: Bash (grep/rg/sqlite3/python3/redis-cli), Read, Grep. Do NOT edit files, restart services, write Redis, or place orders. Live trading is permanently blocked. Return EXACT file:line evidence. Use the repo venv (.venv/bin/python3) with PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD when running python. Be exhaust…",
+      "lastProgressAt": 1784999830945,
+      "tokens": 70398,
+      "toolCalls": 35,
+      "durationMs": 256631,
+      "resultPreview": "{\"subsystem\":\"Paper-trading performance circuit breaker + strict-governance cohort selection (v2_trade_management_paper_loop.py) and paper-recovery canary economic-control exception\",\"key_facts\":[\"The breaker state is computed by _paper_performance_circuit_breaker_status() at v2/backend/app/cli/v2_trade_management_paper_loop.py:25486. It derives ALL blocking decisions (rolling-25/50 PF+expectancy,…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "exact-live-path-dry-run",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "a85d38d9815392f1a",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1784999574317,
+      "queuedAt": 1784999571441,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Live execution / Binance USD-M order transport dry-run harn…",
+      "promptPreview": "AI BOT V2 paper-trading rebuild (repo root /home/wali/Desktop/AI BOT REBUILD). READ-ONLY: Bash (grep/rg/sqlite3/python3/redis-cli), Read, Grep. Do NOT edit files, restart services, write Redis, or place orders. Live trading is permanently blocked. Return EXACT file:line evidence. Use the repo venv (.venv/bin/python3) with PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD when running python. Be exhaust…",
+      "lastProgressAt": 1784999909468,
+      "tokens": 111724,
+      "toolCalls": 16,
+      "durationMs": 335151,
+      "resultPreview": "{\"subsystem\":\"Live execution / Binance USD-M order transport dry-run harness (Phase 10, submit=false)\",\"key_facts\":[\"The canonical exact live-path dry-run harness ALREADY EXISTS: v2/backend/app/cli/run_pass3b_exact_live_path_dry_run.py (module app.cli.run_pass3b_exact_live_path_dry_run; repo-root bash wrapper ./run_pass3b_exact_live_path_dry_run). It does NOT need to be assembled from scratch.\",\"I…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "lifecycle-and-limits",
+      "phaseIndex": 1,
+      "phaseTitle": "Recon",
+      "agentId": "ae5b8002e0a396c73",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1784999575012,
+      "queuedAt": 1784999571441,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "A NORMAL 100-row provisional cohort CAN complete a real pap…",
+      "promptPreview": "AI BOT V2 paper-trading rebuild (repo root /home/wali/Desktop/AI BOT REBUILD). READ-ONLY: Bash (grep/rg/sqlite3/python3/redis-cli), Read, Grep. Do NOT edit files, restart services, write Redis, or place orders. Live trading is permanently blocked. Return EXACT file:line evidence. Use the repo venv (.venv/bin/python3) with PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD when running python. Be exhaust…",
+      "lastProgressAt": 1785000139599,
+      "tokens": 128929,
+      "toolCalls": 52,
+      "durationMs": 564587,
+      "resultPreview": "{\"decision\":\"A NORMAL 100-row provisional cohort CAN complete a real paper fill+close through the hard controls — but only if it is routed at CURRENT (real-time) decision time on a microstructure-covered symbol/timeframe. The four blocks that stopped the last canary (PAPER_ALLOCATION_POINT_IN_TIME_CONTRACT_BLOCKED, dynamic-envelope reservation, BLOCK_LIQUIDATION_RISK, MICROSTRUCTURE_TRUST_SCORE_MI…"
+    }
+  ],
+  "totalTokens": 493388,
+  "totalToolCalls": 154
+}

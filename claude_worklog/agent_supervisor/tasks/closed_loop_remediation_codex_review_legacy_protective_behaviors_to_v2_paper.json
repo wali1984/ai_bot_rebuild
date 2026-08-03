@@ -1,0 +1,40 @@
+{
+  "codex_pair_task_id": "codex_review_legacy_protective_behaviors_to_v2_paper",
+  "created_at": "2026-06-15T15:41:37Z",
+  "fail_blockers": [
+    "blockers: list[str] = []",
+    "blockers.append(LIVE_GATE_BLOCK)",
+    "blockers.append(LIVE_SYMBOLS_BLOCK)",
+    "blockers.append(SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK)",
+    "blockers.append(TRAINER_SOURCE_MISSING_BLOCK)",
+    "blockers.append(FEATURE_FRESHNESS_MISSING_BLOCK)",
+    "blockers.append(FEATURE_STALE_BLOCK)",
+    "blockers.append(EDGE_AFTER_COSTS_MISSING_BLOCK)",
+    "blockers.append(EDGE_AFTER_COSTS_NEGATIVE_BLOCK)",
+    "blockers.append(CONFIDENCE_TOO_LOW_BLOCK)",
+    "blockers.append(COOLDOWN_BLOCK)",
+    "blockers.append(FLIP_CHURN_BLOCK)",
+    "blockers.append(REDUCE_ONLY_PROTECTION_BLOCK)",
+    "blockers.append(INTELLIGENT_CLOSE_GUARD_BLOCK)",
+    "blockers.append(MICROSTRUCTURE_TOXICITY_BLOCK)",
+    "blockers.append(RISK_GATE_BLOCK)"
+  ],
+  "file_lock_group": "legacy_protective_behaviors_to_v2_paper",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "status": "pending",
+  "task_id": "closed_loop_remediation_codex_review_legacy_protective_behaviors_to_v2_paper",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-06-15T15:41:37Z"
+}

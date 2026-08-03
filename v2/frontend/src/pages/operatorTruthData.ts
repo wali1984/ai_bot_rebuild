@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
+import { usePayloadFile } from '../hooks/usePayloadFile';
 
 export interface OperatorTruthStatusRow {
   label: string;
@@ -179,47 +180,85 @@ export interface TonightReadinessPayload {
   exchange_actions: boolean;
 }
 
+export interface CoinankCallLogHealth {
+  recent_success_count?: number;
+  recent_error_count?: number;
+  recent_empty_count?: number;
+  recent_sample_size?: number;
+  recent_window_seconds?: number;
+  recent_success_endpoints?: string[];
+  recent_empty_endpoints?: string[];
+  recent_error_examples?: unknown[];
+  sample_size?: number;
+}
+
 export interface CoinankMarketIntelligencePayload {
-  generated_at: string;
-  source: string;
-  live_gate_status: string;
-  legacy_source_file_hash: string | null;
+  // Current live schema: coinank_direct_runtime_status_v1
+  schema_version?: string;
+  classification?: string;
+  generated_utc?: string;
+  generated_est?: string;
+  freshness_seconds?: number;
+  last_update_age_seconds?: number;
+  runtime_mode?: string;
+  worker_id?: string;
+  endpoints_count?: number;
+  metrics_count?: number;
+  current_endpoint_success_count?: number;
+  current_endpoint_error_count?: number;
+  current_call_log_health?: CoinankCallLogHealth;
+  direct_key_counts?: Record<string, number>;
+  direct_ingestor_service?: string;
+  direct_global_aggregator_service?: string;
+  direct_legacy_key_write_enabled?: boolean;
+  heartbeat_present?: boolean;
+  heartbeat_ttl_seconds?: number;
+  missing_api_blockers?: string[];
+  never_successful_active_endpoints?: string[];
+  intentionally_disabled_endpoints?: Record<string, unknown>;
+  global_aggregate_result?: Record<string, unknown>;
+  v2_redis_feature_input?: Record<string, unknown>;
+  v2_redis_global_write_enabled?: boolean;
+  // Legacy plan-3 bridge schema (older payload snapshots; retained optional for
+  // backward compatibility with tradingPlatformPanels consumers)
+  generated_at?: string;
+  source?: string;
+  live_gate_status?: string;
+  legacy_source_file_hash?: string | null;
   legacy_monitor_file_hash?: string | null;
-  endpoint_manifest_version: string;
-  required_tfs: string[];
-  required_tfs_status: Record<string, boolean>;
-  active_symbols: string[];
-  hot_symbols: string[];
-  endpoint_count: number | null;
-  radar_symbols: unknown;
-  availability: Record<string, boolean>;
-  endpoint_key_counts: Record<string, number>;
-  sample_endpoint_keys: Record<string, string[]>;
-  global_11_key_contract_status: string;
-  unified_features_sample_status: Record<string, string | null | undefined>;
-  forbidden_source_checks: Record<string, boolean>;
-  runtime_classifications: string[];
-  missing_evidence: string[];
-  stale_evidence: string[];
-  current_blockers: Array<{ id: string; severity: string; detail: string }>;
-  legacy_redis_writes_by_this_task: boolean;
-  legacy_bot_modified_by_this_task: boolean;
-  exchange_actions_by_this_task: boolean;
-  data_truth_rule: string;
+  endpoint_manifest_version?: string;
+  required_tfs?: string[];
+  required_tfs_status?: Record<string, boolean>;
+  active_symbols?: string[];
+  hot_symbols?: string[];
+  endpoint_count?: number | null;
+  radar_symbols?: unknown;
+  availability?: Record<string, boolean>;
+  endpoint_key_counts?: Record<string, number>;
+  sample_endpoint_keys?: Record<string, string[]>;
+  global_11_key_contract_status?: string;
+  unified_features_sample_status?: Record<string, string | null | undefined>;
+  forbidden_source_checks?: Record<string, boolean>;
+  runtime_classifications?: string[];
+  missing_evidence?: string[];
+  stale_evidence?: string[];
+  current_blockers?: Array<{ id: string; severity: string; detail: string }>;
+  legacy_redis_writes_by_this_task?: boolean;
+  legacy_bot_modified_by_this_task?: boolean;
+  exchange_actions_by_this_task?: boolean;
+  data_truth_rule?: string;
 }
 
 const operatorTruthPayloadPath = '/operator_truth/latest/operator_truth_payload.json';
-const paperOnlineRuntimePayloadPath = '/operator_runtime/paper_online/latest/paper_runtime_status.json';
+const paperOnlineRuntimePayloadPath = '/api/v2/paper/runtime-status';
+const legacyPaperRuntimePayloadPaths = new Set([
+  'v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json',
+  '/operator_runtime/paper_online/latest/paper_runtime_status.json',
+]);
 const liveObserverRuntimePayloadPath = '/operator_runtime/live_observer/latest/current_runtime_truth_payload.json';
 const coinankMarketIntelligencePayloadPath = '/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json';
 const tonightReadinessPayloadPath = '/tonight_live_like_paper_shadow/latest/operator_dashboard_payload.json';
 const RUNTIME_CURRENT_SECONDS = 120;
-
-async function fetchJson<T>(path: string): Promise<T> {
-  const response = await fetch(path, { cache: 'no-store' });
-  if (!response.ok) throw new Error(`${path}: ${response.status}`);
-  return response.json() as Promise<T>;
-}
 
 function ageSeconds(generatedAt: string | null | undefined): number | null {
   if (!generatedAt) return null;
@@ -228,8 +267,16 @@ function ageSeconds(generatedAt: string | null | undefined): number | null {
   return Math.max(0, Math.round((Date.now() - ms) / 1000));
 }
 
+const ACTIVE_RUNTIME_STATES = new Set([
+  'PAPER_RUNTIME_ONLINE_ACTIVE',
+  'ACTIVE',
+  'RUNNING_CYCLE',
+  'V2_TRADE_MANAGEMENT_PAPER_CYCLE_RUNNING',
+]);
+
 function runtimeIsCurrent(payload: PaperOnlineRuntimePayload | null): boolean {
-  if (!payload || payload.runtime_state !== 'PAPER_RUNTIME_ONLINE_ACTIVE') return false;
+  if (!payload) return false;
+  if (!ACTIVE_RUNTIME_STATES.has(payload.runtime_state ?? '')) return false;
   const age = ageSeconds(payload.generated_at);
   return age !== null && age <= RUNTIME_CURRENT_SECONDS;
 }
@@ -265,8 +312,8 @@ function synthesizeTruthFromPaperRuntime(
   const staleTruthAge = ageSeconds(staleTruth?.generated_at);
   const staleTruthIsFresh = staleTruthAge !== null && staleTruthAge <= RUNTIME_CURRENT_SECONDS;
   const paperStatus = makeStatusRow(
-    'v2 paper online runtime',
-    'v2/frontend/public/operator_runtime/paper_online/latest/paper_runtime_status.json',
+    'v2 execution runtime',
+    paperOnlineRuntimePayloadPath,
     'REALTIME_RUNTIME_EVIDENCE',
     paperRuntime.generated_at,
     age,
@@ -289,9 +336,9 @@ function synthesizeTruthFromPaperRuntime(
   const currentBlockers = [
     ...(legacyTraderRows.length
       ? [{
-          id: 'LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED',
+          id: 'LEGACY_TRADER_PROCESS_OBSERVED_RUNTIME_CONTAINED',
           severity: 'safety_visibility',
-          detail: 'A legacy trading/trader.py process is visible from the read-only process snapshot. The V2 paper bridge did not touch it, and live execution remains blocked_human_only.',
+          detail: 'A legacy trading/trader.py process is visible from the runtime process snapshot. The V2 runtime bridge did not touch it, and order submission remains operator gated.',
         }]
       : []),
     ...(!oldSupervisor?.is_supervisor_alive
@@ -299,14 +346,14 @@ function synthesizeTruthFromPaperRuntime(
           id: staleTruthIsFresh ? 'CONTROL_PLANE_DAEMON_NOT_OBSERVED' : 'CONTROL_PLANE_CURRENT_EVIDENCE_REQUIRES_OPERATOR_TRUTH_REFRESH',
           severity: 'operator_visibility',
           detail: staleTruthIsFresh
-            ? 'No rebuild supervisor/governor daemon was observed. This is a control-plane availability issue, not evidence that V2 paper runtime is stale.'
-            : 'The operator truth payload is stale, so browser-side paper runtime truth cannot prove current supervisor process state. Refresh operator truth from the local control plane.',
+            ? 'No rebuild supervisor/governor daemon was observed. This is a control-plane availability issue, not evidence that V2 execution runtime is stale.'
+            : 'The operator truth payload is stale, so browser-side execution runtime truth cannot prove current supervisor process state. Refresh operator truth from the local control plane.',
         }]
       : []),
     {
       id: 'LIVE_GATE_BLOCKED_HUMAN_ONLY',
       severity: 'expected_safety_gate',
-      detail: 'Live trading remains blocked_human_only.',
+      detail: 'Live order routing remains blocked_human_only.',
     },
     {
       id: 'REDIS_TRIM_DEFERRED_NON_BLOCKING',
@@ -316,7 +363,9 @@ function synthesizeTruthFromPaperRuntime(
   ];
   const payloadStatuses = [
     paperStatus,
-    ...(staleTruth?.dashboard_freshness_status.payload_statuses ?? []).filter((row) => row.path !== paperStatus.path),
+    ...(staleTruth?.dashboard_freshness_status.payload_statuses ?? []).filter(
+      (row) => row.path !== paperStatus.path && !legacyPaperRuntimePayloadPaths.has(row.path),
+    ),
   ];
 
   return {
@@ -325,7 +374,7 @@ function synthesizeTruthFromPaperRuntime(
     live_gate_status: paperRuntime.live_gate_status,
     redis_trim_status: staleTruth?.redis_trim_status ?? 'deferred_non_blocking',
     canonical_truth_bridge: {
-      status: 'PAPER_ONLINE_CANONICAL_TRUTH_ACTIVE',
+      status: 'V2_TRADE_MANAGEMENT_PAPER_CANONICAL_TRUTH_ACTIVE',
       source: paperStatus.path,
       generated_at: paperRuntime.generated_at,
       paper_runtime_age_seconds: age,
@@ -362,7 +411,7 @@ function synthesizeTruthFromPaperRuntime(
       feature_pipeline_processes: oldRuntime?.feature_pipeline_processes ?? [],
       orchestrator_status: oldRuntime?.orchestrator_status ?? 'UNKNOWN_NEEDS_EVIDENCE',
       trainer_status: 'V2_PAPER_TRAINER_WRAPPER_CURRENT',
-      trader_status: legacyTraderRows.length ? 'PROCESS_OBSERVED_READONLY_CONTAINED' : 'TRADER_PROCESS_NOT_OBSERVED_OR_INTENTIONALLY_DISABLED',
+      trader_status: legacyTraderRows.length ? 'PROCESS_OBSERVED_RUNTIME_CONTAINED' : 'TRADER_PROCESS_NOT_OBSERVED_OR_INTENTIONALLY_DISABLED',
       market_ingestor_status: oldRuntime?.market_ingestor_status ?? 'UNKNOWN_NEEDS_EVIDENCE',
       feature_pipeline_status: oldRuntime?.feature_pipeline_status ?? 'UNKNOWN_NEEDS_EVIDENCE',
       redis_memory_pressure_status: oldRuntime?.redis_memory_pressure_status,
@@ -373,10 +422,10 @@ function synthesizeTruthFromPaperRuntime(
       live_observer_runtime_status: oldRuntime?.live_observer_runtime_status,
       live_observer_runtime: liveObserverRuntime ?? oldRuntime?.live_observer_runtime ?? null,
       legacy_trader_containment: {
-        status: legacyTraderRows.length ? 'LEGACY_TRADER_PROCESS_OBSERVED_READONLY_CONTAINED' : 'LEGACY_TRADER_NOT_OBSERVED',
+        status: legacyTraderRows.length ? 'LEGACY_TRADER_PROCESS_OBSERVED_RUNTIME_CONTAINED' : 'LEGACY_TRADER_NOT_OBSERVED',
         action: 'observation_only_no_restart_no_kill_no_order_action',
         process_rows: legacyTraderRows,
-        evidence_source: 'read-only process snapshot from last operator truth payload',
+        evidence_source: 'runtime process snapshot from last operator truth payload',
       },
     },
     trainer_monitor_status: {
@@ -434,152 +483,48 @@ export function useOperatorTruthPayload(): {
   payload: OperatorTruthPayload | null;
   error: string | null;
 } {
-  const [payload, setPayload] = useState<OperatorTruthPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const truth = usePayloadFile<OperatorTruthPayload>(operatorTruthPayloadPath, 10_000);
+  const paper = usePayloadFile<PaperOnlineRuntimePayload>(paperOnlineRuntimePayloadPath, 10_000);
+  const liveObserver = usePayloadFile<Record<string, unknown>>(liveObserverRuntimePayloadPath, 10_000);
 
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-    const load = (): void => {
-      Promise.allSettled([
-        fetchJson<OperatorTruthPayload>(`${operatorTruthPayloadPath}?ts=${Date.now()}`),
-        fetchJson<PaperOnlineRuntimePayload>(`${paperOnlineRuntimePayloadPath}?ts=${Date.now()}`),
-        fetchJson<Record<string, unknown>>(`${liveObserverRuntimePayloadPath}?ts=${Date.now()}`),
-      ]).then(([truthResult, paperResult, liveObserverResult]) => {
-        if (!active) return;
-        const truth = truthResult.status === 'fulfilled' ? truthResult.value : null;
-        const paper = paperResult.status === 'fulfilled' ? paperResult.value : null;
-        const liveObserver = liveObserverResult.status === 'fulfilled' ? liveObserverResult.value : null;
-        const truthAge = ageSeconds(truth?.generated_at);
-        if (paper && runtimeIsCurrent(paper) && (truthAge === null || truthAge > RUNTIME_CURRENT_SECONDS)) {
-          setPayload(synthesizeTruthFromPaperRuntime(truth, paper, liveObserver));
-          setError(null);
-          return;
-        }
-        if (truth) {
-          setPayload(truth);
-          setError(null);
-          return;
-        }
-        if (paper && runtimeIsCurrent(paper)) {
-          setPayload(synthesizeTruthFromPaperRuntime(null, paper, liveObserver));
-          setError(null);
-          return;
-        }
-        const reason = truthResult.status === 'rejected' ? truthResult.reason : paperResult.status === 'rejected' ? paperResult.reason : 'no payload';
-        setPayload(null);
-        setError(reason instanceof Error ? reason.message : String(reason));
-      });
-    };
-    load();
-    timer = window.setInterval(load, 10_000);
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearInterval(timer);
-    };
-  }, []);
+  const payload = useMemo(() => {
+    const truthPayload = truth.data;
+    const paperPayload = paper.data;
+    const liveObserverPayload = liveObserver.data;
+    const truthAge = ageSeconds(truthPayload?.generated_at);
+    if (paperPayload && runtimeIsCurrent(paperPayload) && (truthAge === null || truthAge > RUNTIME_CURRENT_SECONDS)) {
+      return synthesizeTruthFromPaperRuntime(truthPayload, paperPayload, liveObserverPayload);
+    }
+    if (truthPayload) return truthPayload;
+    if (paperPayload && runtimeIsCurrent(paperPayload)) {
+      return synthesizeTruthFromPaperRuntime(null, paperPayload, liveObserverPayload);
+    }
+    return null;
+  }, [liveObserver.data, paper.data, truth.data]);
 
-  return { payload, error };
+  return { payload, error: payload ? null : truth.error ?? paper.error };
 }
 
 export function usePaperOnlineRuntimePayload(intervalMs = 10_000): {
   payload: PaperOnlineRuntimePayload | null;
   error: string | null;
 } {
-  const [payload, setPayload] = useState<PaperOnlineRuntimePayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-    const load = (): void => {
-      fetchJson<PaperOnlineRuntimePayload>(`${paperOnlineRuntimePayloadPath}?ts=${Date.now()}`)
-        .then((data) => {
-          if (!active) return;
-          setPayload(data);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!active) return;
-          setPayload(null);
-          setError(err instanceof Error ? err.message : String(err));
-        });
-    };
-    load();
-    timer = window.setInterval(load, intervalMs);
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearInterval(timer);
-    };
-  }, [intervalMs]);
-
-  return { payload, error };
+  const stream = usePayloadFile<PaperOnlineRuntimePayload>(paperOnlineRuntimePayloadPath, intervalMs);
+  return { payload: stream.data, error: stream.error };
 }
 
 export function useTonightReadinessPayload(intervalMs = 10_000): {
   payload: TonightReadinessPayload | null;
   error: string | null;
 } {
-  const [payload, setPayload] = useState<TonightReadinessPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-    const load = (): void => {
-      fetchJson<TonightReadinessPayload>(`${tonightReadinessPayloadPath}?ts=${Date.now()}`)
-        .then((data) => {
-          if (!active) return;
-          setPayload(data);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!active) return;
-          setPayload(null);
-          setError(err instanceof Error ? err.message : String(err));
-        });
-    };
-    load();
-    timer = window.setInterval(load, intervalMs);
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearInterval(timer);
-    };
-  }, [intervalMs]);
-
-  return { payload, error };
+  const stream = usePayloadFile<TonightReadinessPayload>(tonightReadinessPayloadPath, intervalMs);
+  return { payload: stream.data, error: stream.error };
 }
 
 export function useCoinankMarketIntelligencePayload(intervalMs = 10_000): {
   payload: CoinankMarketIntelligencePayload | null;
   error: string | null;
 } {
-  const [payload, setPayload] = useState<CoinankMarketIntelligencePayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    let timer: number | undefined;
-    const load = (): void => {
-      fetchJson<CoinankMarketIntelligencePayload>(`${coinankMarketIntelligencePayloadPath}?ts=${Date.now()}`)
-        .then((data) => {
-          if (!active) return;
-          setPayload(data);
-          setError(null);
-        })
-        .catch((err: unknown) => {
-          if (!active) return;
-          setPayload(null);
-          setError(err instanceof Error ? err.message : String(err));
-        });
-    };
-    load();
-    timer = window.setInterval(load, intervalMs);
-    return () => {
-      active = false;
-      if (timer !== undefined) window.clearInterval(timer);
-    };
-  }, [intervalMs]);
-
-  return { payload, error };
+  const stream = usePayloadFile<CoinankMarketIntelligencePayload>(coinankMarketIntelligencePayloadPath, intervalMs);
+  return { payload: stream.data, error: stream.error };
 }

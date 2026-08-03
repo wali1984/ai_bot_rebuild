@@ -1,0 +1,33 @@
+{
+  "generated": "2026-07-01T22:56:31Z",
+  "audit_id": "V2_REBUILD_MASTER_END_TO_END_SYSTEM_AUDIT_AND_OPERATOR_MANUAL",
+  "overall_verdict": "BLOCKED",
+  "validations": [
+    {"check": "python_syntax_230_scripts", "command": "py_compile all cli/*.py", "result": "0 errors in 230 files", "status": "PASS"},
+    {"check": "contract_tests_9", "command": "pytest tests/contract/", "result": "9 passed in 0.57s", "status": "PASS"},
+    {"check": "website_api_health", "command": "curl http://localhost:8000/api/v1/health", "result": "200 OK", "status": "PASS"},
+    {"check": "typescript_typecheck", "command": "npm run typecheck", "result": "no errors", "status": "PASS"},
+    {"check": "live_gate_blocked", "command": "redis-cli get v2:live_gate:state", "result": "live_gate=blocked_human_only", "status": "PASS"},
+    {"check": "places_real_order_false", "command": "v2:live_gate:state.places_real_order", "result": "False", "status": "PASS"},
+    {"check": "submit_disabled", "command": "v2:live_gate:state.order_transport_submit_enabled", "result": "False", "status": "PASS"},
+    {"check": "paper_heartbeat_fresh", "command": "redis-cli ttl v2:paper:heartbeat", "result": "3556s", "status": "PASS"},
+    {"check": "risk_gateway_heartbeat_fresh", "command": "redis-cli ttl v2:risk:gateway:heartbeat", "result": "298s", "status": "PASS"},
+    {"check": "feature_pipeline_fresh", "command": "redis-cli ttl v2:features:pipeline:heartbeat", "result": "265s", "status": "PASS"},
+    {"check": "btcusdt_feature_fresh", "command": "redis-cli ttl v2:features:latest:BTCUSDT:1h", "result": "547s", "status": "PASS"},
+    {"check": "redis_keyspace_size", "command": "redis-cli dbsize", "result": "1150697", "status": "PASS"},
+    {"check": "trainer_heartbeat_ttl", "command": "redis-cli ttl v2:trainer:hybrid_cuda:heartbeat", "result": "-1 (no expiry)", "status": "WARN"},
+    {"check": "btcusdt_prediction_ttl", "command": "redis-cli ttl v2:prediction:BTCUSDT:1h", "result": "-1 (no expiry)", "status": "WARN"},
+    {"check": "failed_services", "command": "systemctl --user --failed", "result": "1 non-critical", "status": "WARN"},
+    {"check": "trainer_feedback_consumable", "command": "v2:paper:ledger.trainer_feedback_consumable_row_count", "result": "0 of 741", "status": "FAIL", "gap_ref": "GAP_P0_001"},
+    {"check": "paper_pnl", "command": "v2:paper:ledger.realized_pnl_usd", "result": "-253.49", "status": "FAIL", "gap_ref": "GAP_P0_002"}
+  ],
+  "pass_count": 12,
+  "warn_count": 3,
+  "fail_count": 2,
+  "safety_invariants": {
+    "live_trading_blocked": true,
+    "places_real_order": false,
+    "submit_enabled": false,
+    "legacy_writes": false
+  }
+}

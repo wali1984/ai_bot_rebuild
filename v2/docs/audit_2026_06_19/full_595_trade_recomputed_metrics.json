@@ -1,0 +1,285 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "note": "Recomputed from raw Redis v2:paper:closed_trades (645 rows at audit time). Prior session had 595 rows.",
+  "row_count": 645,
+  "win_count": 196,
+  "loss_count": 449,
+  "win_rate": 0.3039,
+  "gross_pnl_usd": 61.2935,
+  "fees_usd": 26.0448,
+  "slippage_usd": 13.0224,
+  "net_pnl_usd": 22.2262,
+  "win_pnl_usd": 232.6358,
+  "loss_pnl_usd": -210.4096,
+  "avg_win_usd": 1.1869,
+  "avg_loss_usd": -0.4686,
+  "profit_factor": 1.1056,
+  "expectancy_per_trade_usd": 0.0345,
+  "max_win_usd": 8.7343,
+  "max_loss_usd": -7.0249,
+  "median_pnl_usd": -0.2051,
+  "mean_pnl_usd": 0.0345,
+  "hold_time_avg_s": 1611.2,
+  "hold_time_median_s": 916.0,
+  "hold_time_max_s": 21612.0,
+  "hold_time_min_s": 1.0,
+  "notional_median_usd": 72.12,
+  "notional_mean_usd": 101.04,
+  "notional_max_usd": 833.93,
+  "notional_min_usd": 7.6,
+  "actions": {
+    "short": 645,
+    "long": 0
+  },
+  "hedge_states": {
+    "NO_HEDGE": 645
+  },
+  "exit_reasons": {
+    "TIER_2_TRAILING_STOP": 395,
+    "TIER_2_TAKE_PROFIT": 113,
+    "TIER_1_STOP_LOSS": 94,
+    "TIER_2_PROFIT_BANK": 36,
+    "TIER_2_PROFIT_LOCK": 4,
+    "TIER_4_MAX_HOLD_TIME": 3
+  },
+  "timeframe_pnl": {
+    "1m": {
+      "count": 124,
+      "wins": 44,
+      "wr_pct": 35.5,
+      "pnl": 17.46
+    },
+    "5m": {
+      "count": 143,
+      "wins": 39,
+      "wr_pct": 27.3,
+      "pnl": -10.15
+    },
+    "15m": {
+      "count": 113,
+      "wins": 34,
+      "wr_pct": 30.1,
+      "pnl": 12.99
+    },
+    "1h": {
+      "count": 127,
+      "wins": 45,
+      "wr_pct": 35.4,
+      "pnl": 5.57
+    },
+    "4h": {
+      "count": 138,
+      "wins": 34,
+      "wr_pct": 24.6,
+      "pnl": -3.65
+    }
+  },
+  "worst_10_trades": [
+    {
+      "symbol": "PORTALUSDT",
+      "tf": "1h",
+      "exit_reason": "TIER_1_STOP_LOSS",
+      "strategy": "mean_reversion_mode",
+      "pnl": -7.0249,
+      "winner": false,
+      "hold_s": 194,
+      "close_id": "paper_close_paper_pos_PORTALUSDT_1_7024949"
+    },
+    {
+      "symbol": "NIGHTUSDT",
+      "tf": "4h",
+      "exit_reason": "TIER_1_STOP_LOSS",
+      "strategy": "trend_mode",
+      "pnl": -4.0888,
+      "winner": false,
+      "hold_s": 2930,
+      "close_id": "paper_close_paper_pos_NIGHTUSDT_12_4088783"
+    },
+    {
+      "symbol": "CRVUSDT",
+      "tf": "5m",
+      "exit_reason": "TIER_1_STOP_LOSS",
+      "strategy": "reduce_size_mode",
+      "pnl": -2.8348,
+      "winner": false,
+      "hold_s": 386,
+      "close_id": "paper_close_paper_pos_CRVUSDT_4_2834842"
+    },
+    {
+      "symbol": "HUSDT",
+      "tf": "1m",
+      "exit_reason": "TIER_1_STOP_LOSS",
+      "strategy": "reduce_size_mode",
+      "pnl": -2.3495,
+      "winner": false,
+      "hold_s": 127,
+      "close_id": "paper_close_paper_pos_HUSDT_3_2349489"
+    },
+    {
+      "symbol": "LABUSDT",
+      "tf": "1m",
+      "exit_reason": "TIER_2_TRAILING_STOP",
+      "strategy": "reduce_size_mode",
+      "pnl": -2.2117,
+      "winner": false,
+      "hold_s": 1404,
+      "close_id": "paper_close_paper_pos_LABUSDT_9_2211683"
+    },
+    {
+      "symbol": "BIOUSDT",
+      "tf": "4h",
+      "exit_reason": "TIER_1_STOP_LOSS",
+      "strategy": "trend_mode",
+      "pnl": -2.1334,
+      "winner": false,
+      "hold_s": 839,
+      "close_id": "paper_close_paper_pos_BIOUSDT_3_2133444"
+    },
+    {
+      "symbol": "ESPORTSUSDT",
+      "tf": "1h",
+      "exit_reason": "TIER_1_STOP_LOSS",
+      "strategy": "trend_mode",
+      "pnl": -1.8021,
+      "winner": false,
+      "hold_s": 27,
+      "close_id": "paper_close_paper_pos_ESPORTSUSDT_1_1802138"
+    },
+    {
+      "symbol": "ALLOUSDT",
+      "tf": "1h",
+      "exit_reason": "TIER_1_STOP_LOSS",
+      "strategy": "reduce_size_mode",
+      "pnl": -1.769,
+      "winner": false,
+      "hold_s": 255,
+      "close_id": "paper_close_paper_pos_ALLOUSDT_4_1769024"
+    },
+    {
+      "symbol": "PUMPUSDT",
+      "tf": "5m",
+      "exit_reason": "TIER_2_TRAILING_STOP",
+      "strategy": "trend_mode",
+      "pnl": -1.7587,
+      "winner": false,
+      "hold_s": 1600,
+      "close_id": "paper_close_paper_pos_PUMPUSDT_8_1758651"
+    },
+    {
+      "symbol": "BNBUSDT",
+      "tf": "4h",
+      "exit_reason": "TIER_2_TRAILING_STOP",
+      "strategy": "trend_mode",
+      "pnl": -1.7083,
+      "winner": false,
+      "hold_s": 12155,
+      "close_id": "paper_close_paper_pos_BNBUSDT_21_1708255"
+    }
+  ],
+  "best_10_trades": [
+    {
+      "symbol": "AEROUSDT",
+      "tf": "5m",
+      "exit_reason": "TIER_2_TAKE_PROFIT",
+      "strategy": "trend_mode",
+      "pnl": 3.77,
+      "winner": true,
+      "hold_s": 9115,
+      "close_id": "paper_close_paper_pos_AEROUSDT_11_3770008"
+    },
+    {
+      "symbol": "BSBUSDT",
+      "tf": "4h",
+      "exit_reason": "TIER_2_PROFIT_BANK",
+      "strategy": "reduce_size_mode",
+      "pnl": 4.1537,
+      "winner": true,
+      "hold_s": 1262,
+      "close_id": "paper_close_paper_pos_BSBUSDT_8_4153657"
+    },
+    {
+      "symbol": "ICPUSDT",
+      "tf": "1m",
+      "exit_reason": "TIER_2_TAKE_PROFIT",
+      "strategy": "trend_mode",
+      "pnl": 4.3653,
+      "winner": true,
+      "hold_s": 4327,
+      "close_id": "paper_close_paper_pos_ICPUSDT_12_4365253"
+    },
+    {
+      "symbol": "ATOMUSDT",
+      "tf": "4h",
+      "exit_reason": "TIER_2_TAKE_PROFIT",
+      "strategy": "trend_mode",
+      "pnl": 4.3932,
+      "winner": true,
+      "hold_s": 4501,
+      "close_id": "paper_close_paper_pos_ATOMUSDT_12_4393242"
+    },
+    {
+      "symbol": "CHZUSDT",
+      "tf": "1m",
+      "exit_reason": "TIER_2_PROFIT_BANK",
+      "strategy": "reduce_size_mode",
+      "pnl": 4.461,
+      "winner": true,
+      "hold_s": 1152,
+      "close_id": "paper_close_paper_pos_CHZUSDT_8_4461004"
+    },
+    {
+      "symbol": "PAXGUSDT",
+      "tf": "15m",
+      "exit_reason": "TIER_4_MAX_HOLD_TIME",
+      "strategy": "trend_mode",
+      "pnl": 4.4954,
+      "winner": true,
+      "hold_s": 21609,
+      "close_id": "paper_close_paper_pos_PAXGUSDT_28_4495440"
+    },
+    {
+      "symbol": "AEROUSDT",
+      "tf": "1m",
+      "exit_reason": "TIER_2_PROFIT_BANK",
+      "strategy": "reduce_size_mode",
+      "pnl": 5.3068,
+      "winner": true,
+      "hold_s": 767,
+      "close_id": "paper_close_paper_pos_AEROUSDT_6_5306759"
+    },
+    {
+      "symbol": "BSBUSDT",
+      "tf": "4h",
+      "exit_reason": "TIER_2_PROFIT_BANK",
+      "strategy": "trend_mode",
+      "pnl": 5.391,
+      "winner": true,
+      "hold_s": 21409,
+      "close_id": "paper_close_paper_pos_BSBUSDT_1_5390988"
+    },
+    {
+      "symbol": "TAOUSDT",
+      "tf": "15m",
+      "exit_reason": "TIER_2_TAKE_PROFIT",
+      "strategy": "trend_mode",
+      "pnl": 5.6194,
+      "winner": true,
+      "hold_s": 5006,
+      "close_id": "paper_close_paper_pos_TAOUSDT_17_5619401"
+    },
+    {
+      "symbol": "BNBUSDT",
+      "tf": "1h",
+      "exit_reason": "TIER_2_TAKE_PROFIT",
+      "strategy": "reduce_size_mode",
+      "pnl": 8.7343,
+      "winner": true,
+      "hold_s": 7290,
+      "close_id": "paper_close_paper_pos_BNBUSDT_27_8734279"
+    }
+  ],
+  "squeeze_null_pct": 100.0,
+  "drawdown_always_zero": true,
+  "spread_constant_bps": 2.0,
+  "pit_violations": 0
+}

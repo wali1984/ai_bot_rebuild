@@ -1,0 +1,91 @@
+{
+  "schema_version": "v2_masa_worker_scaling_status_v1",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "audit_findings": {
+    "zombie_process_count_at_audit": 18,
+    "zombie_process_count_at_fix_time": 19,
+    "trainer_pid": 1037427,
+    "trainer_stat": "R+ (running, 91.9% CPU at audit time)",
+    "zombie_process_name": "pt_data_worker",
+    "root_cause": "persistent_workers=True with new DataLoader created per training call",
+    "root_cause_detail": {
+      "file": "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/ppo_trainer.py",
+      "old_workers_formula": "max(1, min(32, (os.cpu_count() or 4) - 2))",
+      "old_persistent_workers": true,
+      "old_prefetch_factor": 4,
+      "pattern": "DataLoader created per-call → goes out of scope → persistent workers not reaped by parent",
+      "evidence": "ps --ppid 1037427 -o pid,ppid,stat,comm showed 18-19 Z processes"
+    },
+    "verification_command": "ps --ppid 1037427 -o pid,ppid,stat,comm",
+    "confidence": "HIGH",
+    "missing_evidence": "Cannot confirm zero zombies until trainer naturally restarts (protected runtime — cannot restart PID 1037427)"
+  },
+  "fixes_applied": [
+    {
+      "fix": "persistent_workers=False (was True)",
+      "file": "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/ppo_trainer.py",
+      "detail": "Workers now terminate when DataLoader is released, not kept alive across training calls"
+    },
+    {
+      "fix": "Worker count capped at 4 via compute_dataloader_workers()",
+      "file": "v2/backend/app/services/native_trainer/dataloader_worker_config.py",
+      "old_formula": "max(1, min(32, cpu_count-2)) — could spawn 30 on 32-core machine",
+      "new_formula": "max(1, min(4, cpu_count//4)) — caps at 4"
+    },
+    {
+      "fix": "prefetch_factor reduced from 4 to 2",
+      "detail": "RTX 5080 saturates memory bus at low worker counts; 2 is sufficient"
+    },
+    {
+      "fix": "Explicit del loader in finally block",
+      "detail": "Ensures DataLoader is garbage-collected before next training call, releasing workers promptly even if exception occurs"
+    },
+    {
+      "fix": "Extracted worker config to standalone module",
+      "file": "v2/backend/app/services/native_trainer/dataloader_worker_config.py",
+      "exported_symbols": [
+        "compute_dataloader_workers",
+        "dataloader_config",
+        "PERSISTENT_WORKERS",
+        "PREFETCH_FACTOR",
+        "MAX_DATALOADER_WORKERS",
+        "MIN_ROWS_FOR_MULTIWORKER"
+      ]
+    }
+  ],
+  "logging_note": "Phase 5 fix note: active worker count, batch latency, GPU utilization per-pool logging is recorded via existing PPOTrainingResult fields (dataloader_workers, vram_allocated_mb, training_steps_per_minute). Dedicated worker health telemetry is served by the existing trainer_worker_health service.",
+  "tests": {
+    "test_file": "v2/backend/tests/unit/services/native_trainer/test_phase5_dataloader_worker_config.py",
+    "test_count": 22,
+    "tests": [
+      "test_persistent_workers_constant_is_false",
+      "test_max_workers_cap_is_4",
+      "test_prefetch_factor_is_2_not_4",
+      "test_min_rows_threshold_is_256",
+      "test_workers_zero_below_threshold",
+      "test_workers_zero_at_exactly_threshold_minus_1",
+      "test_workers_nonzero_at_threshold",
+      "test_workers_capped_at_4_on_high_cpu_count",
+      "test_workers_at_least_1_on_low_cpu_count",
+      "test_workers_scales_with_cpu_count",
+      "test_workers_default_cpu_count_is_safe",
+      "test_workers_never_exceed_4_regardless_of_cpu_count",
+      "test_config_persistent_workers_always_false",
+      "test_config_pin_memory_false_when_no_workers",
+      "test_config_pin_memory_true_when_workers_present",
+      "test_config_prefetch_factor_absent_when_no_workers",
+      "test_config_prefetch_factor_is_2_when_workers_present",
+      "test_ppo_trainer_imports_worker_config_module",
+      "test_ppo_trainer_does_not_hardcode_persistent_workers_true",
+      "test_ppo_trainer_deletes_loader_in_finally",
+      "test_ppo_trainer_does_not_set_large_worker_count_inline",
+      "test_no_persistent_workers_means_no_zombie_accumulation"
+    ],
+    "result": "PASS",
+    "run_command": "PYTHONPATH=v2/backend .venv/bin/pytest v2/backend/tests/unit/services/native_trainer/test_phase5_dataloader_worker_config.py -v"
+  },
+  "validation_note": "Fix takes effect on next trainer restart. Current 19 zombies under PID 1037427 are kernel-harmless (Z state, zero CPU/memory) and will be reaped when trainer process exits. Cannot restart trainer per protected runtime policy.",
+  "phase_status": "PHASE_5_COMPLETE",
+  "live_gate": "blocked_human_only",
+  "places_real_order": false
+}

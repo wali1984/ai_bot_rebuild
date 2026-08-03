@@ -1,0 +1,38 @@
+{
+  "schema_version": "trainer_scheduled_pretrain_status_v1",
+  "generated_utc": "2026-07-14T14:00:48.468540Z",
+  "training_prefix_rows": 0,
+  "heldout_rows": 0,
+  "split_meta": {
+    "cache_path": "claude_worklog/trainer_atlas/scheduled_pretrain_cache.pkl",
+    "cache_hit": false,
+    "archive_view_root": "/tmp/v2_offline_archive_view_vc6t5wyo",
+    "live_cursor_untouched": true,
+    "offline_cursor_seed": {
+      "seeded": true,
+      "hours_back": 12.0,
+      "manifest_offset": 750369249,
+      "manifest_size": 765984411,
+      "seed_target_created_at": "2026-07-14T02:00:17.000Z"
+    },
+    "load_seconds": 31.097,
+    "examples": 0,
+    "h2l_heldout_offset": 16000,
+    "h2l_requested_rows": 21000,
+    "h2l_heldout_rows": 0,
+    "h2l_excluded_prefix_rows": 0,
+    "cache_rebuilt_for_age": false
+  },
+  "paper_only": true,
+  "places_real_order": false,
+  "routes_to_live": false,
+  "leverage_mutated": false,
+  "margin_mutated": false,
+  "live_gate": "blocked_human_only",
+  "auto_promote": true,
+  "auto_restart": false,
+  "require_risk_gate": true,
+  "min_sortino": 0.0,
+  "max_cvar_loss_bps": null,
+  "phase": "ABORT_INSUFFICIENT_TRAINING_ROWS"
+}

@@ -1,0 +1,13 @@
+[Unit]
+Description=AI Bot V2 autonomous mission backlog autoseed timer
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=120s
+AccuracySec=15s
+Persistent=true
+Unit=ai-bot-v2-autonomous-mission-backlog.service
+
+[Install]
+WantedBy=timers.target
+

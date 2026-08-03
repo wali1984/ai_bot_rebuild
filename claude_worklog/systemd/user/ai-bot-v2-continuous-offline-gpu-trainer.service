@@ -1,0 +1,36 @@
+[Unit]
+Description=AI Bot V2 Continuous Offline GPU Trainer (paper/shadow; offline dir only; RTX saturation)
+After=network-online.target redis.service
+Wants=network-online.target
+StartLimitBurst=5
+StartLimitIntervalSec=600
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Nice=15
+CPUWeight=20
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+Environment=LIVE_GATE=blocked_human_only
+Environment=V2_LIVE=0
+Environment=V2_CANARY=0
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment=V2_TRAINER_HIDDEN_SIZE=2048
+Environment=V2_TRAINER_RESIDUAL_BLOCKS=4
+Environment=V2_TRAINER_TEMPORAL_ENCODER=gru
+Environment=V2_TRAINER_TEMPORAL_PROJ_DIM=256
+Environment=V2_TRAINER_CPU_THREADS=8
+Environment=V2_OFFLINE_LOOP_INTERVAL_SECONDS=150
+Environment=V2_OFFLINE_EPOCHS=5
+Environment=V2_OFFLINE_BATCH_SIZE=1024
+Environment=PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+Environment=V2_OFFLINE_CUDA_MEMORY_FRACTION=0.40
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/tools/continuous_offline_gpu_trainer_loop.sh"'
+Restart=on-failure
+RestartSec=15
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-continuous-offline-gpu-trainer.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-continuous-offline-gpu-trainer.err
+
+[Install]
+WantedBy=default.target

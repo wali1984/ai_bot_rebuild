@@ -1,22 +1,35 @@
 {
-  "task_id": "120_orchestrator_decision_2fb_assembler_service_codex_review",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/"
+  ],
+  "blocked_by": [
+    "PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPL_AND_VALIDATION_PASSED"
+  ],
+  "completed_at": "2026-05-05T22:18:58.367049+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "depends_on": [
     "119_orchestrator_decision_2fb_assembler_service_implementation"
   ],
-  "predecessor_task_ids": [
-    "119_orchestrator_decision_2fb_assembler_service_implementation"
-  ],
-  "predecessor_required_marker": "PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPL_AND_VALIDATION_PASSED",
-  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/15_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_GO_NO_GO.md",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
-  "task_granularity_mode": "consolidated_default",
-  "requires_clean_worktree": true,
-  "allowed_output_prefixes": [
-    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/"
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "read or write any Redis key",
+    "invoke any Redis command",
+    "modify any v2/ source or test file",
+    "modify any prior-milestone artifact byte content",
+    "modify any 2F.A authored source or test file",
+    "modify any 2F.B authored source or test file",
+    "modify the master planner prompt",
+    "modify any task definition under claude_worklog/agent_supervisor/tasks/",
+    "restart any live service",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "ship to anywhere",
+    "run a migration in any environment",
+    "approve the live gate",
+    "emit a standalone harness BEGIN/END framing token marker line in any authored file body"
   ],
   "forbidden_output_paths": [
     "v2/",
@@ -43,42 +56,38 @@
     "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/14_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPLEMENTATION_REPORT.md",
     "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/15_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_GO_NO_GO.md"
   ],
-  "required_output_files": [
-    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/16_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_REVIEW.md",
-    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/17_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_GO_NO_GO.md"
-  ],
-  "forbidden_actions": [
-    "modify /home/wali/Desktop/AI BOT",
-    "read or write any Redis key",
-    "invoke any Redis command",
-    "modify any v2/ source or test file",
-    "modify any prior-milestone artifact byte content",
-    "modify any 2F.A authored source or test file",
-    "modify any 2F.B authored source or test file",
-    "modify the master planner prompt",
-    "modify any task definition under claude_worklog/agent_supervisor/tasks/",
-    "restart any live service",
-    "place or cancel exchange orders",
-    "change leverage or margin",
-    "enable live trading",
-    "ship to anywhere",
-    "run a migration in any environment",
-    "approve the live gate",
-    "emit a standalone harness BEGIN/END framing token marker line in any authored file body"
-  ],
-  "scope_dirty_paths": [],
-  "prompt": "You are Codex acting as adversarial reviewer for Phase 2F.B of REQ_0006 intersect REQ_0017 (orchestrator decision assembler service). You author exactly the two files listed in required_output_files of this task definition and nothing else. You do NOT modify any v2/ source or test file. You do NOT modify any prior-milestone artifact byte content. You do NOT modify any 2F.A authored source or test file. You do NOT modify any 2F.B authored source or test file. You do NOT modify the master planner prompt. You do NOT modify any task definition under claude_worklog/agent_supervisor/tasks/. You do NOT modify legacy. You do NOT access Redis at any layer. You do NOT restart any live service. You do NOT place or cancel exchange orders. You do NOT change leverage or margin. You do NOT enable live trading. You do NOT ship anywhere. You do NOT run any migration in any environment. You do NOT approve the live gate.\n\nWorktree precondition: this task requires a clean worktree at dispatch. Run `git status --porcelain` first. If it returns any non-empty line, surface to human attention and stop without writing 16 or 17.\n\nPredecessor gate: claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/15_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_GO_NO_GO.md MUST contain exactly PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPL_AND_VALIDATION_PASSED. If absent or different, write PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_FAIL to 17, capture the missing-marker reason in 16, and stop.\n\nRead exactly these files as authoritative for review:\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/00_PHASE_2F_SUB_PHASE_BREAKDOWN.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/01_PHASE_2F_LEGACY_EVIDENCE_REVIEW.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/02_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/10_PHASE_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/11_PHASE_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_TEST_PLAN.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/12_PHASE_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_SAFETY_BOUNDARIES.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/13_PHASE_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_GO_NO_GO_REQUEST.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/14_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPLEMENTATION_REPORT.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/15_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_GO_NO_GO.md\n- v2/backend/app/services/orchestrator_decision/__init__.py\n- v2/backend/app/services/orchestrator_decision/errors.py\n- v2/backend/app/services/orchestrator_decision/service.py\n- v2/backend/tests/unit/services/orchestrator_decision/__init__.py\n- the 36 test files under v2/backend/tests/unit/services/orchestrator_decision/\n\nReview rubric: evaluate each of the 43 rows in 13 'Codex review rubric' and mark PASS or FAIL with a one-line evidence pointer per PASS row. Run the validation commands documented in 119 'Validation commands you MUST run and capture exit codes for in 14' on the actual repo state and re-confirm zero non-zero exit codes. Re-run the four `git ls-files` checks on the placeholder file and the three new package files and confirm the expected line counts. Run `git status -s` and confirm zero output lines. Run the forbidden-token scan and confirm zero matches per token. Run a fresh-subprocess import of v2.backend.app.services.orchestrator_decision and confirm none of redis, redis.asyncio, aioredis, hiredis, httpx, requests, fastapi, uvicorn, asyncio, threading, or v2.backend.app.adapters.redis_v2.url_env are loaded.\n\nCodex review out-of-scope per 13: do NOT propose adding the composition root in this milestone, do NOT propose modifying any prior-milestone artifact, do NOT propose modifying any 2F.A authored source or test file, do NOT propose modifying any 2F.B authored source or test file, do NOT propose adding any new lineage ID at the service layer beyond the derived decision_id, do NOT propose adding any FastAPI surface, Redis adapter, GPU runner, or model-loading subsystem, do NOT propose adding any composition-root binder, do NOT propose adding any non-trivial logic at the service layer beyond the documented validation, derivation, and propagation steps.\n\nEmit 16_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_REVIEW.md with sections: 'Rubric verdicts' (the 43 rows with PASS/FAIL and one-line evidence per row), 'Placeholder deletion re-check' (each git ls-files command with output line count), 'Validation re-run' (each command with exit code and one-line summary), 'Forbidden token re-scan' (token + zero-match confirmation), 'Cross-isolation diff re-run' (git status -s zero lines), 'Fresh-subprocess import re-run' (each forbidden module with confirmation it is NOT in sys.modules), 'Safety review' (each forbidden runtime behavior listed in 12 with 'none observed' or 'observed: <evidence>'), 'Out-of-scope check' (confirmation that no out-of-scope item is proposed). Final marker line: PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_REVIEW_READY. The body MUST NOT contain any harness BEGIN/END framing token marker line.\n\nEmit 17_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_GO_NO_GO.md. Exactly one of:\n  PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_PASS\n  PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_FAIL\nNo other content. The body MUST NOT contain any harness BEGIN/END framing token marker line.\n\nStop conditions: any live behavior, any Redis access at any layer, any Redis command at any time, any legacy mutation, any release intent in any environment, any modification of any prior-milestone source or test file, any modification of any 2F.A authored source or test file, any modification of any 2F.B authored source or test file, any URL or credential leakage, any reintroduction of v2/backend/app/services/orchestrator_decision.py. On any of these, write FAIL to 17, document the violation in 16, and stop. Do NOT autofix in this task; if FAIL is concrete and non-safety, the supervisor will dispatch a separate REQ_0007 / REQ_0014 autofix task scoped to the three authored 2F.B source files plus the 36 new test files only.",
-  "next_recommended_action": "On PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_PASS, planner opens Phase 2F.C (orchestrator decision composition root) under a fresh consolidated turn. On PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_FAIL with concrete blockers and no safety violation, supervisor dispatches a REQ_0007 / REQ_0014 autofix task scoped to the three authored 2F.B source files plus the 36 new test files only and re-runs the Codex review flow. On any safety violation, surface to human attention; no autofix is permitted.",
   "lane": "codex_watchdog",
-  "mvp_relevance": "Codex adversarial review of Phase 2F.B orchestrator decision assembler service materializes the PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_PASS gate that unblocks Phase 2F.C (composition root) and continues progress toward REQ_0017 milestone 2 ORCHESTRATOR_DECISION_MVP and the broader V2_BACKTEST_AND_PAPER_MVP_READY target.",
-  "next_gate": "PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_PASS",
   "legacy_evidence_consulted": [
     "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/01_PHASE_2F_LEGACY_EVIDENCE_REVIEW.md",
     "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/14_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPLEMENTATION_REPORT.md",
     "PHASE2F_A_ORCHESTRATOR_DECISION_DOMAIN_CODEX_PASS gate marker"
   ],
   "legacy_failure_addressed": "review hardens the first orchestrator decision derivation surface so legacy-style stale, low-confidence, or worker-unhealthy inputs cannot pass into risk and paper/backtest stages without an explicit abstain reason code.",
-  "blocked_by": [
-    "PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPL_AND_VALIDATION_PASSED"
-  ]
+  "mvp_relevance": "Codex adversarial review of Phase 2F.B orchestrator decision assembler service materializes the PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_PASS gate that unblocks Phase 2F.C (composition root) and continues progress toward REQ_0017 milestone 2 ORCHESTRATOR_DECISION_MVP and the broader V2_BACKTEST_AND_PAPER_MVP_READY target.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_PASS",
+  "next_recommended_action": "On PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_PASS, planner opens Phase 2F.C (orchestrator decision composition root) under a fresh consolidated turn. On PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_FAIL with concrete blockers and no safety violation, supervisor dispatches a REQ_0007 / REQ_0014 autofix task scoped to the three authored 2F.B source files plus the 36 new test files only and re-runs the Codex review flow. On any safety violation, surface to human attention; no autofix is permitted.",
+  "predecessor_required_marker": "PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPL_AND_VALIDATION_PASSED",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/15_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_GO_NO_GO.md",
+  "predecessor_task_ids": [
+    "119_orchestrator_decision_2fb_assembler_service_implementation"
+  ],
+  "prompt": "You are Codex acting as adversarial reviewer for Phase 2F.B of REQ_0006 intersect REQ_0017 (orchestrator decision assembler service). You author exactly the two files listed in required_output_files of this task definition and nothing else. You do NOT modify any v2/ source or test file. You do NOT modify any prior-milestone artifact byte content. You do NOT modify any 2F.A authored source or test file. You do NOT modify any 2F.B authored source or test file. You do NOT modify the master planner prompt. You do NOT modify any task definition under claude_worklog/agent_supervisor/tasks/. You do NOT modify legacy. You do NOT access Redis at any layer. You do NOT restart any live service. You do NOT place or cancel exchange orders. You do NOT change leverage or margin. You do NOT enable live trading. You do NOT ship anywhere. You do NOT run any migration in any environment. You do NOT approve the live gate.\n\nWorktree precondition: this task requires a clean worktree at dispatch. Run `git status --porcelain` first. If it returns any non-empty line, surface to human attention and stop without writing 16 or 17.\n\nPredecessor gate: claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/15_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_GO_NO_GO.md MUST contain exactly PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPL_AND_VALIDATION_PASSED. If absent or different, write PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_FAIL to 17, capture the missing-marker reason in 16, and stop.\n\nRead exactly these files as authoritative for review:\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/00_PHASE_2F_SUB_PHASE_BREAKDOWN.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/01_PHASE_2F_LEGACY_EVIDENCE_REVIEW.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/02_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/10_PHASE_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/11_PHASE_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_TEST_PLAN.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/12_PHASE_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_SAFETY_BOUNDARIES.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/13_PHASE_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_GO_NO_GO_REQUEST.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/14_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_IMPLEMENTATION_REPORT.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/15_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_GO_NO_GO.md\n- v2/backend/app/services/orchestrator_decision/__init__.py\n- v2/backend/app/services/orchestrator_decision/errors.py\n- v2/backend/app/services/orchestrator_decision/service.py\n- v2/backend/tests/unit/services/orchestrator_decision/__init__.py\n- the 36 test files under v2/backend/tests/unit/services/orchestrator_decision/\n\nReview rubric: evaluate each of the 43 rows in 13 'Codex review rubric' and mark PASS or FAIL with a one-line evidence pointer per PASS row. Run the validation commands documented in 119 'Validation commands you MUST run and capture exit codes for in 14' on the actual repo state and re-confirm zero non-zero exit codes. Re-run the four `git ls-files` checks on the placeholder file and the three new package files and confirm the expected line counts. Run `git status -s` and confirm zero output lines. Run the forbidden-token scan and confirm zero matches per token. Run a fresh-subprocess import of v2.backend.app.services.orchestrator_decision and confirm none of redis, redis.asyncio, aioredis, hiredis, httpx, requests, fastapi, uvicorn, asyncio, threading, or v2.backend.app.adapters.redis_v2.url_env are loaded.\n\nCodex review out-of-scope per 13: do NOT propose adding the composition root in this milestone, do NOT propose modifying any prior-milestone artifact, do NOT propose modifying any 2F.A authored source or test file, do NOT propose modifying any 2F.B authored source or test file, do NOT propose adding any new lineage ID at the service layer beyond the derived decision_id, do NOT propose adding any FastAPI surface, Redis adapter, GPU runner, or model-loading subsystem, do NOT propose adding any composition-root binder, do NOT propose adding any non-trivial logic at the service layer beyond the documented validation, derivation, and propagation steps.\n\nEmit 16_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_REVIEW.md with sections: 'Rubric verdicts' (the 43 rows with PASS/FAIL and one-line evidence per row), 'Placeholder deletion re-check' (each git ls-files command with output line count), 'Validation re-run' (each command with exit code and one-line summary), 'Forbidden token re-scan' (token + zero-match confirmation), 'Cross-isolation diff re-run' (git status -s zero lines), 'Fresh-subprocess import re-run' (each forbidden module with confirmation it is NOT in sys.modules), 'Safety review' (each forbidden runtime behavior listed in 12 with 'none observed' or 'observed: <evidence>'), 'Out-of-scope check' (confirmation that no out-of-scope item is proposed). Final marker line: PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_REVIEW_READY. The body MUST NOT contain any harness BEGIN/END framing token marker line.\n\nEmit 17_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_GO_NO_GO.md. Exactly one of:\n  PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_PASS\n  PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_FAIL\nNo other content. The body MUST NOT contain any harness BEGIN/END framing token marker line.\n\nStop conditions: any live behavior, any Redis access at any layer, any Redis command at any time, any legacy mutation, any release intent in any environment, any modification of any prior-milestone source or test file, any modification of any 2F.A authored source or test file, any modification of any 2F.B authored source or test file, any URL or credential leakage, any reintroduction of v2/backend/app/services/orchestrator_decision.py. On any of these, write FAIL to 17, document the violation in 16, and stop. Do NOT autofix in this task; if FAIL is concrete and non-safety, the supervisor will dispatch a separate REQ_0007 / REQ_0014 autofix task scoped to the three authored 2F.B source files plus the 36 new test files only.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/16_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/17_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_GO_NO_GO.md"
+  ],
+  "requires_clean_worktree": true,
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "scope_dirty_paths": [],
+  "source_truth_completed_at": "2026-05-05T22:18:58.367049+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/120_orchestrator_decision_2fb_assembler_service_codex_review.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_granularity_mode": "consolidated_default",
+  "task_id": "120_orchestrator_decision_2fb_assembler_service_codex_review",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

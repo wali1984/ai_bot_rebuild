@@ -1,0 +1,290 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_VISIBLE_SERVICE_OUTPUT_STATUS_READY",
+  "heartbeat_interval_seconds": 10,
+  "live_symbols": [],
+  "no_blank_terminals_required": true,
+  "per_terminal_log_summary": [
+    {
+      "has_est_stamp": false,
+      "has_safety_footer": false,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/_gnome_terminal_spawn.log",
+      "log_size_bytes": 0,
+      "mtime_age_seconds": 4882
+    },
+    {
+      "has_est_stamp": false,
+      "has_safety_footer": false,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/_launcher_trace.log",
+      "log_size_bytes": 2231,
+      "mtime_age_seconds": 4869
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/claude_workers.log",
+      "log_size_bytes": 292364,
+      "mtime_age_seconds": 1
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/codex_workers.log",
+      "log_size_bytes": 291387,
+      "mtime_age_seconds": 1
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/event_watchers.log",
+      "log_size_bytes": 378304,
+      "mtime_age_seconds": 0
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/executive_command_center.log",
+      "log_size_bytes": 354283,
+      "mtime_age_seconds": 2
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/feature_pipeline.log",
+      "log_size_bytes": 500630,
+      "mtime_age_seconds": 5
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/liquidation_wss_paper_shadow.log",
+      "log_size_bytes": 350462,
+      "mtime_age_seconds": 1
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/market_runtime.log",
+      "log_size_bytes": 729532,
+      "mtime_age_seconds": 5
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/no_manual_next_action_policy.log",
+      "log_size_bytes": 367774,
+      "mtime_age_seconds": 2
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/orchestrator_arbitration.log",
+      "log_size_bytes": 450724,
+      "mtime_age_seconds": 3
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/paper_ledger_paper_runtime.log",
+      "log_size_bytes": 501671,
+      "mtime_age_seconds": 3
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/paper_trade_management.log",
+      "log_size_bytes": 359688,
+      "mtime_age_seconds": 2
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/position_history_tracker.log",
+      "log_size_bytes": 398813,
+      "mtime_age_seconds": 3
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/production_equivalence_comparator.log",
+      "log_size_bytes": 273577,
+      "mtime_age_seconds": 1
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/redis_status_monitor.log",
+      "log_size_bytes": 691724,
+      "mtime_age_seconds": 4
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/replay_outcome_miner.log",
+      "log_size_bytes": 391519,
+      "mtime_age_seconds": 2
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/report_center_indexer.log",
+      "log_size_bytes": 357178,
+      "mtime_age_seconds": 2
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/risk_decision_loop.log",
+      "log_size_bytes": 322415,
+      "mtime_age_seconds": 5
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/runtime_cutover_watchdog.log",
+      "log_size_bytes": 355077,
+      "mtime_age_seconds": 9
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/spark_worker_pool.log",
+      "log_size_bytes": 358122,
+      "mtime_age_seconds": 1
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/symbol_universe.log",
+      "log_size_bytes": 404603,
+      "mtime_age_seconds": 6
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/technical_analysis.log",
+      "log_size_bytes": 289812,
+      "mtime_age_seconds": 4
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/trainer_prediction_publisher.log",
+      "log_size_bytes": 404737,
+      "mtime_age_seconds": 5
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/v2_automation_spark_monitor.log",
+      "log_size_bytes": 511839,
+      "mtime_age_seconds": 3
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/v2_decision_monitor.log",
+      "log_size_bytes": 282350,
+      "mtime_age_seconds": 6
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/v2_error_alert_monitor.log",
+      "log_size_bytes": 263076,
+      "mtime_age_seconds": 4
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/v2_exchange_readonly_monitor.log",
+      "log_size_bytes": 224601,
+      "mtime_age_seconds": 1
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/v2_market_data_monitor.log",
+      "log_size_bytes": 465565,
+      "mtime_age_seconds": 3
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/v2_paper_trading_monitor.log",
+      "log_size_bytes": 400081,
+      "mtime_age_seconds": 4
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/v2_predictions_monitor.log",
+      "log_size_bytes": 962638,
+      "mtime_age_seconds": 1
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/v2_redis_key_monitor.log",
+      "log_size_bytes": 566356,
+      "mtime_age_seconds": 7
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/v2_resources_monitor.log",
+      "log_size_bytes": 422858,
+      "mtime_age_seconds": 3
+    },
+    {
+      "has_est_stamp": true,
+      "has_safety_footer": true,
+      "log_file": "claude_worklog/agent_supervisor/logs/v2_gnome_visible_runtime/20260525T231604EST/v2_service_monitor.log",
+      "log_size_bytes": 721567,
+      "mtime_age_seconds": 2
+    }
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:15-0400",
+  "visible_terminal_title_count": 32,
+  "visible_terminal_titles_now": [
+    "V2 Automation Liveness Watchdog",
+    "V2 Automation/Spark Monitor",
+    "V2 Claude Closed-Loop Workers (1-3)",
+    "V2 Codex Closed-Loop Workers (1-3)",
+    "V2 Error/Alert Monitor",
+    "V2 Exchange Read-Only Monitor",
+    "V2 Executive Command Center",
+    "V2 Feature Snapshot Builder",
+    "V2 Final-Operator-Decision Event Watcher",
+    "V2 Liquidation WSS (paper-shadow)",
+    "V2 Market Data Monitor",
+    "V2 Memory/GPU Monitor",
+    "V2 No-Manual Next-Task Policy",
+    "V2 Orchestrator Arbitration Loop",
+    "V2 Paper Online Runtime",
+    "V2 Paper Shadow Observation",
+    "V2 Paper Trade Management",
+    "V2 Paper Trading Monitor",
+    "V2 Position History Tracker",
+    "V2 Predictions Monitor",
+    "V2 Production-Equivalence Comparator",
+    "V2 Redis Key Monitor",
+    "V2 Redis Status Panel",
+    "V2 Replay Outcome Miner",
+    "V2 Report Center Indexer",
+    "V2 Risk Gateway (periodic rerun)",
+    "V2 Risk/Orchestrator Monitor",
+    "V2 Service Monitor",
+    "V2 Spark Worker Pool",
+    "V2 Symbol Universe Publisher",
+    "V2 TA Worker (periodic rerun)",
+    "V2 Trainer Bridge / Prediction Publisher"
+  ],
+  "writes_exchange_orders": false
+}

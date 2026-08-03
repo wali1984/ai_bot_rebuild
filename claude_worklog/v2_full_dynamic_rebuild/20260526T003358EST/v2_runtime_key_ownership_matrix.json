@@ -1,0 +1,33 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_RUNTIME_KEY_OWNERSHIP_MATRIX_READY",
+  "key_ownership": {
+    "v2:alt_data:arkham:*": "v2_arkham_presence_only_worker",
+    "v2:alt_data:lunarcrush:*": "v2_lunarcrush_altdata_ingestor (blocked: cred absent)",
+    "v2:alt_data:nansen:*": "v2_nansen_altdata_ingestor (blocked: cred absent)",
+    "v2:features:latest:*": "feature_pipeline_native_loop + feature_snapshot_builder",
+    "v2:features:ta:*": "v2_feature_pipeline_and_ta_worker",
+    "v2:liquidation:*": "liquidation-wss-paper-shadow",
+    "v2:live_shadow:*": "read-only live-shadow lane",
+    "v2:market:mark_price:*": "v2_binance_public_metadata_ingestor (operator-driven)",
+    "v2:market:ohlcv:*": "paper-online-runtime + market_ingestor",
+    "v2:market:open_interest:*": "v2_binance_public_metadata_ingestor (operator-driven)",
+    "v2:market:orderbook_top:*": "v2_binance_public_metadata_ingestor (operator-driven)",
+    "v2:orchestrator:*": "orchestrator_arbitration_loop",
+    "v2:paper:*": "paper trader / trade management",
+    "v2:prediction:*": "trainer_prediction_publisher",
+    "v2:report_center:*": "report center indexer",
+    "v2:risk:*": "risk_gateway",
+    "v2:rl:*": "rl_core_inference_loop",
+    "v2:technical_analysis:*": "v2_feature_pipeline_and_ta_worker"
+  },
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:13-0400",
+  "writes_exchange_orders": false
+}

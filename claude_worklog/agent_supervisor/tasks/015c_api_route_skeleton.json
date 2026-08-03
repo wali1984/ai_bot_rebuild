@@ -1,9 +1,5 @@
 {
-  "task_id": "015c_api_route_skeleton",
   "agent": "claude",
-  "risk_level": "L2",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/security/",
     "claude_worklog/v2_build/",
@@ -11,6 +7,72 @@
     "v2/backend/app/main.py",
     "v2/backend/tests/contract/"
   ],
+  "approval_required": true,
+  "audit_evidence": {
+    "audit_events_required": [
+      "governance.task_dispatched",
+      "governance.task_validated",
+      "api.router_skeleton_created (one per router file)",
+      "api.middleware_skeleton_created (one per middleware module)",
+      "api.taxonomy_enumeration_recorded"
+    ],
+    "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash"
+  },
+  "auto_commit": false,
+  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
+  "commit_message": "Materialize V2 API route + middleware skeleton",
+  "completed_at": "2026-05-02T02:52:09.808706+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "015b_database_migration_skeleton"
+  ],
+  "do_not_autorun": true,
+  "emit_files": true,
+  "gate_evidence_ref": [
+    "claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md",
+    "claude_worklog/v2_architecture/05_API_CONTRACTS.md",
+    "claude_worklog/v2_scaffold_planning/04_API_ROUTE_SCAFFOLD_PLAN.md",
+    "claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md",
+    "claude_worklog/v2_build/C_DATABASE_SKELETON_VALIDATION.md",
+    "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
+    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
+  ],
+  "gates_required": [
+    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
+    "HUMAN_APPROVAL_FOR_THIS_TASK"
+  ],
+  "go_no_go_marker": "D_API_SKELETON_VALIDATION_READY",
+  "max_attempts": 1,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "Recover 015C by materializing safe API skeleton outputs only; then validate and run Codex review for 015C. Do not run 015D.",
+  "next_tasks_on_failure": [],
+  "next_tasks_on_success": [],
+  "normalized_from_artifact": false,
+  "observability": {
+    "dashboard_surfaces": [
+      "Build/Validation Status page (after 015D)",
+      "Codex Review Center (after 015D)"
+    ],
+    "events_emitted": [
+      "task.start",
+      "task.adapter_call",
+      "task.complete",
+      "api.middleware_order_asserted",
+      "api.taxonomy_enumerated"
+    ],
+    "logs_written": [
+      "claude_worklog/agent_supervisor/runs/015c_api_route_skeleton/<ts>/stdout.log"
+    ],
+    "metrics_emitted": [
+      "v2.api.route_files_count",
+      "v2.api.middleware_modules_count",
+      "v2.api.error_classes_count (must equal taxonomy fixed set)",
+      "v2.api.contract_test_pass_count"
+    ]
+  },
+  "priority": 0,
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not place/cancel orders. Do not import legacy trainer modules. Materialize empty FastAPI routers under v2/backend/app/api/v1/ for every endpoint group listed in claude_worklog/v2_scaffold_planning/04_API_ROUTE_SCAFFOLD_PLAN.md \u00a77. Each router file declares prefix= and an OPTIONS shim returning route metadata; NO handler bodies that perform DB/Redis I/O. Materialize middleware shells (request_id, idempotency, rbac, approval, lineage_validator, live_block_guard, db_error_translator, rate_limit, ip_allowlist, step_up_mfa) per \u00a73 in the EXACT order. Materialize app/api/errors/taxonomy.py enumerating the closed set of error classes per \u00a74. Materialize app/api/schemas/* shapes consistent with 12B closure. Add two contract tests: middleware-order assertion and taxonomy enumeration. live_block_guard must default-deny every /api/v1/live/** route. Produce claude_worklog/v2_build/D_API_SKELETON_VALIDATION.md ending in exactly D_API_SKELETON_VALIDATION_READY or D_API_SKELETON_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "v2/backend/app/api/v1/health.py",
     "v2/backend/app/api/v1/mission_control.py",
@@ -61,84 +123,9 @@
     "v2/backend/tests/contract/test_taxonomy_enumeration.py",
     "claude_worklog/v2_build/D_API_SKELETON_VALIDATION.md"
   ],
-  "depends_on": [
-    "015b_database_migration_skeleton"
-  ],
-  "next_tasks_on_success": [],
-  "next_tasks_on_failure": [],
-  "max_attempts": 1,
-  "priority": 0,
-  "auto_commit": false,
-  "commit_message": "Materialize V2 API route + middleware skeleton",
-  "gate_evidence_ref": [
-    "claude_worklog/v2_architecture_remediation/12B_API_LINEAGE_ENFORCEMENT_CLOSURE.md",
-    "claude_worklog/v2_architecture/05_API_CONTRACTS.md",
-    "claude_worklog/v2_scaffold_planning/04_API_ROUTE_SCAFFOLD_PLAN.md",
-    "claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md",
-    "claude_worklog/v2_build/C_DATABASE_SKELETON_VALIDATION.md",
-    "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
-    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
-  ],
-  "safety_boundary": {
-    "forbidden_writes": [
-      "legacy_reference/**",
-      "../AI BOT/**",
-      "**/.env",
-      "**/secrets/**",
-      "v2/frontend/**",
-      "v2/backend/migrations/**",
-      "v2/backend/app/adapters/db/repositories/**"
-    ],
-    "forbidden_reads": [],
-    "forbidden_runtime_actions": [
-      "register_handler_bodies_that_perform_db_io",
-      "register_handler_bodies_that_perform_redis_io",
-      "register_handler_bodies_that_call_exchange_sdks",
-      "place_or_cancel_orders",
-      "enable_live_trading",
-      "import_legacy_trainer_modules",
-      "write_legacy_redis"
-    ],
-    "live_trading_default": "BLOCKED",
-    "live_block_guard_required": true,
-    "middleware_order_assertion_required": true
-  },
-  "observability": {
-    "events_emitted": [
-      "task.start",
-      "task.adapter_call",
-      "task.complete",
-      "api.middleware_order_asserted",
-      "api.taxonomy_enumerated"
-    ],
-    "metrics_emitted": [
-      "v2.api.route_files_count",
-      "v2.api.middleware_modules_count",
-      "v2.api.error_classes_count (must equal taxonomy fixed set)",
-      "v2.api.contract_test_pass_count"
-    ],
-    "logs_written": [
-      "claude_worklog/agent_supervisor/runs/015c_api_route_skeleton/<ts>/stdout.log"
-    ],
-    "dashboard_surfaces": [
-      "Build/Validation Status page (after 015D)",
-      "Codex Review Center (after 015D)"
-    ]
-  },
-  "tests": {
-    "unit": [],
-    "integration": [],
-    "contract": [
-      "v2/backend/tests/contract/test_middleware_order.py \u2014 boots app and asserts the exact 13-step order from 04_API_ROUTE_SCAFFOLD_PLAN.md \u00a73; refuses to start if order is wrong",
-      "v2/backend/tests/contract/test_taxonomy_enumeration.py \u2014 asserts the closed set of error classes (schema/rbac/approval/idempotency/concurrency/lineage/feature_snapshot/confidence/live/audit) matches 04_API_ROUTE_SCAFFOLD_PLAN.md \u00a74 exactly"
-    ],
-    "e2e": [],
-    "static": [
-      "ruff check on app/api/** (zero warnings)",
-      "mypy --strict on app/api/** (zero errors)",
-      "import-cycle: api/** must not import adapters/db/** directly (per 02_PACKAGE_AND_MODULE_MAP.md \u00a73)"
-    ]
-  },
+  "requires_human_approval": true,
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
   "rollback": {
     "procedure": [
       "remove every file materialized under v2/backend/app/api/ and v2/backend/tests/contract/ by this task",
@@ -150,27 +137,49 @@
       "git status shows no orphan files under v2/backend/app/api/"
     ]
   },
-  "audit_evidence": {
-    "audit_events_required": [
-      "governance.task_dispatched",
-      "governance.task_validated",
-      "api.router_skeleton_created (one per router file)",
-      "api.middleware_skeleton_created (one per middleware module)",
-      "api.taxonomy_enumeration_recorded"
+  "safety_boundary": {
+    "forbidden_reads": [],
+    "forbidden_runtime_actions": [
+      "register_handler_bodies_that_perform_db_io",
+      "register_handler_bodies_that_perform_redis_io",
+      "register_handler_bodies_that_call_exchange_sdks",
+      "place_or_cancel_orders",
+      "enable_live_trading",
+      "import_legacy_trainer_modules",
+      "write_legacy_redis"
     ],
-    "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash"
+    "forbidden_writes": [
+      "legacy_reference/**",
+      "../AI BOT/**",
+      "**/.env",
+      "**/secrets/**",
+      "v2/frontend/**",
+      "v2/backend/migrations/**",
+      "v2/backend/app/adapters/db/repositories/**"
+    ],
+    "live_block_guard_required": true,
+    "live_trading_default": "BLOCKED",
+    "middleware_order_assertion_required": true
   },
-  "go_no_go_marker": "D_API_SKELETON_VALIDATION_READY",
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not place/cancel orders. Do not import legacy trainer modules. Materialize empty FastAPI routers under v2/backend/app/api/v1/ for every endpoint group listed in claude_worklog/v2_scaffold_planning/04_API_ROUTE_SCAFFOLD_PLAN.md \u00a77. Each router file declares prefix= and an OPTIONS shim returning route metadata; NO handler bodies that perform DB/Redis I/O. Materialize middleware shells (request_id, idempotency, rbac, approval, lineage_validator, live_block_guard, db_error_translator, rate_limit, ip_allowlist, step_up_mfa) per \u00a73 in the EXACT order. Materialize app/api/errors/taxonomy.py enumerating the closed set of error classes per \u00a74. Materialize app/api/schemas/* shapes consistent with 12B closure. Add two contract tests: middleware-order assertion and taxonomy enumeration. live_block_guard must default-deny every /api/v1/live/** route. Produce claude_worklog/v2_build/D_API_SKELETON_VALIDATION.md ending in exactly D_API_SKELETON_VALIDATION_READY or D_API_SKELETON_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "Recover 015C by materializing safe API skeleton outputs only; then validate and run Codex review for 015C. Do not run 015D.",
-  "normalized_from_artifact": false,
-  "status": "blocked_approval",
-  "approval_required": true,
-  "requires_human_approval": true,
-  "do_not_autorun": true,
-  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
-  "gates_required": [
-    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
-    "HUMAN_APPROVAL_FOR_THIS_TASK"
-  ]
+  "source_truth_completed_at": "2026-05-02T02:52:09.808706+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/015c_api_route_skeleton.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "015c_api_route_skeleton",
+  "tests": {
+    "contract": [
+      "v2/backend/tests/contract/test_middleware_order.py \u2014 boots app and asserts the exact 13-step order from 04_API_ROUTE_SCAFFOLD_PLAN.md \u00a73; refuses to start if order is wrong",
+      "v2/backend/tests/contract/test_taxonomy_enumeration.py \u2014 asserts the closed set of error classes (schema/rbac/approval/idempotency/concurrency/lineage/feature_snapshot/confidence/live/audit) matches 04_API_ROUTE_SCAFFOLD_PLAN.md \u00a74 exactly"
+    ],
+    "e2e": [],
+    "integration": [],
+    "static": [
+      "ruff check on app/api/** (zero warnings)",
+      "mypy --strict on app/api/** (zero errors)",
+      "import-cycle: api/** must not import adapters/db/** directly (per 02_PACKAGE_AND_MODULE_MAP.md \u00a73)"
+    ],
+    "unit": []
+  },
+  "updated_at": "2026-06-15T19:54:42Z"
 }

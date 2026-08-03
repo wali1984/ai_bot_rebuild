@@ -1,0 +1,20 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI BOT V2 liquidation WSS client (paper/shadow only; public Binance Futures forceOrder stream)
+After=ai-bot-v2-native-ingestors-live-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+Environment="V2_LIQUIDATION_WSS_OPT_IN=true"
+ExecStart=/usr/bin/env bash -lc 'exec /home/wali/Desktop/AI\\ BOT\\ REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_liquidation_wss_loop --total-seconds 86400 --max-seconds-per-session 600 --max-events-per-session 1000'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_liquidation_wss_loop.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_liquidation_wss_loop.err
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

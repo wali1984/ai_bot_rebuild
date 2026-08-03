@@ -1,0 +1,55 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "RUNTIME_TRADING_STACK_ROLE_READY",
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "roles": {
+    "claude_codex_spark": {
+      "claude": "primary implementation executor",
+      "codex_5_5": "reviewer + safe scoped fixer",
+      "codex_spark_5_3": "scheduler / lease manager / watchdog / report-center truth updater",
+      "role": "implement/review/orchestrate; NEVER trade"
+    },
+    "orchestrator": {
+      "every_allowed_action_has_source_lineage": true,
+      "every_hold_has_reason": true,
+      "no_direct_exchange_calls": true,
+      "output_namespace": "v2:orchestrator:decisions",
+      "role": "arbiter",
+      "single_decider": true
+    },
+    "paper_trader": {
+      "output_namespace": "v2:paper:*",
+      "role": "executor",
+      "scope": "paper only; live frozen behind FrozenExchangeAdapter"
+    },
+    "risk_controllers": {
+      "cannot_be_bypassed_by": [
+        "Claude",
+        "Codex 5.5",
+        "Codex Spark 5.3"
+      ],
+      "fail_closed_when_caps_unset": true,
+      "output_namespace": "v2:risk:decisions",
+      "role": "gatekeepers"
+    },
+    "trainer": {
+      "copied_legacy_label_if_used": "COPIED_LEGACY_TRAINER_RUNNING_IN_V2_PAPER_MODE",
+      "copied_legacy_label_is_never_v2_native_parity": true,
+      "current_mode": "V2_NATIVE_BASELINE_PAPER_SHADOW",
+      "must_not_trade": true,
+      "must_not_write_old_redis": true,
+      "must_not_write_order_keys": true,
+      "output_namespace": "v2:prediction:{symbol}:{timeframe}",
+      "produces": "predictions/actions only",
+      "role": "brain"
+    }
+  },
+  "ts_est": "20260526T014445EST",
+  "ts_iso_est": "2026-05-26T01:50:04-0400",
+  "writes_exchange_orders": false
+}

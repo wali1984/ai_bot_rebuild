@@ -4,6 +4,25 @@
     "v2/**",
     "claude_worklog/**"
   ],
+  "completed_at": "2026-06-15T20:19:52Z",
+  "fail_blockers": [
+    "blockers: list[str] = []",
+    "blockers.append(LIVE_GATE_BLOCK)",
+    "blockers.append(LIVE_SYMBOLS_BLOCK)",
+    "blockers.append(SYMBOL_NOT_PAPER_ELIGIBLE_BLOCK)",
+    "blockers.append(TRAINER_SOURCE_MISSING_BLOCK)",
+    "blockers.append(FEATURE_FRESHNESS_MISSING_BLOCK)",
+    "blockers.append(FEATURE_STALE_BLOCK)",
+    "blockers.append(EDGE_AFTER_COSTS_MISSING_BLOCK)",
+    "blockers.append(EDGE_AFTER_COSTS_NEGATIVE_BLOCK)",
+    "blockers.append(CONFIDENCE_TOO_LOW_BLOCK)",
+    "blockers.append(COOLDOWN_BLOCK)",
+    "blockers.append(FLIP_CHURN_BLOCK)",
+    "blockers.append(REDUCE_ONLY_PROTECTION_BLOCK)",
+    "blockers.append(INTELLIGENT_CLOSE_GUARD_BLOCK)",
+    "blockers.append(MICROSTRUCTURE_TOXICITY_BLOCK)",
+    "blockers.append(RISK_GATE_BLOCK)"
+  ],
   "forbidden": [
     "legacy_mutation",
     "old_redis_write",
@@ -18,8 +37,13 @@
   ],
   "lane": "shutdown_readiness_review",
   "live_gate": "blocked_human_only",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/codex_review_legacy_protective_behaviors_to_v2_paper_codex.log",
+  "next_action": "Codex FAIL (CODEX_GO_NO_GO_CODEX_FAIL). Remediation: already_exists at claude_worklog/agent_supervisor/tasks/closed_loop_remediation_codex_review_legacy_protective_behaviors_to_v2_paper.json",
+  "pid_or_job_id": 252468,
   "risk_level": "L1",
-  "status": "pending",
+  "started_at": "2026-06-15T20:15:37Z",
+  "status": "failed",
   "task": "Review legacy protective behavior to V2 paper mapping. Fail on silent drops, fake full parity, live/canary/shutdown approval claims, old Redis writes, exchange mutations, or live gate changes.",
-  "task_id": "codex_review_legacy_protective_behaviors_to_v2_paper"
+  "task_id": "codex_review_legacy_protective_behaviors_to_v2_paper",
+  "updated_at": "2026-06-15T20:19:52Z"
 }

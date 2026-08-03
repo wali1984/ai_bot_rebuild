@@ -1,0 +1,53 @@
+graph TD
+    BinanceWSS["Binance USDM\nKline WSS"] -->|v2:market:kline| FP
+    LiqWSS["Binance\nLiquidation WSS"] -->|v2:liq:events:stream| FP
+    LiqLvl["Liquidation\nLevels Engine"] -->|v2:liq:levels| RG
+    CoinAPI_W["CoinAPI WSDS"] -->|v2:market:coinapi:ohlcv| FP
+    CoinAPI_R["CoinAPI REST"] -->|v2:market:coinapi:rest| FP
+    KuCoin["KuCoin REST"] -->|v2:features:kucoin| FP
+    CoinAnk["CoinAnk\n(funding/OI/LS)"] -->|v2:altdata:coinank| FP
+    PublicIntel["Public Intel\nFree Tier"] -->|v2:altdata:public_intel| FP
+    LunarCrush["LunarCrush\n(social)"] -->|v2:altdata:lunarcrush| FP
+    Nansen["Nansen\n(on-chain)"] -->|v2:altdata:nansen| FP
+    AICoin["AICoin\n(CRED BLOCKED)"] -.->|missing| FP
+    TA["TA-Lib Loop"] -->|v2:features:ta_full| FP
+
+    FP["Feature Pipeline\nv2_feature_pipeline_native_loop"] -->|v2:features:latest| SB
+    SB["Snapshot Builder\nv2_feature_snapshot_builder"] -->|v2:features:snapshot| TR
+
+    TR["Native CUDA Trainer\nPPO + MASA\nV2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"] -->|v2:prediction| ORC
+    TR -->|v2:trainer:heartbeat| MON
+
+    FB["Trainer Feedback\nv2:trainer:feedback:outcomes"] -->|label replay| TR
+    PP_closed["Paper Closed Trades\nv2:paper:closed_trades"] -->|outcome labels| FB
+
+    RL_SID["RL Core Sidecar\n(advisory only)"] -->|v2:rl_core:inference| ORC
+
+    ORC["Orchestrator\nv2_orchestrator_arbitration_loop\n393 predictions → 130 winners"] -->|v2:orchestrator:decisions| RG
+    ORC -->|v2:signals:paper| PP
+    ORC -->|v2:orchestrator:heartbeat| MON
+
+    RG["Risk Gateway\nv2_risk_gateway_live_loop\ndenies all: deny_default"] -->|v2:risk:gateway:decisions| PP
+    RG -->|v2:risk:gateway:heartbeat| MON
+    RG -->|v2:risk:gateway:latest| WEB
+
+    PP["Paper Trader\nv2_trade_management_paper_loop\npaper_only=true\nroutes_to_live=false"] -->|v2:paper:ledger| PORT
+    PP -->|v2:paper:closed_trades| PP_closed
+    PP -->|v2:paper:heartbeat| MON
+
+    PORT["Portfolio State\nv2_portfolio_state_publisher"] -->|v2:portfolio:state| WEB
+
+    MON["Monitor / Heartbeats"] --> WEB
+    WEB["Website Backend\nFastAPI + uvicorn\nai-bot-v2-public-website-backend.service"] --> FE
+    FE["Frontend\nReact/Vite\nall pages"]
+
+    LIVE_GATE["Live Gate\nblocked_human_only\nNEVER executes"] -.->|BLOCKED| EXCHANGE
+    EXCHANGE["Exchange\nBinance USDM\n(NO ORDERS PLACED)"]
+
+    style LIVE_GATE fill:#ff6666,color:#fff
+    style EXCHANGE fill:#ff6666,color:#fff
+    style AICoin fill:#ffaa00,color:#000
+    style TR fill:#4488ff,color:#fff
+    style PP fill:#44aa44,color:#fff
+    style ORC fill:#8844cc,color:#fff
+    style RG fill:#cc4444,color:#fff

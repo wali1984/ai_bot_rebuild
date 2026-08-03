@@ -1,0 +1,89 @@
+## nginx reverse-proxy template for dashboard.wajidali.us
+##
+## Read-only public website façade for the V2 control plane.
+## NEVER routes to a live-trading endpoint: the FastAPI middleware
+## chain enforces live_block_guard inside the application, and this
+## proxy only exposes /, /assets/, /api/v1/_meta/*, /api/v1/public/*,
+## and /public/* (the latter serves status payloads consumed by the
+## SPA — JSON only).
+##
+## Operator install steps (NOT auto-applied; this is a template):
+##   sudo cp nginx.dashboard.wajidali.us.conf.template \
+##        /etc/nginx/sites-available/dashboard.wajidali.us.conf
+##   sudo ln -s /etc/nginx/sites-available/dashboard.wajidali.us.conf \
+##        /etc/nginx/sites-enabled/dashboard.wajidali.us.conf
+##   sudo nginx -t && sudo systemctl reload nginx
+##   # Then obtain a cert (Let's Encrypt or operator-managed):
+##   sudo certbot --nginx -d dashboard.wajidali.us
+##
+## DNS prerequisite: A record dashboard.wajidali.us → operator's
+## public IPv4. The reverse proxy NEVER exposes 0.0.0.0; FastAPI
+## binds 127.0.0.1:8000 only.
+
+upstream v2_backend {
+    server 127.0.0.1:8000;
+    keepalive 32;
+}
+
+# Plain HTTP — redirect to HTTPS once certbot has issued a cert.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name dashboard.wajidali.us;
+
+    # ACME challenge passthrough (uncomment if using webroot mode).
+    # location /.well-known/acme-challenge/ {
+    #     root /var/www/letsencrypt;
+    # }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+# HTTPS — wraps the FastAPI app and serves SPA static files via FastAPI.
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name dashboard.wajidali.us;
+
+    ## TLS — operator-managed via certbot. Replace with actual paths.
+    ## ssl_certificate     /etc/letsencrypt/live/dashboard.wajidali.us/fullchain.pem;
+    ## ssl_certificate_key /etc/letsencrypt/live/dashboard.wajidali.us/privkey.pem;
+    ## include /etc/letsencrypt/options-ssl-nginx.conf;
+    ## ssl_dhparam         /etc/letsencrypt/ssl-dhparams.pem;
+
+    ## Security headers (matches the FastAPI security_headers middleware,
+    ## acts as defense-in-depth at the edge).
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+
+    ## Hard refusals — no live-trading endpoint shape can be reached.
+    location ~ ^/api/v1/live/ {
+        return 403;
+    }
+    location ~ ^/api/v1/intents/(create|cancel|modify) {
+        return 403;
+    }
+    location ~ ^/api/v1/exchanges/.*/(leverage|margin) {
+        return 403;
+    }
+
+    ## Public SPA + API + public payload mirror.
+    location / {
+        proxy_pass http://v2_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_read_timeout 30s;
+        client_max_body_size 1m;  # SPA is read-only; no large uploads.
+    }
+
+    access_log /var/log/nginx/dashboard.wajidali.us.access.log;
+    error_log  /var/log/nginx/dashboard.wajidali.us.error.log warn;
+}

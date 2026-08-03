@@ -2,6 +2,7 @@
 import { chromium } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { buildWebsiteCrawlRoutes } from './route-inventory.mjs';
 
 const frontendRoot = resolve(import.meta.dirname, '..');
 const repoRoot = resolve(frontendRoot, '..', '..');
@@ -11,43 +12,17 @@ const baseUrl = (process.env.PRODUCTION_CRAWL_BASE_URL ?? 'https://dashboard.waj
 const phase = process.env.PRODUCTION_CRAWL_PHASE ?? 'before';
 const screenshotDir = resolve(finalDir, 'screenshots', phase);
 const nowIso = new Date().toISOString();
+const baseHostname = (() => {
+  try {
+    return new URL(baseUrl).hostname;
+  } catch {
+    return '';
+  }
+})();
+const localAuthStubEnabled = process.env.PRODUCTION_CRAWL_STUB_AUTH !== '0'
+  && /^(127\.0\.0\.1|localhost)$/.test(baseHostname);
 
-const routes = [
-  '/',
-  '/landing',
-  '/status',
-  '/login',
-  '/admin',
-  '/admin/mission-control?role=admin',
-  '/admin/monitor-center?role=admin',
-  '/admin/coverage-system-atlas?role=admin',
-  '/admin/script-registry?role=admin',
-  '/admin/trainer-prediction-monitor?role=admin',
-  '/admin/signal-explainability?role=admin',
-  '/admin/symbols?role=admin',
-  '/admin/signals?role=admin',
-  '/admin/executions?role=admin',
-  '/admin/positions?role=admin',
-  '/admin/risk-control?role=admin',
-  '/admin/exchange-manager?role=admin',
-  '/admin/external-manual-position-quarantine?role=admin',
-  '/admin/config-admin?role=admin',
-  '/admin/strategy-admin?role=admin',
-  '/admin/trainer-admin?role=admin',
-  '/admin/orchestrator-admin?role=admin',
-  '/admin/execution-admin?role=admin',
-  '/admin/paper-trading?role=admin',
-  '/admin/replay?role=admin',
-  '/admin/audit-ledger?role=admin',
-  '/admin/system-health?role=admin',
-  '/admin/live-readiness?role=admin',
-  '/admin/claude-admin-ai?role=admin',
-  '/admin/ollama-local-assistant?role=admin',
-  '/admin/codex-review-center?role=admin',
-  '/admin/build-validation-status?role=admin',
-  '/admin/operator-proof-dashboard?role=admin',
-  '/admin/mobile-iphone-readiness?role=admin',
-];
+const routes = buildWebsiteCrawlRoutes();
 
 function routeToName(route) {
   return `${route.replaceAll('/', '_').replaceAll('?', '_').replaceAll('=', '_').replaceAll('&', '_') || 'root'}.png`;
@@ -68,8 +43,68 @@ function duplicates(items) {
   return Array.from(dupes).slice(0, 20);
 }
 
+function authUser(role) {
+  const isAdmin = role === 'admin' || role === 'superadmin';
+  return {
+    id: isAdmin ? 'production-crawl-admin' : 'production-crawl-trader',
+    trader_id: isAdmin ? null : 'production-crawl-trader-id',
+    username: isAdmin ? 'production_crawl_admin' : 'production_crawl_trader',
+    email: isAdmin ? 'production-crawl-admin@test.nervyx.local' : 'production-crawl-trader@test.nervyx.local',
+    role,
+    paper_account_id: isAdmin ? null : 'production-crawl-paper-account',
+    exchange_accounts: [],
+    watchlist: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT'],
+    alert_preferences: {},
+    is_active: true,
+    created_at: nowIso,
+    updated_at: nowIso,
+    last_login: nowIso,
+  };
+}
+
+async function installLocalAuthRoutes(page, role) {
+  if (!localAuthStubEnabled) return;
+  const user = authUser(role);
+  await page.route('**/api/auth/me**', async (requestRoute) => {
+    await requestRoute.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ user }),
+    });
+  });
+  await page.route('**/api/auth/refresh**', async (requestRoute) => {
+    await requestRoute.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ user }),
+    });
+  });
+  await page.route('**/api/auth/logout**', async (requestRoute) => {
+    await requestRoute.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+}
+
+function routeRole(route) {
+  if (route.includes('role=admin') || route.startsWith('/admin')) return 'superadmin';
+  if (route.includes('role=trader')) return 'trader';
+  return 'trader';
+}
+
+function finalPath(finalUrl) {
+  try {
+    return new URL(finalUrl).pathname;
+  } catch {
+    return '';
+  }
+}
+
 function classify({ route, status, finalUrl, text, headings, consoleErrors, networkErrors, liveBannerVisible, chartExists, internalLinks, linkFailures, dangerousControls }) {
   const excerpt = text.slice(0, 5000);
+  const finalUrlPath = finalPath(finalUrl);
   const route404 = status === 404 || /\b(error:\s*http_404|not found|cannot get)\b/i.test(text.slice(0, 600));
   const placeholderOnly = !route404 && text.length < 900 && /(placeholder|coming soon|not implemented|no payload|evidence missing|missing evidence)/i.test(text);
   const evidenceGapOnly = !placeholderOnly && text.length < 1800 && /(MISSING_EVIDENCE|CURRENT_SIGNAL_LINEAGE_MISSING|TRAINER_RUNTIME_EVIDENCE_MISSING|Evidence missing)/.test(text);
@@ -81,11 +116,16 @@ function classify({ route, status, finalUrl, text, headings, consoleErrors, netw
   const currentTruthVisible = /PAPER_RUNTIME_ONLINE_ACTIVE|V2_PAPER_TRAINER_WRAPPER_CURRENT|REALTIME_RUNTIME_EVIDENCE|LEGACY_LIVE_BRIDGE|V2_LIVE_OBSERVER_SHADOW_TWIN|pred_paper_tick_/i.test(text);
   const sourceFreshnessVisible = /(source|freshness|generated|age|REALTIME_RUNTIME_EVIDENCE|READONLY_MARKET_FEED|V2_PROOF_ARTIFACT|STATIC_PROOF_FIXTURE)/i.test(text);
   const duplicateHeadings = duplicates(headings);
-  const chartBroken = route.includes('mission-control') && !chartExists;
-  const actionableConsoleErrors = consoleErrors.filter((row) => !/favicon|tradingview|analytics|ResizeObserver|chrome-extension/i.test(row));
-  const actionableNetworkErrors = networkErrors.filter((row) => !/favicon|tradingview|analytics|doubleclick|googletagmanager|chrome-extension/i.test(row.url ?? row));
+  const chartBroken = finalUrlPath.includes('mission-control') && !chartExists;
+  const actionableConsoleErrors = consoleErrors.filter((row) => !/favicon|tradingview|analytics|ResizeObserver|chrome-extension|401 \(Unauthorized\)/i.test(row));
+  const actionableNetworkErrors = networkErrors.filter((row) => (
+    row.failure !== 'net::ERR_ABORTED'
+    && !/favicon|tradingview|analytics|doubleclick|googletagmanager|chrome-extension/i.test(row.url ?? row)
+  ));
   const dangerousControlEnabled = dangerousControls.some((row) => row.enabled && /(enable live|activate live|place order|cancel order|change leverage|cross margin|api key)/i.test(row.text));
   const linkFailureCount = linkFailures.filter((row) => row.status === null || row.status >= 400).length;
+  const sourceFreshnessRequired = route !== '/login';
+  const liveBannerRequired = finalUrlPath.startsWith('/admin');
   const needsRepair = route404
     || placeholderOnly
     || evidenceGapOnly
@@ -98,8 +138,8 @@ function classify({ route, status, finalUrl, text, headings, consoleErrors, netw
     || actionableNetworkErrors.length > 0
     || dangerousControlEnabled
     || linkFailureCount > 0
-    || !sourceFreshnessVisible
-    || (route.startsWith('/admin') && !liveBannerVisible);
+    || (sourceFreshnessRequired && !sourceFreshnessVisible)
+    || (liveBannerRequired && !liveBannerVisible);
   return {
     production_ready: !needsRepair,
     route_404: route404,
@@ -111,7 +151,9 @@ function classify({ route, status, finalUrl, text, headings, consoleErrors, netw
     stale_payload_hidden: staleHidden,
     current_runtime_truth_visible: currentTruthVisible,
     source_freshness_visible: sourceFreshnessVisible,
+    source_freshness_required: sourceFreshnessRequired,
     live_block_banner_visible: liveBannerVisible,
+    live_block_banner_required: liveBannerRequired,
     chart_exists: chartExists,
     chart_broken: chartBroken,
     duplicate_headings: duplicateHeadings,
@@ -157,6 +199,7 @@ async function checkLink(href) {
 
 for (const route of routes) {
   const page = await context.newPage();
+  await installLocalAuthRoutes(page, routeRole(route));
   const consoleErrors = [];
   const networkErrors = [];
   page.on('console', (message) => {
@@ -171,7 +214,7 @@ for (const route of routes) {
   let navigationError = null;
   try {
     response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await page.waitForTimeout(2200);
+    await page.waitForTimeout(Number(process.env.PRODUCTION_CRAWL_SETTLE_MS ?? 4000));
   } catch (error) {
     navigationError = error instanceof Error ? error.message : String(error);
   }

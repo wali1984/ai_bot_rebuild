@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useRealtimeResource } from '../hooks/useRealtimeResource';
 
 export interface FrontendTruthPageCard {
   id: string;
@@ -56,36 +56,19 @@ interface UseFrontendTruth {
 }
 
 export function useFrontendTruthPayload(pollMs = 30_000): UseFrontendTruth {
-  const [payload, setPayload] = useState<FrontendTruthPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const { envelope, loading, error } = useRealtimeResource<FrontendTruthPayload>({
+    url: FRONTEND_TRUTH_PATH,
+    source: FRONTEND_TRUTH_PATH,
+    pollIntervalMs: pollMs,
+    staleThresholdMs: Math.max(pollMs * 3, 30_000),
+    mode: 'read_only',
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const r = await fetch(FRONTEND_TRUTH_PATH, { cache: 'no-store' });
-        if (!r.ok) throw new Error(`${FRONTEND_TRUTH_PATH}: ${r.status}`);
-        const data = (await r.json()) as FrontendTruthPayload;
-        if (cancelled) return;
-        setPayload(data);
-        setError(null);
-      } catch (e) {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
-    const handle = window.setInterval(load, pollMs);
-    return () => {
-      cancelled = true;
-      window.clearInterval(handle);
-    };
-  }, [pollMs]);
-
-  return { payload, error, loading };
+  return {
+    payload: envelope.data,
+    error: error ?? envelope.errors[0] ?? null,
+    loading,
+  };
 }
 
 export function isStalePayload(payload: FrontendTruthPayload | null, sourceKey: string): boolean {

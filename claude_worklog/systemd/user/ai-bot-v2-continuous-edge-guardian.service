@@ -1,0 +1,19 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI Bot V2 Continuous Edge Guardian (paper/replay A-grade gate)
+After=network-online.target redis.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=LIVE_GATE=blocked_human_only
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_continuous_edge_guardian --repo-root "/home/wali/Desktop/AI BOT REBUILD" --interval-seconds 60'
+Restart=always
+RestartSec=30
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-continuous-edge-guardian.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-continuous-edge-guardian.err
+
+[Install]
+WantedBy=default.target

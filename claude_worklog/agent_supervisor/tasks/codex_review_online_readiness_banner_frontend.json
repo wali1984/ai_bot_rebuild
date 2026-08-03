@@ -1,21 +1,30 @@
 {
-  "task_id": "codex_review_online_readiness_banner_frontend",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/online_readiness_frontend_codex_review/latest/"
   ],
+  "blocked_by": [],
+  "completed_at": "2026-05-11T07:37:29.619845+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "online_readiness_audit",
+  "mvp_relevance": "Codex must audit the Mission Control online-readiness banner before the queue drifts to unrelated work.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "If PASS, online-readiness banner chain is reviewed. If FAIL, create a remediation task before unrelated queue work.",
+  "priority": 2555,
+  "prompt": "You are Codex parallel reviewer for the online-readiness Mission Control banner. Do not modify source code. Do not touch /home/wali/Desktop/AI BOT. Do not write/delete/trim Redis. Do not place/cancel/modify exchange orders. Do not change leverage/margin/position mode. Do not enable live trading. Inspect v2/frontend/src/constants/onlineReadinessBanner.ts, v2/frontend/src/components/banners/MissionControlReadinessBanner.tsx, v2/frontend/src/pages/mission-control/index.tsx, v2/frontend/tests/e2e/mission_control_readiness_banner.spec.ts, and claude_worklog/final_readiness/online_readiness/latest/BANNER_FRONTEND_WIRE_REPORT.md. Verify: banner uses only GET fetch to /api/v1/live-readiness/banner; renders READY/BLOCKED from all_required_matched; shows lane_id/status/marker_path; always displays blocked_human_only; no live execution imports or mutating fetches; typecheck/build/e2e evidence exists. Emit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/online_readiness_frontend_codex_review/latest/. CODEX_GO_NO_GO.md must contain exactly one line: CODEX_ONLINE_READINESS_FRONTEND_PASS or CODEX_ONLINE_READINESS_FRONTEND_FAIL.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/online_readiness_frontend_codex_review/latest/CODEX_ONLINE_READINESS_FRONTEND_REVIEW.md",
     "claude_worklog/final_readiness/online_readiness_frontend_codex_review/latest/CODEX_GO_NO_GO.md"
   ],
-  "priority": 2555,
-  "lane": "online_readiness_audit",
-  "mvp_relevance": "Codex must audit the Mission Control online-readiness banner before the queue drifts to unrelated work.",
-  "blocked_by": [],
-  "prompt": "You are Codex parallel reviewer for the online-readiness Mission Control banner. Do not modify source code. Do not touch /home/wali/Desktop/AI BOT. Do not write/delete/trim Redis. Do not place/cancel/modify exchange orders. Do not change leverage/margin/position mode. Do not enable live trading. Inspect v2/frontend/src/constants/onlineReadinessBanner.ts, v2/frontend/src/components/banners/MissionControlReadinessBanner.tsx, v2/frontend/src/pages/mission-control/index.tsx, v2/frontend/tests/e2e/mission_control_readiness_banner.spec.ts, and claude_worklog/final_readiness/online_readiness/latest/BANNER_FRONTEND_WIRE_REPORT.md. Verify: banner uses only GET fetch to /api/v1/live-readiness/banner; renders READY/BLOCKED from all_required_matched; shows lane_id/status/marker_path; always displays blocked_human_only; no live execution imports or mutating fetches; typecheck/build/e2e evidence exists. Emit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/online_readiness_frontend_codex_review/latest/. CODEX_GO_NO_GO.md must contain exactly one line: CODEX_ONLINE_READINESS_FRONTEND_PASS or CODEX_ONLINE_READINESS_FRONTEND_FAIL.",
-  "next_recommended_action": "If PASS, online-readiness banner chain is reviewed. If FAIL, create a remediation task before unrelated queue work."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-11T07:37:29.619845+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_online_readiness_banner_frontend.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_review_online_readiness_banner_frontend",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

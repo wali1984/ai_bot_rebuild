@@ -1,4 +1,6 @@
 [Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
 Description=AI Bot V2 paper shadow observation publisher
 After=network-online.target ai-bot-v2-paper-online-runtime.service
 

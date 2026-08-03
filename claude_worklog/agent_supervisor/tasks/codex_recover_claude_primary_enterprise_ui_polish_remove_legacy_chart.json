@@ -1,23 +1,5 @@
 {
-  "task_id": "codex_recover_claude_primary_enterprise_ui_polish_remove_legacy_chart",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "lane": "codex_watchdog",
-  "mvp_relevance": "Recover non-live blocker claude_primary_enterprise_ui_polish_remove_legacy_chart so the paper/backtest MVP path can continue.",
-  "blocked_by": [
-    "claude_primary_enterprise_ui_polish_remove_legacy_chart"
-  ],
-  "next_gate": "CODEX_NON_LIVE_RECOVERY_READY",
-  "legacy_evidence_consulted": [
-    "runtime task state",
-    "task stdout/stderr",
-    "GO/NO-GO markers",
-    "validation artifacts"
-  ],
-  "legacy_failure_addressed": "non-live automation blocker preventing continuation toward V2_BACKTEST_AND_PAPER_MVP_READY",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "v2/",
     "claude_worklog/phase2_core_rebuild/",
@@ -26,10 +8,37 @@
     "claude_worklog/security/",
     "claude_worklog/agent_supervisor_reliability/"
   ],
+  "blocked_by": [
+    "claude_primary_enterprise_ui_polish_remove_legacy_chart"
+  ],
+  "completed_at": "2026-05-11T07:06:03.532751+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "codex_watchdog",
+  "legacy_evidence_consulted": [
+    "runtime task state",
+    "task stdout/stderr",
+    "GO/NO-GO markers",
+    "validation artifacts"
+  ],
+  "legacy_failure_addressed": "non-live automation blocker preventing continuation toward V2_BACKTEST_AND_PAPER_MVP_READY",
+  "mvp_relevance": "Recover non-live blocker claude_primary_enterprise_ui_polish_remove_legacy_chart so the paper/backtest MVP path can continue.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "CODEX_NON_LIVE_RECOVERY_READY",
+  "next_recommended_action": "If ready, validate/commit/push and restart planner. If blocked, leave explicit blocker.",
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Recover blocked non-live task claude_primary_enterprise_ui_polish_remove_legacy_chart. You have full authority inside AI BOT REBUILD only. Inspect task definition, runtime state, stdout/stderr, required outputs, emitted BEGIN_FILE paths, and validation artifacts. If safe, patch non-live V2 code/docs/tests/planner/supervisor artifacts, recover materialized files, and emit a precise recovery report. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not deploy. Do not expose secrets. Output exactly two BEGIN_FILE blocks for the report and GO/NO-GO. GO/NO-GO must contain one line: CODEX_NON_LIVE_RECOVERY_READY or CODEX_NON_LIVE_RECOVERY_BLOCKED.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_claude_primary_enterprise_ui_polish_remove_legacy_chart_REPORT.md",
     "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_claude_primary_enterprise_ui_polish_remove_legacy_chart_GO_NO_GO.md"
   ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Recover blocked non-live task claude_primary_enterprise_ui_polish_remove_legacy_chart. You have full authority inside AI BOT REBUILD only. Inspect task definition, runtime state, stdout/stderr, required outputs, emitted BEGIN_FILE paths, and validation artifacts. If safe, patch non-live V2 code/docs/tests/planner/supervisor artifacts, recover materialized files, and emit a precise recovery report. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not deploy. Do not expose secrets. Output exactly two BEGIN_FILE blocks for the report and GO/NO-GO. GO/NO-GO must contain one line: CODEX_NON_LIVE_RECOVERY_READY or CODEX_NON_LIVE_RECOVERY_BLOCKED.",
-  "next_recommended_action": "If ready, validate/commit/push and restart planner. If blocked, leave explicit blocker."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-11T07:06:03.532751+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_recover_claude_primary_enterprise_ui_polish_remove_legacy_chart.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_recover_claude_primary_enterprise_ui_polish_remove_legacy_chart",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

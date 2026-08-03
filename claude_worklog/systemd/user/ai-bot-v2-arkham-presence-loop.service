@@ -1,0 +1,17 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI Bot V2 Arkham presence-only loop (no external HTTP, V2 namespace only)
+After=network-online.target ai-bot-v2-symbol-universe-publisher.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-arkham-presence-loop'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p v2/runtime; while true; do ./.venv/bin/python3 -m v2.backend.app.cli.v2_arkham_presence_only_worker --once --json >> v2/runtime/v2_arkham_presence_loop.log 2>&1 || true; sleep 300; done'
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

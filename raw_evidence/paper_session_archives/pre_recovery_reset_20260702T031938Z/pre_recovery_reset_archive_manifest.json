@@ -1,0 +1,3255 @@
+{
+  "active_session_extra_scope_reason": "Previous exact-key reset remained BLOCKED because v2:paper:ledger and paper_accepted_fills_state.json repopulated old active paper session trades.",
+  "active_state_file_count": 2,
+  "active_state_files": [
+    {
+      "archive_file": "active_state_files/paper_accepted_fills_state.json",
+      "byte_count": 12103007,
+      "exists": true,
+      "json_decodable": true,
+      "sha256": "2e293bd932bc951413b648d1538d79f6017cf40f4af34884225cf216a662b0a2",
+      "source_path": "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest/paper_accepted_fills_state.json"
+    },
+    {
+      "archive_file": "active_state_files/paper_lifecycle_state.json",
+      "byte_count": 56950388,
+      "exists": true,
+      "json_decodable": true,
+      "sha256": "f5d09d7b095ac9f70c90e57a13045d9c1790ef660f7fb9c56a80b15a92e13486",
+      "source_path": "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest/paper_lifecycle_state.json"
+    }
+  ],
+  "archive_dir": "raw_evidence/paper_session_archives/pre_recovery_reset_20260702T031938Z",
+  "generated_utc": "2026-07-02T03:19:41.701395Z",
+  "goal_id": "V2_OPERATOR_AUTHORIZED_PAPER_SESSION_RECOVERY_RESET_AND_CLEAN_RESTART",
+  "paper_only": true,
+  "places_real_order": false,
+  "preserved_keys_hash_only": [
+    "v2:paper:historical_outcome_counts"
+  ],
+  "redis_key_count": 248,
+  "redis_keys": [
+    {
+      "archive_file": "redis/v2__paper__a_grade_gate_burndown_status.json",
+      "byte_count": 286951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:a_grade_gate_burndown_status",
+      "sha256": "b513350531b45ee94812f185022f7a54c90966fcfbf553b31e7053e56a82c687",
+      "sources": [
+        "phase_1_required"
+      ],
+      "ttl_seconds": 3574,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__b_grade_canary_supply_status.json",
+      "byte_count": 579818,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:b_grade_canary_supply_status",
+      "sha256": "1605de9e5b5b427d180d97507877348887735af4b48afe52ae0bf4141ffa6dce",
+      "sources": [
+        "phase_1_required"
+      ],
+      "ttl_seconds": 3574,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__churn_equity_bleed_governor_status.json",
+      "byte_count": 14098,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:churn_equity_bleed_governor_status",
+      "sha256": "e48c2b87377abec9b77764ca91ba4db79137fe6af4fbaaf96c8fe2a5bfe5b13a",
+      "sources": [
+        "phase_1_required"
+      ],
+      "ttl_seconds": 3574,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__closed_trades.json",
+      "byte_count": 1428462,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:closed_trades",
+      "sha256": "bd76d65cb5092849662c935bab7b0e28fb5d96082b48c55cedd01cf9c3606bb3",
+      "sources": [
+        "phase_1_required"
+      ],
+      "ttl_seconds": 2591973,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__forward_canary_evidence_status.json",
+      "byte_count": 15877,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:forward_canary_evidence_status",
+      "sha256": "564c323d8cf1c23f93742fdfb13738ffa506f6ba9eaa3c5741fdc998580cda58",
+      "sources": [
+        "phase_1_required"
+      ],
+      "ttl_seconds": 3574,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__heartbeat.json",
+      "byte_count": 739187,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:heartbeat",
+      "sha256": "a501d72cef27d0a14d5849b8a516761e6f9ee562f4c67e5301608144e4ae98e4",
+      "sources": [
+        "phase_1_required"
+      ],
+      "ttl_seconds": 3574,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__historical_outcome_counts.json",
+      "byte_count": 2031,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:historical_outcome_counts",
+      "sha256": "4a223721d20bccc7977a6c3054f8e995dfcb3fd6ed0140eb9789055f17281625",
+      "sources": [
+        "preserve_hash_only_not_deleted"
+      ],
+      "ttl_seconds": 2212028,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__intents.json",
+      "byte_count": 43255167,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:intents",
+      "sha256": "106a690a00be7fe272bc3148e76eda539fbddd2b20bcb3a123931feb89b0b701",
+      "sources": [
+        "active_session_extra_required_for_clean_reset"
+      ],
+      "ttl_seconds": 573,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__intents_held_by_paper_fill_gate.json",
+      "byte_count": 2,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:intents_held_by_paper_fill_gate",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "sources": [
+        "active_session_extra_required_for_clean_reset"
+      ],
+      "ttl_seconds": 573,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__ledger.json",
+      "byte_count": 128282529,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:ledger",
+      "sha256": "c2aaacb22047083f7bf09c8df5e9082809612d4d6353dc4b62cc28e928a3a2dd",
+      "sources": [
+        "active_session_extra_required_for_clean_reset"
+      ],
+      "ttl_seconds": 2591973,
+      "type": "string"
+    },
+    {
+      "exists": false,
+      "key": "v2:paper:open_positions",
+      "sources": [
+        "phase_1_required"
+      ],
+      "ttl_seconds": -2,
+      "type": "none"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_labels.json",
+      "byte_count": 31673485,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_labels",
+      "sha256": "5d27d1ba51e21c591eff349d61290593521e9db2d29b722a99b2c6d73900907b",
+      "sources": [
+        "active_session_extra_required_for_clean_reset"
+      ],
+      "ttl_seconds": 2591973,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__1000BONKUSDT__1h.json",
+      "byte_count": 1119,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:1000BONKUSDT:1h",
+      "sha256": "a899aec1892e213b6e9dabe6fca84b335b56b4f134624ccfd6b6ede78f0a2dd3",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__1000BONKUSDT__4h.json",
+      "byte_count": 1271,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:1000BONKUSDT:4h",
+      "sha256": "ad088f567d21ea63a78bc8758a8c426418f35a6b650f407cfcaccd066680c99e",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__1000BONKUSDT__5m.json",
+      "byte_count": 1183,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:1000BONKUSDT:5m",
+      "sha256": "32e2ef36b75d86fab9e363c4ae2d665d9847481c012112b3ee80408d21cdff20",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__1000PEPEUSDT__15m.json",
+      "byte_count": 1119,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:1000PEPEUSDT:15m",
+      "sha256": "6ebca567310d0058857168dce5499a844e2d1f1a39bab8fadea7142ac340c877",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__1000PEPEUSDT__1h.json",
+      "byte_count": 1256,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:1000PEPEUSDT:1h",
+      "sha256": "33aefea2f27013783585bb583191de311cddb46173dcc9fcebbca687a4e07254",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__1000PEPEUSDT__4h.json",
+      "byte_count": 1214,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:1000PEPEUSDT:4h",
+      "sha256": "0f689905a771db362640f8a142d4dd8574bdb6980dcba38d6369155a130fd9bf",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__ACTUSDT__15m.json",
+      "byte_count": 1131,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:ACTUSDT:15m",
+      "sha256": "fbd7db7708e21d223cd5b3ef706d06a7483192f38b52a2f5ec79e5d9c1c9dd21",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__ACTUSDT__4h.json",
+      "byte_count": 1127,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:ACTUSDT:4h",
+      "sha256": "8d9f586addaea0e1a28b04650cc2ad3b6a0c653e810a6d25f7b98118c1bd2ecf",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__AUCTIONUSDT__15m.json",
+      "byte_count": 1277,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:AUCTIONUSDT:15m",
+      "sha256": "20a8ac2264f3e3dc211eb44153dbf9927b0a808eeb6364bf44731cf915909c15",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__AUCTIONUSDT__5m.json",
+      "byte_count": 1133,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:AUCTIONUSDT:5m",
+      "sha256": "45e631aefff61c604d9a7195774dd23b5adf6ed4e3b3f34ac49c8a925387a2a0",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__BANKUSDT__15m.json",
+      "byte_count": 1118,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:BANKUSDT:15m",
+      "sha256": "f63f06fbc2814b0c01289f09acf62bf32db7afab4dee2b6a4517e5eec79aed40",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__BANKUSDT__5m.json",
+      "byte_count": 1114,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:BANKUSDT:5m",
+      "sha256": "afb2ce25de6ab3e1b0b41b52dd93ae60c6141816a96e4037dba25314fdca6203",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__BASUSDT__15m.json",
+      "byte_count": 1134,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:BASUSDT:15m",
+      "sha256": "78c39516846ae5003b722d3d52e72f7b756fa3e603025ef402cf841376a2cdcf",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__BASUSDT__1h.json",
+      "byte_count": 1176,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:BASUSDT:1h",
+      "sha256": "ec3ec7df2e29734395521ad9b25231ef9980276271c692643b9f6f249d9dfe27",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__BASUSDT__5m.json",
+      "byte_count": 1379,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:BASUSDT:5m",
+      "sha256": "7f2cc5f64f7f705d832adf379e77adf084c41394898df65e35bcca447f5757d2",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__BELUSDT__1h.json",
+      "byte_count": 1147,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:BELUSDT:1h",
+      "sha256": "d8c528c8b47a8c33fb943b91192109bd73a93c2082301ffcd7590986e0270813",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__BICOUSDT__1h.json",
+      "byte_count": 1176,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:BICOUSDT:1h",
+      "sha256": "6b80227e3b66c788192fa944a63df8b3d0e52e6f4566221eef909d94950ea1c8",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__HEIUSDT__1h.json",
+      "byte_count": 1162,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:HEIUSDT:1h",
+      "sha256": "7ac7ba1b22ccadc74f3d87a0f6dbbb424c0de6c08a914f396f145424c4cd5be3",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory__HEIUSDT__5m.json",
+      "byte_count": 1226,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:HEIUSDT:5m",
+      "sha256": "8ef71c1590bf98d39d4817f507bf669f91ea13bfb24e43bfaf76542c7559f993",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory____ALL____15m.json",
+      "byte_count": 1472,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:__ALL__:15m",
+      "sha256": "deac4c209283473642e8dfbb0f35625df433aa54eee6ac40fb2484ca74fd2021",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory____ALL____1h.json",
+      "byte_count": 1695,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:__ALL__:1h",
+      "sha256": "d99ce50ab19a747ae8cb8eb2aef925376e23fe1496331f1cb7e82f8b676c139e",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory____ALL____4h.json",
+      "byte_count": 1465,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:__ALL__:4h",
+      "sha256": "4139f3e4c476e183b1b9c2926671f95f32e25516a2adf280dbf24c54f003954d",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__outcome_memory____ALL____5m.json",
+      "byte_count": 1717,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:outcome_memory:__ALL__:5m",
+      "sha256": "5dfc9504b7d5170a30497bb29abb504327cfad596e59f232d86f4935777a3092",
+      "sources": [
+        "pattern:v2:paper:outcome_memory:*"
+      ],
+      "ttl_seconds": -1,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__1000BONKUSDT.json",
+      "byte_count": 1741,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:1000BONKUSDT",
+      "sha256": "3151bee681ebd6760055fbd3e2e0fff75ae31d188ee26c98a057e383cb7991a0",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__1000FLOKIUSDT.json",
+      "byte_count": 1742,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:1000FLOKIUSDT",
+      "sha256": "4ad5f1294c620932ac0158a5d1b2244744a56793a08f4fe6af0654cf24375a3a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__1000PEPEUSDT.json",
+      "byte_count": 1741,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:1000PEPEUSDT",
+      "sha256": "4a090d1a65fd7ea15b5fd0818ed05db5e019f04cd80c77e52ea4f6e18d0cf221",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__1000SHIBUSDT.json",
+      "byte_count": 1741,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:1000SHIBUSDT",
+      "sha256": "33ba61055705022c9658b8485cb3068eb312a5598b78f9bf302dac2b727ed9ea",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__AAVEUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:AAVEUSDT",
+      "sha256": "09f5a8011cd57cd0f19eb96522906645beaac6a1b8f67f944fb84c562e4f0371",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ADAUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ADAUSDT",
+      "sha256": "06e9ae84b348d5a9f07bc835d2c59631019ace74ed6e00f4b00f141f667f66c4",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__AERGOUSDT.json",
+      "byte_count": 1738,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:AERGOUSDT",
+      "sha256": "b606c0b9bd573f4e4831b496b9c15287e9023181324365dec9162d1a4d86a2be",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__AEROUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:AEROUSDT",
+      "sha256": "e92c73fc54ab049f679420ce7a9e71a3ff8d3f401856352bd5657b44154622eb",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__AGTUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:AGTUSDT",
+      "sha256": "1e4e9ffab9cf23ea18feaaa6c2ff300778b83afd45e65e56d27a25f280b68452",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ALICEUSDT.json",
+      "byte_count": 1738,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ALICEUSDT",
+      "sha256": "909cdf95165f77d74c17647aa1dbcdb9ced7ff06e54b1e18c5f5bb13093fe1db",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ALLOUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ALLOUSDT",
+      "sha256": "e0b62dbe57b9e6cb3180f3bc676089cbb9ff4d042230911efc1912375bb6649e",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__APTUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:APTUSDT",
+      "sha256": "3b18f51bce8a8306ec0b7e3af8dc59d8444a81e23a5c6913e80e48824c5c31e2",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ARBUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ARBUSDT",
+      "sha256": "ebacab46d8f011bf20cd46d9d3ec8b8ad36faaa59e69824330da4d0bb980a1b0",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ASTERUSDT.json",
+      "byte_count": 1738,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ASTERUSDT",
+      "sha256": "1078fa201f5f9cee509621d9017c8b52909ce57cfba53badc3b909b749a7026c",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__AUCTIONUSDT.json",
+      "byte_count": 1740,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:AUCTIONUSDT",
+      "sha256": "d7153f7fb15f78ffbee076f593cddafd61aca522ff86611cf986df125d6921af",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__AVAXUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:AVAXUSDT",
+      "sha256": "3ab7872a9ce30f50ab33b7f834c3ad9491ae2f382a8739b0fa3edc70b7b8bc78",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__AVNTUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:AVNTUSDT",
+      "sha256": "1839265c0364029934f89ca745bc6087b74fcf6b5430da8e5a376585ff24d2df",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__AXSUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:AXSUSDT",
+      "sha256": "24487ef59e2d3be6a84bea784291aafc763e2ce4c13935d23b0338882ac48ee7",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BANKUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BANKUSDT",
+      "sha256": "2482b7e7368315cc0e207454a5d8a0e22ff9c8752e9b58d18c3baed071357daa",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BARDUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BARDUSDT",
+      "sha256": "f745f4221ddf15a1a27843e52d3c940469525898b7e3ecc4cf1c8c699421c439",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BASEDUSDT.json",
+      "byte_count": 1738,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BASEDUSDT",
+      "sha256": "2798e7666dd9917ab389628877f8d03b0f90296316cbc6ca5e5f656afdcd72e1",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BASUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BASUSDT",
+      "sha256": "6fadbf54f3307f9adecc24477efa7552957ebbbd72a3e555654d09bb8a6ed758",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BCHUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BCHUSDT",
+      "sha256": "adeaac6b59b125474253e7c082e2ed65ede55a1b144fb03a1d54c4f6ebd81407",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BEATUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BEATUSDT",
+      "sha256": "228747caf1ac177302cbf02c7e8039b71e0bbf0f6bf2b557ce244eecc790ef0d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BELUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BELUSDT",
+      "sha256": "42030281d35257002a1706ff1110256837c433cdedcb15f0873cca96d3f8955d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BICOUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BICOUSDT",
+      "sha256": "28ed2d5a171db8c80d9e526b83e4702c7bd62b3f8d511ef8753dfb6f17ff8d70",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BNBUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BNBUSDT",
+      "sha256": "78e00bb4ac12d0c8e45626f475f66471fe8f92bfdf2d47699419c803ad5e98e5",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BTCUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BTCUSDT",
+      "sha256": "c4a01ba8070694952a177bf0fbc274053ee7e8b1e14905464184a79de1dbcaa3",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__BTWUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:BTWUSDT",
+      "sha256": "6186e88ea94559546ece7ed22cdb4099545244055ab65748666d03fa177a77d2",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__CELOUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:CELOUSDT",
+      "sha256": "5a5ae2686f0230fe600d87b4b12212bd9f5702e4a75bcb08932432d5c33e8b2a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__CHZUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:CHZUSDT",
+      "sha256": "d037d2694bca0f877e9c73879ff8f7df662fe73b5f183f06b231e5ab405376e5",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__CRVUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:CRVUSDT",
+      "sha256": "5d6ed2c91464432b4bcf86f3b412a578b28ef75252b9d89a4a256041dd4c21bd",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__DASHUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:DASHUSDT",
+      "sha256": "d36c0ea858efee0c36307b3da623a9c5511357bc359890b6b9d3e60fa28badbf",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__DOGEUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:DOGEUSDT",
+      "sha256": "0c588ee36c52c60114ace9bf1fee718160f73a83919ffe13515c359b133954ee",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__DOTUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:DOTUSDT",
+      "sha256": "0dbb257bfbaeecb38763a80f84c969a3459c6cda77844919f59f405f967b2832",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__DYDXUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:DYDXUSDT",
+      "sha256": "ba2b2eaf7a209cc19f767ae227619d873ca309bf8f8d4f8e0cbff71dbceff158",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__EIGENUSDT.json",
+      "byte_count": 1738,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:EIGENUSDT",
+      "sha256": "18f024223d86b3380e17d4f6333164d0f336710aef5a17272b2e9539e4b5edd2",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ENAUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ENAUSDT",
+      "sha256": "d7cf14a72233f6b3da6aeaf6e2cf05c52475bf86cca3910d0aba62a38e9300d2",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ENSUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ENSUSDT",
+      "sha256": "337b44f866e869a6a04516c5ff9974db5f6a73088f0ad446bf1a12ce4703af49",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__EPICUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:EPICUSDT",
+      "sha256": "0f90366aa172076ff9a091b3dbcc75b53526017a9e57dba433e283ab6090b513",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ETCUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ETCUSDT",
+      "sha256": "43239b441e15e123a7f800adbbe882bf8cbdbf7871e1dd239c23282c23095f92",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ETHUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ETHUSDT",
+      "sha256": "9953a0ae0ee9316070afff1853b929ca1f056d4b2cf842ab1ca91f352b7870be",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__FARTCOINUSDT.json",
+      "byte_count": 1741,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:FARTCOINUSDT",
+      "sha256": "ce454cb5c0b47917c589d2239933a02813f2d44ddf2534efb20c7ef5b575d819",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__FETUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:FETUSDT",
+      "sha256": "5e111d603c56e904d01f5a1728da94a8b140cad1c613e2753df6a6f2dd8e6816",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__FILUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:FILUSDT",
+      "sha256": "de2e3d9645a3d89108b027d0d393501174bcf675d8cb48a8db0e87cadd596848",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__GRASSUSDT.json",
+      "byte_count": 1738,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:GRASSUSDT",
+      "sha256": "ccae7f6cdd37064af744a1420f9d282897159670daf8d9c91e38b845e77dfe94",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__HBARUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:HBARUSDT",
+      "sha256": "0fdbfff36a81d602186c864ab9e917d6ed744e3cb7e039923703dbfa35833649",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__HYPEUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:HYPEUSDT",
+      "sha256": "701301137b781b93da7f72945dc81cddf2d492a9459f6a40e02ad5f2306d82fd",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ICPUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ICPUSDT",
+      "sha256": "acc96df03d502f39cccecc607631aa1656f41b9c76b4c11b9db569b896725fa8",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__INJUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:INJUSDT",
+      "sha256": "c3828d146e53fab462f0cc86e34b6a5bf9d5dc37ac9d7ca7ca44ffae334d5053",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__IPUSDT.json",
+      "byte_count": 1735,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:IPUSDT",
+      "sha256": "7234a4631a1801bfc351137faa31cc55fc4f2bbb669567ee0455a3cf6d8656ae",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__JTOUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:JTOUSDT",
+      "sha256": "8b634d40c31d2229ade6f36df2d01149d98999515b0dd749f6ebd7e6b6581789",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__JUPUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:JUPUSDT",
+      "sha256": "825b30a5ae30fa747cb338686b998a5f58bbf374cd577acea69952f24e825beb",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__KITEUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:KITEUSDT",
+      "sha256": "0694986829ca7336463b3b924a8d53c0da77b53ecc537c59174757d139c91291",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__LABUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:LABUSDT",
+      "sha256": "66e931ff5e3a8e07d64f918964c747de64bb2d57df67f76b073673b492ba8df3",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__LINKUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:LINKUSDT",
+      "sha256": "bde8e1e25c5152ea5fa9be1d616ea42d076ed822a86e5742d43ea941ced4c3d2",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__LITUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:LITUSDT",
+      "sha256": "bbab82e3bc6e2b03410ab4b4669f4e3993e33df7e801547aea454cf25b0eaa69",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__LTCUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:LTCUSDT",
+      "sha256": "4727010173c98f5036920d57ddc66d6dd02cead09a12d7f451b4585b72423567",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__MANAUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:MANAUSDT",
+      "sha256": "3b98e173ea0a544db6aeff90c0c2841f1f8de7a51f922510116632f792a0ed70",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__MEGAUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:MEGAUSDT",
+      "sha256": "453a68c8934e93205a647ce03af842475d03e92be1c19a16d745890891819275",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__METUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:METUSDT",
+      "sha256": "3cc21fb0c2ac12a650ba4be5b9651e70a489822f1d4583c22f247434cf5b2a6b",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__MONUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:MONUSDT",
+      "sha256": "29ad758ec689320545ebeca95fc3e7d89fad44f78a18c3f8bba5670d2aecc0e5",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__MORPHOUSDT.json",
+      "byte_count": 1739,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:MORPHOUSDT",
+      "sha256": "cafeb6c49172816a8d041ab321f1871c55342c2b8f065432aa2827e0ccd2bd9b",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__NEARUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:NEARUSDT",
+      "sha256": "f893b20d01e3f99fe6162784b5e24a73ec00ddcd638a4041bbecce925f175338",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__NFPUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:NFPUSDT",
+      "sha256": "84d6a582508c7a68f3847f2fcd89ca83cc02702a97a2feebd388fca121e7a85d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__NOMUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:NOMUSDT",
+      "sha256": "048102f4fcee1fec1ce4a80462dec478d269d3b774b708bca5ef9c8980a7fd5f",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ONDOUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ONDOUSDT",
+      "sha256": "40f353caeee1958660833957791b3a58972f2d6e710212b6361573ea9bff9061",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__OPUSDT.json",
+      "byte_count": 1735,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:OPUSDT",
+      "sha256": "0cb2b3beaa7123f6e9bd032674ef6db71be2234937d730347e1fbffa5f9c9bb7",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ORDIUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ORDIUSDT",
+      "sha256": "76a46371d02ac10b455d8af5c6fad3c7d8d63c7f9241135634e93a14aca82892",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__PAXGUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:PAXGUSDT",
+      "sha256": "8334351dcfb7ae3087018f800d37694be94deadd4b01f8fe358e46c05fd16343",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__PENDLEUSDT.json",
+      "byte_count": 1739,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:PENDLEUSDT",
+      "sha256": "d86edded249a0ea72cdf1fb3682a6479903045c56413bf3723b8b05fa06d9b8f",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__PENGUUSDT.json",
+      "byte_count": 1738,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:PENGUUSDT",
+      "sha256": "9717ed79cc0ec310278cb268b82740c7151d266dbde0a6da392dca846edbac06",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__PIPPINUSDT.json",
+      "byte_count": 1739,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:PIPPINUSDT",
+      "sha256": "6ac78ceca820ee5f20e2cab5b032bbbeff8e9b78b9e32af5b80f5d7742cb549e",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__POLUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:POLUSDT",
+      "sha256": "106a86c9d76b934cec71d3000dc7fba55b93d88240c0d1231c95edb2f18494b3",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__PUMPUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:PUMPUSDT",
+      "sha256": "e2d704567d124ebeaf1c861a5e2ae5e4ef1d4a401d109e35a16b2c84116a466a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__PYTHUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:PYTHUSDT",
+      "sha256": "40d9ec55bd731da07c6c13ff2632c7bb0ea96f45bba725438eb5a53db50ced13",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__RAREUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:RAREUSDT",
+      "sha256": "121e9f69290a1b98076e0ff8eb9205193a51c436bed601377367fe76cd7ad35c",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__RAVEUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:RAVEUSDT",
+      "sha256": "44edc3b3fc9b247718ba030461e7fc23cf15fc0cd99dd17ffac04c3f4fda6c62",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__RENDERUSDT.json",
+      "byte_count": 1739,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:RENDERUSDT",
+      "sha256": "4fd9bed7ea295db5f63484c0d930386f9e460fc20605ec5fc3ba7178e978c0d2",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__REUSDT.json",
+      "byte_count": 1735,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:REUSDT",
+      "sha256": "7f47c05b4d056dcb69157517107b2ec0603e41339883bf3f0ffe02a82eb8c7a9",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__RIVERUSDT.json",
+      "byte_count": 1738,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:RIVERUSDT",
+      "sha256": "2d2b6fb5369d6c7e80a39932a72115f61535c930d1b7ceea694207c750f2fc67",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__SANDUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:SANDUSDT",
+      "sha256": "2f273ae1a7fc3b87e9bd15f55520677108aafdd6db29b8ac8b2877488f32227b",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__SEIUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:SEIUSDT",
+      "sha256": "50c6dd4d56178d7372a5a8c478f1fc0e56440be91bd98770caa99cd4c68f527f",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__SLXUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:SLXUSDT",
+      "sha256": "ed7e1758db914feefb332c57679f40dd717cc9e6a81578a62cdaba9d9a10a4d3",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__SOLUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:SOLUSDT",
+      "sha256": "36f85f3ca8809f2e9d9861689d69b07bdb9cec58c94d38e0be682f90e5f7005a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__SUIUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:SUIUSDT",
+      "sha256": "357fca57a14170823103dc6d987a37525fdb61d32811817e1a72ffb046ca39da",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__SUNUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:SUNUSDT",
+      "sha256": "04bb91de9c9d1fcf2adbae5d5ce367901b0dae549ff892c8d255b87b4afef0d3",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__SYNUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:SYNUSDT",
+      "sha256": "e3d1a898040decb4c78ff368fbb5111fb2cdbcd42a58c1c71059b5b0e4b55e54",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__TAIKOUSDT.json",
+      "byte_count": 1738,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:TAIKOUSDT",
+      "sha256": "83330eeefb869fe21b0591ff348ea2b7026bd9aca217a737c64beaafbe36408f",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__TAOUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:TAOUSDT",
+      "sha256": "d1ed0e35a596cc8cd6cdcd258d4cdd48ec52ada8e01c9dff092dd68eb41563fb",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__TLMUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:TLMUSDT",
+      "sha256": "06cfd0769d52588c44176f018e5da359bcef81a70fa6a8f3a6e55f7b95417b5e",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__TRUMPUSDT.json",
+      "byte_count": 1738,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:TRUMPUSDT",
+      "sha256": "7c6ba33cb3fa8c4b5eabe6de85c62c664497bdf5bf0d494dafefd6c55fd45298",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__TRXUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:TRXUSDT",
+      "sha256": "f0a4685ceaf870f967d9506a48736fa870f9a733fd9b901ba918c56faef5ec59",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__UNIUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:UNIUSDT",
+      "sha256": "6a45d3661c9a0509d8f0936c7b8cb63b0161878fb3f955765bcf29284cc51737",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__VIRTUALUSDT.json",
+      "byte_count": 1740,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:VIRTUALUSDT",
+      "sha256": "9d2df6df5c3484e77d20809a6047dab2e5d58435caa072ca194e646d8229f97a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__VVVUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:VVVUSDT",
+      "sha256": "1cf400f71d330fcbe750e47a47990330919928ab772c4e192bc05c426140c52c",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__WIFUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:WIFUSDT",
+      "sha256": "f4679c0deb4ce6f4628e4956a83c45be0eab5fc07cc8a992feca64036e483139",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__WLDUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:WLDUSDT",
+      "sha256": "f7b053008534f51b9611c3ac1750ae99e8d4000d0f7db0e840eb7d5731a97d58",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__XAUTUSDT.json",
+      "byte_count": 1737,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:XAUTUSDT",
+      "sha256": "7bdc441125e41d82a2073a43ac30a3ff720cf4f469b2d0c3eada0a244b337418",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__XLMUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:XLMUSDT",
+      "sha256": "d2af2d67b51e4242e99662c45111268b5fd71536cd83fe261bd0a6b2686f13e0",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__XMRUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:XMRUSDT",
+      "sha256": "1d27b22884c848787e1134f8fce2cc4e3b935ec4f4ef6b36c00166c97eb0a7d1",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__XPLUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:XPLUSDT",
+      "sha256": "dbdda2b27b07e6a100a2619a0764194a39667cf71834b090a990dad56279e6f3",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__XRPUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:XRPUSDT",
+      "sha256": "08c91072ebb82113fed100205223e5feed7baa3a964012c500ee33b460b8d62d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ZBTUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ZBTUSDT",
+      "sha256": "4e6be706aae352517615112ef18041b2cd10c66c1141e09fcac60971e08135e5",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__ZECUSDT.json",
+      "byte_count": 1736,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:ZECUSDT",
+      "sha256": "99a9bc5e8b0c6f89958c6462d66e6bd21a2db6d108caaf2d30d24764664cba2d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_history__heartbeat.json",
+      "byte_count": 28593,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_history:heartbeat",
+      "sha256": "9809688cb05f3a4a6cdc445566916e7cf3f88db8d5202de55325fe9ba30760f6",
+      "sources": [
+        "active_session_pattern:v2:paper:position_history:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__1000BONKUSDT.json",
+      "byte_count": 955,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:1000BONKUSDT",
+      "sha256": "81aa89228d99e3811a671f63e09d80d7a0f9d2962b37eebcc8612a591ceea63d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__1000FLOKIUSDT.json",
+      "byte_count": 956,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:1000FLOKIUSDT",
+      "sha256": "7bc270ad764ae523cb91bdd021dfb787255aaef2d1816c4db2479ff3c1734d84",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 865,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__1000PEPEUSDT.json",
+      "byte_count": 955,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:1000PEPEUSDT",
+      "sha256": "a554160b3a8ab1af767b7be912a5d433311f4f70ca23a90c3348c83a12e8582d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__1000SHIBUSDT.json",
+      "byte_count": 955,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:1000SHIBUSDT",
+      "sha256": "f985af4e21fe0b644cf0dcfc72ae06083b7a7cf434581fc5bcfd3eb52855eb83",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__AAVEUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:AAVEUSDT",
+      "sha256": "b5645b8836124ff5b37b201be8fecde998b0b9184ccd8acd1610355037dc8c04",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ADAUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ADAUSDT",
+      "sha256": "1395e811399670906bb71c19bdd3dc2cf9634071895633ec8d7ca8a79d281902",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__AERGOUSDT.json",
+      "byte_count": 952,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:AERGOUSDT",
+      "sha256": "8bd6d4529afd1fa872204abac50f8e8bbeb983aa4bb9490ff500618d891548d6",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__AEROUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:AEROUSDT",
+      "sha256": "f4b77a54338b7b57cc23655c46872dc0e9241121126708d839003df3add6ff3e",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__AGTUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:AGTUSDT",
+      "sha256": "3f8745876603df491ebed398fcfee02059fe2d585384958b5c4e0107fd1b148d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ALICEUSDT.json",
+      "byte_count": 952,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ALICEUSDT",
+      "sha256": "6426ed636cf26cfe4e51220a65ddcc03895178daec3e9a46682107c9f9ea0807",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ALLOUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ALLOUSDT",
+      "sha256": "39f00cc7e3073eab483282a7535b2f32bc5b81dcbbefdb363f63cabdbb62b927",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__APTUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:APTUSDT",
+      "sha256": "ceb291eb01a5346b10e47e53837cd368bc575774db6b98fab0eecb748f63f477",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ARBUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ARBUSDT",
+      "sha256": "44d243191cdb9baacb36a0b0b188dd969f2316b2b4f19539d956ff9a47820f6b",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ASTERUSDT.json",
+      "byte_count": 952,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ASTERUSDT",
+      "sha256": "4807e050368cca5c044687a4cf2da56916115d80c6a5b19f0c2e71f7db28930f",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__AUCTIONUSDT.json",
+      "byte_count": 954,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:AUCTIONUSDT",
+      "sha256": "83d4b387acfb2d5aacc2e746a139965f2ed2483f7e986ff43a021ab77c7d6f27",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__AVAXUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:AVAXUSDT",
+      "sha256": "39d3d878f7e1cbdc1c21e77ee40a63e179dc3879bb571cadb6b109bcd1e9de5c",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__AVNTUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:AVNTUSDT",
+      "sha256": "769c32d5601b86fb6295f9d6962224726905ad8f3755183e4ef68d29e6289d77",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__AXSUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:AXSUSDT",
+      "sha256": "bc6a801183358c1354eb28b8a48f775611f88b6b3c082bf2255e0f8e44ac269c",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BANKUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BANKUSDT",
+      "sha256": "57d8a1e279f088069790491b5f24c672b3f78fb7c8b0400f83fa8c913c8a3243",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BARDUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BARDUSDT",
+      "sha256": "757e99b77f6954a4d3a1e46bc8ad4a9fb8d11a49ebc6cc904f0cdfcb9de60005",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BASEDUSDT.json",
+      "byte_count": 952,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BASEDUSDT",
+      "sha256": "1cbae68e559b2a31f97b593ff6de1a1aac603554c7aeedbd6840d73b0418e04d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BASUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BASUSDT",
+      "sha256": "8044990963e62f6331fb669922243ca90640a0bdd33138690e8e6dfd5548db0f",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BCHUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BCHUSDT",
+      "sha256": "b924bd865e037e96aefdc6cda316fbb320ec4a0d8a0ca2992c904e464a8ad2d4",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BEATUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BEATUSDT",
+      "sha256": "ae6c7b95139d61a6f91b8bc98dd4d96d34ba6523ff157205d5d7f10eec5d943a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BELUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BELUSDT",
+      "sha256": "d48bdc84ed647c9ade5dba0b43891a2c59ffd2350c148528451feca01e9c0e9c",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BICOUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BICOUSDT",
+      "sha256": "21bda7c931e6b07ec9b9be988b0a7e9adac21355dfb019c3a1012bcbde91a44b",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BNBUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BNBUSDT",
+      "sha256": "e9e25707579c1a9443d1ecad2f32c01dabb4adac5a41dc835097525a9b7ced96",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BTCUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BTCUSDT",
+      "sha256": "7ed72816c4b75ab602ecdd49df1db96707856f113ce33ef7fa0df1efa7dfb8f0",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__BTWUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:BTWUSDT",
+      "sha256": "a2f26da61bd0a20ca67e0f812fb306e9f22fd383de59e738292d6025758f784c",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__CELOUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:CELOUSDT",
+      "sha256": "0e13219dd016375c9bfdc50b23c8e770f717c46ddc38d0eed08e7fe6feec299e",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__CHZUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:CHZUSDT",
+      "sha256": "5c6fbd962574be6685fc404b0488dccb11ac750f2f93814d2eace4a37c814498",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__CRVUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:CRVUSDT",
+      "sha256": "3f8a7a9ceee7d4bd5c6eb93f6409fb79701ece9bb9c61b70dfea778b5a36095d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__DASHUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:DASHUSDT",
+      "sha256": "8f072aed6fa0b3c45aaa737d8b689bf925d5264d85ba174832d4af8f3ea371ac",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__DOGEUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:DOGEUSDT",
+      "sha256": "fcb46e6ac471cc67f7d6d90de96cd2cb89d416482317e6e4c1032c706d97cb61",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__DOTUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:DOTUSDT",
+      "sha256": "261d9f01be000a10232cb9a94d42e3a1d573f214e6ae285e50042b9a2e59cac0",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__DYDXUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:DYDXUSDT",
+      "sha256": "1b8f94308cae0c47bdace1dfe37f911fa89ecb3b21b57b391f66b283ed7a0ee9",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__EIGENUSDT.json",
+      "byte_count": 952,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:EIGENUSDT",
+      "sha256": "b2acbdaa46d100cbfee0374cfed5c0f0e62c942522215df6dbeb985956df08df",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ENAUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ENAUSDT",
+      "sha256": "ce31358b94308859f9c2c93d92988865cd2d4c0e0f9116a1a1574aba5c2c3a7f",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ENSUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ENSUSDT",
+      "sha256": "de9a5ddd405b6b5b5c7e02e34ce390bc43d4e367ccc7cb4276d0d6e169863502",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__EPICUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:EPICUSDT",
+      "sha256": "c96a4ce9c1d64a5ec5c5ac6fdb41224dea6fd68250144223190c907dae7b5a80",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ETCUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ETCUSDT",
+      "sha256": "3dba3782b7c14c6042766f2e9a067a9de8bfdc70b19a64ef4f3d261ede2f4fee",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ETHUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ETHUSDT",
+      "sha256": "88424d495bacfec42997d1cb4345ad49a6fe5c76636c9170ee775b91c84702a4",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__FARTCOINUSDT.json",
+      "byte_count": 955,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:FARTCOINUSDT",
+      "sha256": "fe53d9bb9aa4119fdae349064a2c630322bb5c66cc4b2190015b0d85b087bf51",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__FETUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:FETUSDT",
+      "sha256": "57831773aadafd74d19b8f9bb373908aaee587d9c8b4c127ac26e1cef9ad2a72",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__FILUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:FILUSDT",
+      "sha256": "58a990a9526d1ce27ffa962665fc5948fa8890085f8a04b6f2ef603b4e22512a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__GRASSUSDT.json",
+      "byte_count": 952,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:GRASSUSDT",
+      "sha256": "bc1cbb38e1752901a2f14d92aaf0911ff96f6f091eb44b24a284b2437eae5a14",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__HBARUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:HBARUSDT",
+      "sha256": "30400525f2b8213f5ba12bd4afda6604a3ecc3a906fcce4e8bc07ce39184ad5d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__HYPEUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:HYPEUSDT",
+      "sha256": "3bdcebb341148e4f69c262d8fc9d359d87fdd729b6960663631f5cdccfce5989",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ICPUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ICPUSDT",
+      "sha256": "3a882e33196efbda2997afe67588545ec9d5231d604c0fb2203f1d2fb6699b06",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__INJUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:INJUSDT",
+      "sha256": "0825893e57f729ca32d4febcae0fbc6cbd4d932962c9f5a0e2ad87fd3e6cbb75",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__IPUSDT.json",
+      "byte_count": 949,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:IPUSDT",
+      "sha256": "0a081ccf6729dba03c8fbd2ebdcad58b24938cebcca62c674095163615b74185",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__JTOUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:JTOUSDT",
+      "sha256": "3ecf9e79e1928279278458f01b524b2763480989b541b89f9ed2a608259de126",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__JUPUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:JUPUSDT",
+      "sha256": "233dee2e371757073b31d12b21bada8684701655726a38acde6cb9ec4039e05a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__KITEUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:KITEUSDT",
+      "sha256": "560fa6f3e2a3562b7d935845e2629d159c5e94015bebca96b64655fd68c2365d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__LABUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:LABUSDT",
+      "sha256": "47ca4b3a5749da53c4dd502a2b75c670cd8501f348c82b29306f6901cdd0ec8d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__LINKUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:LINKUSDT",
+      "sha256": "648bb9c83e755cad2d109157443cb72ecac8354e5eb1c1f0b4dfe6d358a57c86",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__LITUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:LITUSDT",
+      "sha256": "91c87d87e3b0c55eb57939a520e43b2f1717f2e96cf6aa1ff34004101f675631",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__LTCUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:LTCUSDT",
+      "sha256": "59010edd7074a48462724408927611195d816b649e93b8b700e35d686906885e",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__MANAUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:MANAUSDT",
+      "sha256": "117c11f4b25ccb0a2d374a8ef7bfc7a16badb2741d860d1d4ab62e1fd40f0366",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__MEGAUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:MEGAUSDT",
+      "sha256": "d70bf783fdc67e7568326468cf4085f2360045e77de94941192946edcd27603b",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__METUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:METUSDT",
+      "sha256": "8f8a0e65ebafc9f76f956e4cea4a3fc35361fc5ff314520260fb0ced4409cca3",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__MONUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:MONUSDT",
+      "sha256": "94d774d27b8f35cfe06d75143cf48030c574ac5ae57e0853940e8efe18bc32eb",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__MORPHOUSDT.json",
+      "byte_count": 953,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:MORPHOUSDT",
+      "sha256": "b2d92b5ad1e44eb67d5337d2ac72cb4e2f6f216ae009d333ef60e2baafb22a8e",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__NEARUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:NEARUSDT",
+      "sha256": "b7b830c61081a7cc6ba7b97942b387bb0b1edcde7d07f5090bec97180f945e71",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__NFPUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:NFPUSDT",
+      "sha256": "f8dfa7b43327a9dd84517685f37f21eaf44178b5885a5b19a8fa3ae608d70e80",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__NOMUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:NOMUSDT",
+      "sha256": "b82d1abd4bd01ea3b9b4ae9eabba9b0eb501e07d24c1fd8965ebba4e44bd761a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ONDOUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ONDOUSDT",
+      "sha256": "ebae2394fdfb6bc17c5ccf8e61c93e9bb946cb1b40c070fe91b828ed27cfa57d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__OPUSDT.json",
+      "byte_count": 949,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:OPUSDT",
+      "sha256": "044055509c7ad94036089b624d53e2ec73fe0bf8a52269cae146c4f57616f197",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ORDIUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ORDIUSDT",
+      "sha256": "07d26c54db042595aff96d30fd9e63a41f16b31818c947d5c45bce279e3044ec",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__PAXGUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:PAXGUSDT",
+      "sha256": "3fd2b258b3ba556e148bd2c69ea73614aba53fc2c8c85cdad8f513e671aa5660",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__PENDLEUSDT.json",
+      "byte_count": 953,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:PENDLEUSDT",
+      "sha256": "72bb9b80ce8893424192c4777394345dd3c0720bdb6ea0ea36bbdc6293ade8e6",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__PENGUUSDT.json",
+      "byte_count": 952,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:PENGUUSDT",
+      "sha256": "1659f87e9d7bf362928f60a6b61f871bf4b5a3c4c20824638f5d3285910cecb7",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__PIPPINUSDT.json",
+      "byte_count": 953,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:PIPPINUSDT",
+      "sha256": "b2c953e2f08e139955f3decb02a4bf431a1819760290a8797d68329f7feec2d2",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__POLUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:POLUSDT",
+      "sha256": "a768230ef48fdd74a1817f03f1e8e6aeb1aec2cc8bbedd6736693b248a494f22",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__PUMPUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:PUMPUSDT",
+      "sha256": "a25fc53f749d30a33043745faffe03b8ddd439797a522e31a909d8132d4f49d6",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__PYTHUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:PYTHUSDT",
+      "sha256": "ee8ff328715fe8341e9457644aa322124453d6b40650234b50d9c4631e28246f",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__RAREUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:RAREUSDT",
+      "sha256": "d62a3c6b356bc36baaff26d3c6e1569bf85f9ff5a0521671258f9a8186e6edb8",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__RAVEUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:RAVEUSDT",
+      "sha256": "82e862f8a05704a2fd3895c385cfdbc81b9e35e08c9b61625dd439dc7aa9642b",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__RENDERUSDT.json",
+      "byte_count": 953,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:RENDERUSDT",
+      "sha256": "1f1810952d2778255f710b52ec614411ad0867dc93cca4edebd827de4de69528",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__REUSDT.json",
+      "byte_count": 949,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:REUSDT",
+      "sha256": "050e5606c4eb60686ae620101d3165d35dadab3bc92c8daf1a7c041e13603cb0",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__RIVERUSDT.json",
+      "byte_count": 952,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:RIVERUSDT",
+      "sha256": "58be7d16f0cc9d10668b27d8bec5e11aa6613c1be39024627721f366b8dd90cf",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__SANDUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:SANDUSDT",
+      "sha256": "5fd54e142b611745d6202159285fdbd32319242f46e032ce268c667c1d549af3",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__SEIUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:SEIUSDT",
+      "sha256": "e40ce2f72aae1c9dbb74a0f1000bae6351a48201560c6e521606ddff4d4245ba",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__SLXUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:SLXUSDT",
+      "sha256": "0fad7ca87c0ca00e7b0a2c256eef62cea54f30e9f5d60547708d303cd0257898",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__SOLUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:SOLUSDT",
+      "sha256": "e4b9648f1ccd3d4a9dc3319ba0674f99b4140426597716416c4b1c98587a4ecd",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__SUIUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:SUIUSDT",
+      "sha256": "890e859919ebedae5d30260b3674f1423d31c3de41256785953bb6e6e7aecf72",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__SUNUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:SUNUSDT",
+      "sha256": "e9056170487d64fca783fcb5b5335ab5e3c48e99043cb47090306ba3e73f9c54",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__SYNUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:SYNUSDT",
+      "sha256": "84bfb3d462c932d93445b08446a33725be65d97ae030eccf496fafd569ba0536",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__TAIKOUSDT.json",
+      "byte_count": 952,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:TAIKOUSDT",
+      "sha256": "5c4a1a707fd223dec071c4d93c0d409034fb11162e585362ace8e86b0da383fb",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__TAOUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:TAOUSDT",
+      "sha256": "cf71a8286f02fd8c45d5cc7df5acc4bc5d6bd0f76c476da045d6a1a17feb410a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__TLMUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:TLMUSDT",
+      "sha256": "b305c098f5bbbfbf091c2b9c96b4e5867d306625dd5e054b6494704b528d9cdf",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__TRUMPUSDT.json",
+      "byte_count": 952,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:TRUMPUSDT",
+      "sha256": "083b21ca028096fe5ccec80baa1c93d8b4d453f8230bbe2ebfc7b19f3e0fd713",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__TRXUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:TRXUSDT",
+      "sha256": "7411c93bbabbf0b1a345cd00002002750e6889ca0c5180904bae6735943296c3",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__UNIUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:UNIUSDT",
+      "sha256": "1c612076b667347f64c1c8faad45f7c233ddda6e91fa33ae821fa6a4a778b697",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__VIRTUALUSDT.json",
+      "byte_count": 954,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:VIRTUALUSDT",
+      "sha256": "5f01a5fa9d5468bc12ebd83c3e07a7f7fe445c1e6c1451f15380838ceb1bd7bb",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__VVVUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:VVVUSDT",
+      "sha256": "096e70d41e1ebdea3fba349614b59da742ee5d8709285b31fec2db455d7cccc2",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__WIFUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:WIFUSDT",
+      "sha256": "86af4ddc2dd21ef02980878362ef90ce3c28892aeca19b2fed7e97396b5c1340",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__WLDUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:WLDUSDT",
+      "sha256": "5b6b39e08e47a6899f590ae6bcf31c738933f167bb22e01149035f0511e09633",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__XAUTUSDT.json",
+      "byte_count": 951,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:XAUTUSDT",
+      "sha256": "57d5e1ed9fe1f2614cea5123c708dfc07c76cfa49e5d762e68296d40f91ad3b1",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__XLMUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:XLMUSDT",
+      "sha256": "ed74ad6dd95d1d3cac8906a92e31276cc47702b2033f56a58db500c04fdc0390",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__XMRUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:XMRUSDT",
+      "sha256": "dfd85eb0e45a1999d10e7c1cd0d9dcfc59c6d79ee85c586134d02dc99292e201",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__XPLUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:XPLUSDT",
+      "sha256": "c8e64e7a6c935886291216f0f815298181496099e4ea7ecff505f2b5904dbd4d",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__XRPUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:XRPUSDT",
+      "sha256": "7dadfab54fd0b09254f9a0856fac5658ae7e1d470a00d02ffd15e8f5a1c8a02a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ZBTUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ZBTUSDT",
+      "sha256": "cfb53d3fcbc76d333fa9bc4438e8a0dda54c1b5680f34e86dacdc1340dfadfda",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__position_price_track__ZECUSDT.json",
+      "byte_count": 950,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:position_price_track:ZECUSDT",
+      "sha256": "ed88d77265636f13b3b983402a45505c07a3cba7ecfd61b3e9576bcedde9b55a",
+      "sources": [
+        "active_session_pattern:v2:paper:position_price_track:*"
+      ],
+      "ttl_seconds": 864,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__paper__positions.json",
+      "byte_count": 2,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:paper:positions",
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "sources": [
+        "active_session_extra_required_for_clean_reset"
+      ],
+      "ttl_seconds": 2591972,
+      "type": "string"
+    },
+    {
+      "archive_file": "redis/v2__portfolio__state.json",
+      "byte_count": 841749,
+      "exists": true,
+      "json_decodable": true,
+      "key": "v2:portfolio:state",
+      "sha256": "943f739db5f6c3a81a5405386997448beda176299297f6be75b99dfeea4e0561",
+      "sources": [
+        "phase_1_required"
+      ],
+      "ttl_seconds": 882,
+      "type": "string"
+    }
+  ],
+  "routes_to_live": false,
+  "schema_version": "pre_recovery_reset_archive_manifest_v2"
+}

@@ -1,0 +1,20 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI BOT V2 risk gateway live loop (controller only, no trader/exchange mutation)
+After=network-online.target ai-bot-v2-orchestrator-arbitration-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-risk-gateway-live-loop'
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_risk_gateway_live_loop --loop --interval-seconds 30 --v2-redis-ttl-seconds 300'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_risk_gateway_live_loop.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_risk_gateway_live_loop.err
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

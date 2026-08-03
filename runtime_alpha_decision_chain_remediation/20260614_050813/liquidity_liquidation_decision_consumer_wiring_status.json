@@ -1,0 +1,46 @@
+{
+  "adaptive_strategy_selector": {
+    "strategy_bias": "neutral"
+  },
+  "display_only": false,
+  "native_trainer_tensor": true,
+  "orchestrator": {
+    "signal_adjustment": "none"
+  },
+  "paper_exit_coordinator": {
+    "alpha_context_supported": true
+  },
+  "paper_lifecycle_guard": {
+    "alpha_context_passed_to_exit": true
+  },
+  "risk_evaluator": {
+    "allowed": true,
+    "alpha_liquidity_context_used": true,
+    "context": {
+      "distance_to_long_liq_bps": 700.0,
+      "distance_to_short_liq_bps": 550.0,
+      "liquidation_cascade_risk": 0.25,
+      "liquidation_pressure_direction": "neutral",
+      "microstructure_liquidity_depth": 25000.0,
+      "orderbook_wall_strength": 0.35
+    },
+    "orchestrator_signal_adjustment": "none",
+    "risk_blockers": [],
+    "risk_decision": "ALLOW_ALPHA_LIQUIDITY_RISK",
+    "risk_warnings": [],
+    "strategy_bias": "neutral"
+  },
+  "signal_explanation_payload": {
+    "alpha_context": {
+      "distance_to_long_liq_bps": 700.0,
+      "distance_to_short_liq_bps": 550.0,
+      "liquidation_cascade_risk": 0.25,
+      "liquidation_pressure_direction": "neutral",
+      "microstructure_liquidity_depth": 25000.0,
+      "orderbook_wall_strength": 0.35
+    }
+  },
+  "website_runtime_truth": {
+    "payload_ready": true
+  }
+}

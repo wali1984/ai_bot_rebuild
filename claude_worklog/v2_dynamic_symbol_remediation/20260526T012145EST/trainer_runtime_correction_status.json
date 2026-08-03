@@ -1,0 +1,29 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "active_units": {
+    "ai-bot-v2-rl-core-inference-loop.service": true,
+    "ai-bot-v2-trainer-bridge.service": true
+  },
+  "balances_exposed": false,
+  "copied_legacy_label_is_never_v2_native_parity": true,
+  "credentials_values_exposed": false,
+  "current_prediction_key_count": 50,
+  "current_rl_key_count": 0,
+  "current_runtime_mode": "V2_NATIVE_BASELINE_PAPER_SHADOW",
+  "go_no_go": "TRAINER_RUNTIME_CORRECTION_READY",
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "trainer_must_not_trade": true,
+  "trainer_no_live_path": true,
+  "trainer_outputs": [
+    "v2:prediction:{symbol}:{timeframe}",
+    "v2:trainer:heartbeat",
+    "v2:trainer:status"
+  ],
+  "trainer_source_label_if_copied_legacy": "COPIED_LEGACY_TRAINER_RUNNING_IN_V2_PAPER_MODE",
+  "ts_est": "20260526T012145EST",
+  "ts_iso_est": "2026-05-26T01:33:20-0400",
+  "writes_exchange_orders": false
+}

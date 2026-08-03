@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep AI BOT V2 legacy log intelligence observer active
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=30s
+Persistent=true
+Unit=ai-bot-v2-legacy-log-intelligence-observer.service
+
+[Install]
+WantedBy=timers.target

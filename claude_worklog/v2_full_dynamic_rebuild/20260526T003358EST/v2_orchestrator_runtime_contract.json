@@ -1,0 +1,31 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_ORCHESTRATOR_RUNTIME_CONTRACT_READY",
+  "inputs": [
+    "predictions",
+    "risk_decisions",
+    "market_state",
+    "symbol_universe",
+    "paper_position_state",
+    "strategy_backup",
+    "event_state_blockers"
+  ],
+  "live_symbols": [],
+  "outputs": [
+    "v2:orchestrator:decisions"
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "rules": [
+    "no agent decisions; orchestrator is the only decider",
+    "no direct exchange calls",
+    "every hold/block has reason",
+    "every allowed action has source lineage"
+  ],
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "writes_exchange_orders": false
+}

@@ -1,0 +1,44 @@
+{
+  "marker": "PHASE4_CROSS_MARGIN_LIQUIDATION_FIXTURE",
+  "generated_utc": "2026-07-11T17:50:00Z",
+  "patched_files": [
+    "v2/backend/app/services/hedge_engine/cross_margin_stress.py",
+    "v2/backend/app/services/live_gate/phase7_readiness.py",
+    "v2/backend/tests/unit/services/allocator/test_allocator_simulation.py",
+    "v2/backend/tests/unit/cli/test_v2_live_canary_dry_run.py"
+  ],
+  "portfolio_buffer_fields_present": [
+    "cross_margin_stress_used_usd",
+    "cross_margin_available_buffer_usd",
+    "portfolio_liquidation_buffer_usd",
+    "worst_case_portfolio_loss_usd",
+    "maintenance_margin_estimate_usd",
+    "margin_call_risk",
+    "cross_margin_safe"
+  ],
+  "fixtures": {
+    "buffer_decreases_with_new_position": true,
+    "blocks_if_buffer_too_low": {
+      "cross_margin_safe": false,
+      "recommended_margin_mode": "isolated_paper_simulated",
+      "margin_call_risk": "HIGH"
+    },
+    "hedge_improves_buffer_when_correlation_valid": {
+      "unhedged_portfolio_liquidation_buffer_usd": 937.5,
+      "hedged_portfolio_liquidation_buffer_usd": 971.5,
+      "cross_margin_hedge_risk_reduction_usd": 40.0
+    },
+    "position_without_buffer_rejected": {
+      "blocker": "LIQUIDATION_BUFFER_MISSING",
+      "order_submitted": false,
+      "test_order_submitted": false
+    }
+  },
+  "tests": [
+    "test_cross_margin_buffer_decreases_with_new_position",
+    "test_cross_margin_blocks_if_buffer_too_low",
+    "test_cross_margin_hedge_improves_buffer_when_correlation_valid",
+    "test_live_canary_dry_run_rejects_position_without_liquidation_buffer"
+  ],
+  "status": "PASSED"
+}

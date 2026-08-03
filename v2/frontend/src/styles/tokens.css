@@ -1,0 +1,208 @@
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --font-sans: var(--nervyx-type-interface-family), 'IBM Plex Sans', 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: var(--nervyx-type-data-family), 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', 'Consolas', monospace;
+
+  --bg-base: var(--nervyx-background-base);
+  --bg-panel: var(--nervyx-panel);
+  --bg-elevated: var(--nervyx-panel-elevated);
+  --bg-hover: var(--nervyx-hover);
+  --bg-overlay: rgba(9, 13, 18, 0.72);
+
+  --text-primary: var(--nervyx-text-primary);
+  --text-secondary: var(--nervyx-text-secondary);
+  --text-muted: var(--nervyx-text-muted);
+  --text-inverse: var(--nervyx-text-inverse);
+
+  --border: var(--nervyx-border-subtle);
+  --border-strong: var(--nervyx-border-strong);
+  --shadow-strong: var(--nervyx-shadow-panel);
+  --radius-sm: var(--nervyx-radius-sm);
+  --radius: var(--nervyx-radius-md);
+  --radius-md: var(--nervyx-radius-lg);
+  --radius-lg: var(--nervyx-radius-xl);
+
+  --buy: var(--nervyx-buy);
+  --sell: var(--nervyx-sell);
+  --buy-bg: color-mix(in oklch, var(--buy) 16%, transparent);
+  --sell-bg: color-mix(in oklch, var(--sell) 16%, transparent);
+  --buy-border: color-mix(in oklch, var(--buy) 55%, var(--bg-panel));
+  --sell-border: color-mix(in oklch, var(--sell) 55%, var(--bg-panel));
+
+  --ai: var(--nervyx-core);
+  --ai-bg: color-mix(in oklch, var(--ai) 14%, transparent);
+  --ai-border: color-mix(in oklch, var(--ai) 54%, var(--bg-panel));
+  --conf-high: #5ecf72;
+  --conf-mid: #e2bf48;
+  --conf-low: #ef8f3b;
+
+  --ok: var(--nervyx-success);
+  --warn: var(--nervyx-warning);
+  --error: var(--nervyx-error);
+  --info: var(--nervyx-delayed);
+  --paper: var(--nervyx-paper);
+  --live: var(--nervyx-validation-accent);
+
+  --admin-accent: var(--nervyx-observe);
+  --admin-bg: color-mix(in oklch, var(--admin-accent) 12%, transparent);
+  --admin-border: color-mix(in oklch, var(--admin-accent) 52%, var(--bg-panel));
+
+  --chart-bg: var(--nervyx-background-base);
+  --chart-grid: var(--nervyx-chart-grid);
+  --chart-up: var(--nervyx-candle-up);
+  --chart-down: var(--nervyx-candle-down);
+  --chart-volume: rgba(130, 150, 179, 0.55);
+
+  --table-row-height: 44px;
+  --table-row-height-compact: 32px;
+  --table-column-gap: 10px;
+
+  --breakpoint-mobile: 390px;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1280px;
+  --breakpoint-wide: 1660px;
+
+  --ease-fast: 140ms cubic-bezier(0.2, 0, 0, 1);
+  --ease-standard: 220ms cubic-bezier(0.2, 0, 0, 1);
+  --z-header: 130;
+  --z-overlay: 200;
+
+  --surface-0: var(--bg-base);
+  --surface-1: var(--bg-panel);
+  --surface-2: var(--bg-elevated);
+  --surface-3: #172435;
+  --line-soft: color-mix(in oklch, var(--text-muted) 16%, transparent);
+  --line-strong: color-mix(in oklch, var(--text-muted) 35%, transparent);
+  --accent: var(--nervyx-signal-accent);
+  --paper: var(--nervyx-paper);
+  --shell-header-bg: rgba(10, 14, 20, 0.95);
+  --shell-main-bg: linear-gradient(180deg, #0a0f14 0%, #090d12 100%);
+  --shell-sidebar-bg: #090d12;
+  --ticker-cell-bg: #0b1117;
+  --hero-bg: linear-gradient(135deg, #111922, #0b1117 72%);
+  --coinank-surface-bg: linear-gradient(180deg, rgba(18, 25, 33, 0.98), rgba(9, 13, 18, 0.98)), var(--bg-base);
+  --warning-panel-bg: rgba(47, 35, 16, 0.78);
+
+  --color-bg: var(--bg-base);
+  --color-fg: var(--text-primary);
+  --color-muted: var(--text-muted);
+  --color-red: var(--error);
+  --color-amber: var(--warn);
+  --color-green: var(--buy);
+  --color-border: var(--border);
+
+  --text-bright: var(--text-primary);
+  --text-mid: var(--text-secondary);
+  --text-dim: var(--text-muted);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-base: var(--nervyx-background-base);
+  --bg-panel: var(--nervyx-panel);
+  --bg-elevated: var(--nervyx-panel-elevated);
+  --bg-hover: #dfe7f1;
+  --bg-overlay: rgba(245, 247, 253, 0.92);
+
+  --text-primary: var(--nervyx-text-primary);
+  --text-secondary: var(--nervyx-text-secondary);
+  --text-muted: var(--nervyx-text-muted);
+  --text-inverse: var(--nervyx-text-inverse);
+
+  --border: var(--nervyx-border-subtle);
+  --border-strong: var(--nervyx-border-strong);
+  --shadow-strong: 0 12px 28px rgba(21, 39, 58, 0.09);
+
+  --buy: var(--nervyx-buy);
+  --sell: var(--nervyx-sell);
+  --buy-bg: color-mix(in oklch, var(--buy) 12%, transparent);
+  --sell-bg: color-mix(in oklch, var(--sell) 12%, transparent);
+  --buy-border: color-mix(in oklch, var(--buy) 55%, var(--bg-panel));
+  --sell-border: color-mix(in oklch, var(--sell) 55%, var(--bg-panel));
+
+  --ai: var(--nervyx-core);
+  --ai-bg: color-mix(in oklch, var(--ai) 12%, transparent);
+  --ai-border: color-mix(in oklch, var(--ai) 50%, var(--bg-panel));
+
+  --ok: var(--nervyx-success);
+  --warn: var(--nervyx-warning);
+  --error: var(--nervyx-error);
+  --info: var(--nervyx-delayed);
+  --paper: var(--nervyx-paper);
+  --live: var(--nervyx-validation-accent);
+
+  --admin-accent: var(--nervyx-observe);
+  --admin-bg: color-mix(in oklch, var(--admin-accent) 10%, transparent);
+  --admin-border: color-mix(in oklch, var(--admin-accent) 48%, var(--bg-panel));
+
+  --chart-bg: var(--nervyx-panel);
+  --chart-grid: var(--nervyx-chart-grid);
+  --chart-up: var(--nervyx-candle-up);
+  --chart-down: var(--nervyx-candle-down);
+  --chart-volume: rgba(45, 64, 84, 0.42);
+
+  --line-soft: color-mix(in oklch, var(--text-muted) 20%, transparent);
+  --line-strong: color-mix(in oklch, var(--text-muted) 32%, transparent);
+  --accent: var(--nervyx-signal-accent);
+
+  --shell-header-bg: rgba(255, 255, 255, 0.94);
+  --shell-main-bg: linear-gradient(180deg, #f7f9fc 0%, #f0f5fa 100%);
+  --shell-sidebar-bg: #ffffff;
+  --ticker-cell-bg: #ffffff;
+  --hero-bg: linear-gradient(135deg, #ffffff, #f4f9ff 72%);
+  --coinank-surface-bg: linear-gradient(180deg, #ffffff, #f3f6fb);
+  --warning-panel-bg: #fff4db;
+
+  --color-bg: var(--bg-base);
+  --color-fg: var(--text-primary);
+  --color-muted: var(--text-muted);
+  --color-red: var(--error);
+  --color-amber: var(--warn);
+  --color-green: var(--buy);
+  --color-border: var(--border);
+
+  --text-bright: var(--text-primary);
+  --text-mid: var(--text-secondary);
+  --text-dim: var(--text-muted);
+  --surface-0: var(--bg-base);
+  --surface-1: var(--bg-panel);
+  --surface-2: var(--bg-elevated);
+  --surface-3: #e6eef8;
+  --block: var(--error);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--accent) 22%, transparent);
+  color: var(--text-primary);
+}

@@ -1,0 +1,15 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_STRATEGY_PERFORMANCE_MATRIX_READY",
+  "live_symbols": [],
+  "metrics_per_strategy": "per-strategy backtest matrices written by backtest engine",
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "status": "scaffold_pending_first_engine_run",
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "writes_exchange_orders": false
+}

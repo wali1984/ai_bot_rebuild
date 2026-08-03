@@ -1,10 +1,5 @@
 {
-  "task_id": "076_codex_recover_064_human_attention",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "v2/",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/",
@@ -12,10 +7,19 @@
     "claude_worklog/security/",
     "claude_worklog/agent_supervisor_reliability/"
   ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/076_codex_recover_064_human_attention_codex.log",
+  "next_recommended_action": "If recovery ready, continue 064/065/066 sequence. If blocked, leave explicit blocker.",
+  "pid_or_job_id": 237806,
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. You have full authority to recover non-live human_attention_required blockers inside AI BOT REBUILD only. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Diagnose and recover current 064_trainer_parity_2e1c_beta_implementation human_attention_required if safe. Inspect task definition, runtime state, stdout/stderr, required outputs, and emitted BEGIN_FILE paths. If the failure is a safe path mismatch or missing materialization, patch or materialize only within allowed non-live paths. If the task prompt needs strict emit-only correction, patch it. If implementation files exist partially, validate and complete safe missing pieces. Run compile/tests if applicable. Produce a recovery report and GO/NO-GO. GO/NO-GO must contain one line: CODEX_064_HUMAN_ATTENTION_RECOVERY_READY or CODEX_064_HUMAN_ATTENTION_RECOVERY_BLOCKED. Stop if live/Redis/legacy/exchange/deploy/secrets are required.",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/076_CODEX_RECOVERY_064_REPORT.md",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/076_CODEX_RECOVERY_064_GO_NO_GO.md"
   ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. You have full authority to recover non-live human_attention_required blockers inside AI BOT REBUILD only. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Diagnose and recover current 064_trainer_parity_2e1c_beta_implementation human_attention_required if safe. Inspect task definition, runtime state, stdout/stderr, required outputs, and emitted BEGIN_FILE paths. If the failure is a safe path mismatch or missing materialization, patch or materialize only within allowed non-live paths. If the task prompt needs strict emit-only correction, patch it. If implementation files exist partially, validate and complete safe missing pieces. Run compile/tests if applicable. Produce a recovery report and GO/NO-GO. GO/NO-GO must contain one line: CODEX_064_HUMAN_ATTENTION_RECOVERY_READY or CODEX_064_HUMAN_ATTENTION_RECOVERY_BLOCKED. Stop if live/Redis/legacy/exchange/deploy/secrets are required.",
-  "next_recommended_action": "If recovery ready, continue 064/065/066 sequence. If blocked, leave explicit blocker."
+  "risk_level": "L1",
+  "started_at": "2026-06-15T20:02:43Z",
+  "status": "running",
+  "task_id": "076_codex_recover_064_human_attention",
+  "updated_at": "2026-06-15T20:02:43Z"
 }

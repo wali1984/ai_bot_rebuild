@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot V2 Native RL MASA PPO CUDA trainer loop periodically
+
+[Timer]
+OnBootSec=45s
+OnUnitInactiveSec=5min
+AccuracySec=15s
+Persistent=true
+Unit=ai-bot-v2-native-rl-masa-ppo-cuda-trainer-loop.service
+
+[Install]
+WantedBy=timers.target

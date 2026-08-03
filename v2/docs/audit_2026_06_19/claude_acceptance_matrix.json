@@ -1,0 +1,108 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "acceptance_gates": [
+    {
+      "id": "G01",
+      "name": "Paper soak \u2265 500 trades",
+      "required": 500,
+      "actual": 645,
+      "status": "PASS"
+    },
+    {
+      "id": "G02",
+      "name": "Win rate \u2265 35%",
+      "required": 0.35,
+      "actual": 0.3039,
+      "status": "FAIL"
+    },
+    {
+      "id": "G03",
+      "name": "Profit factor \u2265 1.25 stable",
+      "required": 1.25,
+      "actual": 1.1056,
+      "status": "FAIL"
+    },
+    {
+      "id": "G04",
+      "name": "All timeframes net-positive PnL",
+      "required": "all_positive",
+      "actual": "5m:-10.15, 4h:-3.65",
+      "status": "FAIL"
+    },
+    {
+      "id": "G05",
+      "name": "Zero PIT violations",
+      "required": 0,
+      "actual": 0,
+      "status": "PASS"
+    },
+    {
+      "id": "G06",
+      "name": "Zero new quarantine failures",
+      "required": 0,
+      "actual": 0,
+      "status": "PASS"
+    },
+    {
+      "id": "G07",
+      "name": "LONG path exercised (\u226550 trades)",
+      "required": 50,
+      "actual": 0,
+      "status": "FAIL"
+    },
+    {
+      "id": "G08",
+      "name": "Trailing stop WR \u2265 40%",
+      "required": 0.4,
+      "actual": 0.101,
+      "status": "FAIL"
+    },
+    {
+      "id": "G09",
+      "name": "squeeze_evidence_score populated",
+      "required": "non_null",
+      "actual": "null_100pct",
+      "status": "FAIL"
+    },
+    {
+      "id": "G10",
+      "name": "Real bid-ask spread wired",
+      "required": "market_observed",
+      "actual": "hardcoded_2bps",
+      "status": "FAIL"
+    },
+    {
+      "id": "G11",
+      "name": "Drawdown guard functional",
+      "required": "functional",
+      "actual": "always_zero",
+      "status": "FAIL"
+    },
+    {
+      "id": "G12",
+      "name": "Portfolio equity includes closed PnL",
+      "required": "accurate",
+      "actual": "missing_22.23",
+      "status": "FAIL"
+    },
+    {
+      "id": "G13",
+      "name": "Full Playwright suite green",
+      "required": "PASS",
+      "actual": "not_re-run",
+      "status": "NOT_VERIFIED"
+    },
+    {
+      "id": "G14",
+      "name": "Human operator explicit approval",
+      "required": true,
+      "actual": false,
+      "status": "NOT_MET"
+    }
+  ],
+  "pass_count": 3,
+  "fail_count": 10,
+  "not_verified_count": 1,
+  "overall": "NO_GO",
+  "pct_passing": 21.4
+}

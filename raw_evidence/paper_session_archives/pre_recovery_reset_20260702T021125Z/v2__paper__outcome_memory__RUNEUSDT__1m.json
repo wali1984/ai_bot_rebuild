@@ -1,0 +1,52 @@
+{
+  "avg_loser_bps": -31.0041,
+  "avg_winner_bps": 42.0,
+  "baseline_advisory_reasons": [],
+  "baseline_evidence_date": null,
+  "baseline_trade_count": 0,
+  "block_reason": null,
+  "bucket_scope": "symbol_timeframe",
+  "consecutive_losses": 1,
+  "data_source": "REDIS",
+  "degraded": false,
+  "degraded_since": null,
+  "drawdown_contribution_usd": -0.24960096,
+  "last_trade_ts": "2026-06-23T21:19:24.625Z",
+  "last_updated": "2026-06-23T22:29:41Z",
+  "loss_count": 1,
+  "max_drawdown_bps": 31.0041,
+  "missed_tp_then_stop_rate": null,
+  "outcome_memory_can_block_entries": true,
+  "recent_bps": [
+    41.99999999999975,
+    -31.004054376342076
+  ],
+  "recent_missed_tp_then_stop": [],
+  "recent_outcomes": [
+    1,
+    0
+  ],
+  "recent_pnl_usd": [
+    0.0777763086081472,
+    -0.2496009587169537
+  ],
+  "recent_reversal_after_entry": [],
+  "recent_slippage_failures": [
+    0,
+    0
+  ],
+  "reversal_after_entry_rate": null,
+  "rolling_ev_bps": 5.498,
+  "rolling_win_rate": 0.5,
+  "schema_version": "v2_outcome_memory_updater_v1",
+  "slippage_failure_rate": 0.0,
+  "soak_count": 2,
+  "symbol": "RUNEUSDT",
+  "timeframe": "1m",
+  "total_trades": 2,
+  "trade_count": 2,
+  "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+  "trusted_trade_count": 2,
+  "untrusted_trade_count": 0,
+  "win_count": 1
+}

@@ -1,0 +1,51 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "blocked_count": 2,
+  "blocked_raw_components_old_redis_writers": [
+    {
+      "copied_path": "v2/legacy_owned_runtime/ingest/live_coinapi_wsds.py",
+      "status": "BLOCKED_OLD_REDIS_WRITE_ADAPTER_REQUIRED"
+    },
+    {
+      "copied_path": "v2/legacy_owned_runtime/ingest/live_coinapi_v1.py",
+      "status": "BLOCKED_OLD_REDIS_WRITE_ADAPTER_REQUIRED"
+    }
+  ],
+  "credentials_values_exposed": false,
+  "current_legacy_key_counts": {
+    "coinank:*": 48,
+    "exchange:order:*": 0,
+    "live_orders:*": 0,
+    "ohlcv:list:*": 25,
+    "orchestrator:*": 0,
+    "prediction:*": 1,
+    "signals:trading:*": 2,
+    "ta:*": 150
+  },
+  "go_no_go": "V2_REDIS_ADAPTER_ENFORCEMENT_READY",
+  "live_symbols": [],
+  "old_to_v2_mapping": {
+    "binance:force": "v2:liquidation:wss:binance:{symbol}",
+    "coinank:*": "v2:market:coinank:*",
+    "cursor:liq_bridge:*": "v2:liquidation:aggregator:cursor:*",
+    "microfeat:*": "v2:market:microstructure:{symbol}:{tf}",
+    "msnap:*": "v2:market:microstructure:{symbol}:{tf}",
+    "normalized:ohlcv:*": "v2:market:ohlcv:{provider}:{symbol}:{tf}",
+    "ohlcv:list:*": "v2:market:ohlcv:{provider}:{symbol}:{tf}",
+    "orderbook:*": "v2:market:orderbook:{symbol}",
+    "prediction:*": "v2:prediction:{symbol}:{tf}",
+    "price:*": "v2:market:prices:{symbol}",
+    "signals:overlay:*": "v2:signals:overlay:*",
+    "signals:trading:*": "v2:orchestrator:decisions",
+    "ta:*": "v2:technical_analysis:{symbol}:{tf}",
+    "unified_features:*": "v2:features:latest:{symbol}:{tf}"
+  },
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T012145EST",
+  "ts_iso_est": "2026-05-26T01:33:20-0400",
+  "writes_exchange_orders": false,
+  "writes_old_redis_forbidden_by": "policy + raw-old-Redis copy block"
+}

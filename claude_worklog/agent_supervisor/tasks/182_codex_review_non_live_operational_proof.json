@@ -1,22 +1,13 @@
 {
-  "task_id": "182_codex_review_non_live_operational_proof",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/non_live_operational_proof/"
   ],
-  "required_output_files": [
-    "claude_worklog/final_readiness/non_live_operational_proof/10_CODEX_REVIEW.md",
-    "claude_worklog/final_readiness/non_live_operational_proof/11_CODEX_GO_NO_GO.md"
-  ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Review the non-live operational proof package under claude_worklog/final_readiness/non_live_operational_proof. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Determine whether the V2 non-live MVP is ready for actual operator inspection of replay/backtest, paper mode, and shadow readiness evidence. Identify missing executable harnesses or proof gaps. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain one line: NON_LIVE_OPERATIONAL_PROOF_CODEX_PASS or NON_LIVE_OPERATIONAL_PROOF_CODEX_FAIL.",
-  "lane": "codex_watchdog",
-  "mvp_relevance": "Reviews whether V2_BACKTEST_AND_PAPER_MVP_READY has sufficient operational proof for human inspection.",
   "blocked_by": [],
-  "next_gate": "NON_LIVE_OPERATIONAL_PROOF_CODEX_PASS",
+  "completed_at": "2026-05-09T00:40:15.040698+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "codex_watchdog",
   "legacy_evidence_consulted": [
     "legacy_readonly_audit",
     "historical_pnl_audit",
@@ -25,5 +16,23 @@
   "legacy_failure_addressed": [
     "paper/backtest readiness uncertainty",
     "lack of operator-visible proof package"
-  ]
+  ],
+  "mvp_relevance": "Reviews whether V2_BACKTEST_AND_PAPER_MVP_READY has sufficient operational proof for human inspection.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "NON_LIVE_OPERATIONAL_PROOF_CODEX_PASS",
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Review the non-live operational proof package under claude_worklog/final_readiness/non_live_operational_proof. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Determine whether the V2 non-live MVP is ready for actual operator inspection of replay/backtest, paper mode, and shadow readiness evidence. Identify missing executable harnesses or proof gaps. Output exactly two BEGIN_FILE blocks. The GO/NO-GO file must contain one line: NON_LIVE_OPERATIONAL_PROOF_CODEX_PASS or NON_LIVE_OPERATIONAL_PROOF_CODEX_FAIL.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "required_output_files": [
+    "claude_worklog/final_readiness/non_live_operational_proof/10_CODEX_REVIEW.md",
+    "claude_worklog/final_readiness/non_live_operational_proof/11_CODEX_GO_NO_GO.md"
+  ],
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-09T00:40:15.040698+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/182_codex_review_non_live_operational_proof.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "182_codex_review_non_live_operational_proof",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

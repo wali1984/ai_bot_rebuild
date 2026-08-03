@@ -769,3 +769,71 @@ def _atr(
     for tr in trs[period:]:
         atr = ((atr * (period - 1)) + tr) / float(period)
     return atr
+
+
+def _adx(
+    highs: Sequence[float],
+    lows: Sequence[float],
+    closes: Sequence[float],
+    period: int,
+) -> Optional[float]:
+    """Wilder's Average Directional Index.
+
+    The adaptive regime classifier requires ``ta_ADX`` to score trend strength
+    and fails closed without it, so every regime gate reported
+    MISSING_REGIME_INPUT:ta_ADX. Standard Wilder smoothing over the same closed
+    candle series the other indicators use; returns None rather than a partial
+    value when there is not enough history for both the DI and the DX average.
+    """
+
+    if period <= 0:
+        return None
+    length = min(len(highs), len(lows), len(closes))
+    # Wilder needs `period` bars to seed DI and a further `period` DX values.
+    if length < (2 * period) + 1:
+        return None
+    trs: List[float] = []
+    plus_dms: List[float] = []
+    minus_dms: List[float] = []
+    for i in range(1, length):
+        high, low = highs[i], lows[i]
+        prev_high, prev_low, prev_close = highs[i - 1], lows[i - 1], closes[i - 1]
+        trs.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
+        up_move = high - prev_high
+        down_move = prev_low - low
+        plus_dms.append(up_move if (up_move > down_move and up_move > 0) else 0.0)
+        minus_dms.append(down_move if (down_move > up_move and down_move > 0) else 0.0)
+    if len(trs) < 2 * period:
+        return None
+
+    smoothed_tr = sum(trs[:period])
+    smoothed_plus = sum(plus_dms[:period])
+    smoothed_minus = sum(minus_dms[:period])
+
+    def _dx(tr_sum: float, plus_sum: float, minus_sum: float) -> Optional[float]:
+        if tr_sum <= 0:
+            return None
+        plus_di = 100.0 * (plus_sum / tr_sum)
+        minus_di = 100.0 * (minus_sum / tr_sum)
+        denominator = plus_di + minus_di
+        if denominator <= 0:
+            return None
+        return 100.0 * abs(plus_di - minus_di) / denominator
+
+    dxs: List[float] = []
+    seed_dx = _dx(smoothed_tr, smoothed_plus, smoothed_minus)
+    if seed_dx is not None:
+        dxs.append(seed_dx)
+    for i in range(period, len(trs)):
+        smoothed_tr = smoothed_tr - (smoothed_tr / period) + trs[i]
+        smoothed_plus = smoothed_plus - (smoothed_plus / period) + plus_dms[i]
+        smoothed_minus = smoothed_minus - (smoothed_minus / period) + minus_dms[i]
+        current_dx = _dx(smoothed_tr, smoothed_plus, smoothed_minus)
+        if current_dx is not None:
+            dxs.append(current_dx)
+    if len(dxs) < period:
+        return None
+    adx = sum(dxs[:period]) / float(period)
+    for dx_value in dxs[period:]:
+        adx = ((adx * (period - 1)) + dx_value) / float(period)
+    return adx

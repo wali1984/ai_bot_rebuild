@@ -1,0 +1,8 @@
+{
+  "status": "VERIFIED",
+  "web": {"route_templates": 58, "concrete_routes": 71, "viewports": 4, "screenshots_expected": 284, "screenshots_recorded": 284, "fields_checked": 17617, "source_matched_fields": 8237, "console_errors": 0, "failed_requests": 0, "overflow_routes": 0, "forbidden_runtime_text": 0},
+  "families": {"global_public": {"routes": 4, "screenshots": "16/16"}, "markets_charts": {"routes": 8, "screenshots": "32/32"}, "ingestors_providers": {"routes": 14, "screenshots": "56/56"}, "trading_portfolio_risk": {"routes": 14, "screenshots": "56/56"}, "trainer_ai": {"routes": 6, "screenshots": "24/24"}, "admin_system": {"routes": 25, "screenshots": "100/100"}},
+  "ios": {"swift_build": "passed", "swift_tests": "36/36 passed", "native_signing": "Codemagic Apple credentials required"},
+  "live_execution": "fail-closed",
+  "evidence_root": "../../v2/artifacts/final-product-regression"
+}

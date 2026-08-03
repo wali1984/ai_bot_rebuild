@@ -1,0 +1,31 @@
+{
+  "codex_pair_task_id": "codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure",
+  "completed_at": "2026-05-24T22:23:58Z",
+  "created_at": "2026-05-24T22:21:59Z",
+  "fail_blockers": [
+    "1. `v2/backend/app/services/native_dynamic_runtime/missing_source_closure.py` \u2014 pure-function module that builds the closure payload",
+    "1. `v2/backend/app/services/native_dynamic_runtime/missing_source_closure.py` \u2014 pure-function module that builds the closure payload"
+  ],
+  "file_lock_group": "v2_dynamic_symbol_coverage_missing_source_closure",
+  "lease_id": "2c8348877b8948f78307db9d44661bcc",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "pid_or_job_id": 1573127,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "started_at": "2026-05-24T22:22:13Z",
+  "status": "completed",
+  "task_id": "closed_loop_remediation_codex_review_autoseed_dynamic_symbol_coverage_missing_source_closure",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-24T22:23:58Z",
+  "worker_id": "claude-3"
+}

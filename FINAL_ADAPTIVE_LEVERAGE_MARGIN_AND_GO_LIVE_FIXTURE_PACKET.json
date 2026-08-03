@@ -1,0 +1,116 @@
+{
+  "marker": "V2_TRUE_PERFORMANCE_CIRCUIT_BLOCKER_REMAINS_AFTER_PAPER_TRUTH_PATCH",
+  "generated_utc": "2026-07-12T00:04:57Z",
+  "governance": {
+    "non_strict_rows_excluded_from_strict_governance": true,
+    "strict_pf_after_exclusion": 5.182660485863975,
+    "strict_expectancy_bps_after_exclusion": 72.17320559725019,
+    "strict_quarantine_count_after_exclusion": 7,
+    "strict_governed_rows_after": 3,
+    "source_closed_rows": 31,
+    "new_entries_allowed_after_exclusion": true,
+    "non_strict_loss_cluster_governs_strict_circuit": false
+  },
+  "adaptive_sizing": {
+    "paper_rows_with_leverage_gt_1x": 1,
+    "max_recommended_paper_leverage": 3.0,
+    "median_recommended_paper_leverage": 3.0,
+    "paper_utilization_before": null,
+    "paper_utilization_after": 0.08,
+    "allocated_margin_usd_after": 26.66666667,
+    "notional_usd_after": 80.0,
+    "leverage_static": false,
+    "runtime_allowed_rows_after": 0,
+    "runtime_exact_reason": "ALL_ROWS_TRUE_PERFORMANCE_CIRCUIT_BLOCKED"
+  },
+  "paper": {
+    "intent_rows": 89,
+    "accepted_rows": 0,
+    "eligible_rows": 0,
+    "materialized_positions": 0,
+    "open_positions": 0,
+    "closed_positions": 31,
+    "counterfactual_rows": 1000,
+    "fresh_exploration_candidates": 1,
+    "queued_count": 0,
+    "active_count": 0,
+    "rejected_after_queue_count": 1,
+    "exact_no_fill_reason": "ALL_CURRENT_ROWS_PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
+    "canonical_exact_no_fill_reason": "ALL_ROWS_TRUE_PERFORMANCE_CIRCUIT_BLOCKED",
+    "row_level_no_fill_reasons": {
+      "after_queue": {
+        "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION": 1
+      }
+    }
+  },
+  "paper_truth_patch": {
+    "status": "PATCHED_AND_TESTED",
+    "scope": "post-queue no-fill reason capture and taxonomy only",
+    "microstructure_shadow_allocator_block_reports_trust_unsafe": true,
+    "current_runtime_still_materialized_positions": 0,
+    "current_runtime_canonical_blocker": "ALL_ROWS_TRUE_PERFORMANCE_CIRCUIT_BLOCKED",
+    "does_not_allow_blocked_fill": true
+  },
+  "risk": {
+    "portfolio_liquidation_buffer_usd": 26.06266667,
+    "hedge_engine_active": true,
+    "max_loss_usd_present": true,
+    "cross_margin_model_present": true,
+    "runtime_allocator_block": "BLOCK_INSUFFICIENT_LIQUIDITY",
+    "runtime_revalidated_preemptive_decision": "NO_TRADE"
+  },
+  "binance": {
+    "signed_read_ok": true,
+    "signed_read_transport": "websocket_api_primary",
+    "signed_read_methods": {
+      "account.status": "SIGNED_WS_READ_EXECUTED",
+      "account.balance": "SIGNED_WS_READ_EXECUTED",
+      "account.position": "SIGNED_WS_READ_EXECUTED"
+    },
+    "account_equity_usd": null,
+    "account_available_usd": 0.0,
+    "open_orders_count": 0,
+    "open_positions_count": 0,
+    "order_endpoint_called": false,
+    "test_order_endpoint_called": false,
+    "leverage_endpoint_called": false,
+    "margin_endpoint_called": false,
+    "order_submitted": false,
+    "test_order_submitted": false,
+    "leverage_mutated": false,
+    "margin_mutated": false
+  },
+  "fixtures": {
+    "total_tests_added": 5,
+    "governance_fixtures_passed": true,
+    "leverage_margin_fixtures_passed": true,
+    "liquidation_fixtures_passed": "existing_allocator_and_paper_loop_suites_passed",
+    "hedge_fixtures_passed": "existing_allocator_and_paper_loop_suites_passed",
+    "execution_fixtures_passed": true,
+    "binance_no_execute_fixtures_passed": true,
+    "ui_fixtures_passed": true,
+    "paper_truth_taxonomy_fixture_passed": true
+  },
+  "live": {
+    "live_gate": "blocked_human_only",
+    "live_canary_no_execute_ready": false,
+    "live_ready": false,
+    "operator_approval_required": true,
+    "exact_live_blocker": "NO_A_PLUS_CANDIDATE_AND_LIVE_GATE_BLOCKED_HUMAN_ONLY"
+  },
+  "A+": {
+    "A_plus_candidates": 0,
+    "near_A_plus_candidates": 60,
+    "exact_no_A_plus_reason": "CONTINUOUS_EDGE_GUARDIAN_HALTED_INSUFFICIENT_UNTOUCHED_HOLDOUT_AND_REALTIME_A_GRADE_EVIDENCE",
+    "next_A_plus_patch": "continue generating clean strict paper/realtime evidence without admitting exploration/bootstrap rows into A+ governance"
+  },
+  "safety": {
+    "real_order_submitted": false,
+    "test_order_submitted": false,
+    "exchange_leverage_mutated": false,
+    "exchange_margin_mutated": false,
+    "transfer_or_withdrawal": false,
+    "a_plus_gate_weakened": false,
+    "live_gate_weakened": false
+  }
+}

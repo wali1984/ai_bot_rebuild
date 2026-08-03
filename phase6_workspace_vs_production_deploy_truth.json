@@ -1,0 +1,41 @@
+{
+  "bundle_identity": {
+    "local_asset": "v2/frontend/dist/assets/index-ZpIp-Qym.js",
+    "match": true,
+    "production_asset": "assets/index-ZpIp-Qym.js",
+    "public_url": "https://dashboard.wajidali.us/",
+    "sha256_local": "cc47c8ca650f3725d607be3fabc15ec30418bc8a8390b19d52b651825d9b36ce",
+    "sha256_public": "cc47c8ca650f3725d607be3fabc15ec30418bc8a8390b19d52b651825d9b36ce"
+  },
+    "frontend_build_timestamp": "2026-07-11 04:25:53 -0400",
+  "frontend_served_build_path": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/dist (public https://dashboard.wajidali.us serves assets/index-ZpIp-Qym.js)",
+    "generated_utc": "2026-07-11T08:25:53Z",
+  "hard_fail": null,
+  "hard_fail_check": "PASSED: public bundle hash matches local dist and live backend/frontend processes are rooted in the patched workspace.",
+  "leverage_mutated": false,
+  "live_gate": "blocked_human_only",
+  "margin_mutated": false,
+  "marker": "PHASE6_WORKSPACE_VS_PRODUCTION_DEPLOY_TRUTH_STATUS",
+  "order_submitted": false,
+  "process_identity": {
+    "backend_uvicorn_cwd": "/home/wali/Desktop/AI BOT REBUILD",
+    "backend_uvicorn_pid": 3624299,
+    "frontend_preview_cwd": "/home/wali/Desktop/AI BOT REBUILD/v2/frontend",
+    "frontend_preview_pids": [
+      1298507,
+      1298527,
+      1298528
+    ]
+  },
+  "production_deploy_verified": true,
+  "production_has_dashboard_validation_patch": true,
+  "production_has_gpu_metrics_patch": true,
+  "production_has_inventory_bridge_patch": true,
+  "production_has_paper_materialization_truth_patch": true,
+  "production_has_trainer_truth_patch": true,
+  "public_backend_working_directory": "/home/wali/Desktop/AI BOT REBUILD (live uvicorn PID 3624299 cwd)",
+  "release_current_commit_or_hash": "not-present-locally; public site is served from the workspace-backed Vite preview/dist path",
+  "test_order_submitted": false,
+  "workspace_head_commit": "d4a45237a4126695b1aae4daeb8bc85a92632692",
+  "workspace_release_diff_count": "238 files changed, 41102 insertions(+), 2610 deletions(-)"
+}

@@ -1,0 +1,32 @@
+{
+  "claim": "Old Redis writer proof is refreshed: static old keys remain preserved, but active V2 processes do not write old namespaces.",
+  "completed_by": "codex_takeover",
+  "confidence": "MEDIUM_HIGH",
+  "files_modified": [
+    "v2/frontend/public/v2_legacy_data_zero_exception_parity_and_full_runtime_startup/latest/v2_old_redis_write_observer_live_status.json",
+    "v2/backend/app/services/legacy_startup_parity/native_runtime_legacy_parity.py"
+  ],
+  "generated_est": "2026-06-03T22:44:59-04:00",
+  "generated_utc": "2026-06-04T02:44:59Z",
+  "implementation_marker": "V2_ZERO_EXCEPTION_PARITY_OLD_REDIS_WRITER_PROOF_INCOMPLETE_CODEX_TAKEOVER_DONE",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "milestone": "v2_zero_exception_parity_implementation_burndown_20260531",
+  "missing_evidence": "Does not delete or trim preserved legacy keys; proof is writer-boundary evidence only.",
+  "raw_evidence": "v2_old_redis_write_observer_live_status.json verdict NO_ACTIVE_V2_PROCESS_WRITES_OLD_REDIS_STATIC_KEYS_PRESERVED.",
+  "schema_version": "zero_exception_task_status_v1",
+  "status": "DONE_VERIFIED",
+  "task_slug": "old_redis_writer_proof_incomplete",
+  "verification_command": "jq . v2/frontend/public/v2_legacy_data_zero_exception_parity_and_full_runtime_startup/latest/v2_old_redis_write_observer_live_status.json"
+}

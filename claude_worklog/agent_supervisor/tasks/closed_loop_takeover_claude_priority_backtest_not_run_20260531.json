@@ -1,0 +1,38 @@
+{
+  "codex_pair_task_id": "claude_priority_backtest_not_run_20260531",
+  "completed_at": "2026-05-31T05:55:07Z",
+  "created_at": "2026-05-31T05:52:22Z",
+  "fail_blockers": [
+    "1. **Post-hoc replay outcome miner** (full V2 universe):",
+    "1. **`set_concrete_edge_thresholds`** \u2014 all 7 numeric thresholds (`min_sample_count`, `min_after_cost_expectancy_bps`, `min_after_cost_lower_ci_bps`, `max_drawdown_bps_rolling`, `min_downside_pre_cascade_recall`, `max_false_positive_rate`, `max_false_negative_rate`) are still the literal `OPERATOR_DECISION_REQUIRED`. Owner: **human operator only** \u2014 not automatable.",
+    "1. `v2/frontend/public/operator_runtime/orchestrator_decision/latest/orchestrator_decision_status.json` \u2014 does **not** exist",
+    "1. In `v2/backend/app/cli/v2_risk_gateway_runtime_worker.py:73-87`, add `v2/frontend/public/operator_runtime/v2_orchestrator_adapter/latest/v2_orchestrator_adapter_status.json` to `ORCHESTRATOR_DECISION_PUBLIC_PAYLOAD_CANDIDATES` and teach `_load_orchestrator_decision_from_file` (line 341) to unwrap the `decision_record` field; **or**",
+    "1. **Post-hoc replay outcome miner** (full V2 universe):",
+    "1. **`set_concrete_edge_thresholds`** \u2014 all 7 numeric thresholds (`min_sample_count`, `min_after_cost_expectancy_bps`, `min_after_cost_lower_ci_bps`, `max_drawdown_bps_rolling`, `min_downside_pre_cascade_recall`, `max_false_positive_rate`, `max_false_negative_rate`) are still the literal `OPERATOR_DECISION_REQUIRED`. Owner: **human operator only** \u2014 not automatable.",
+    "1. `v2/frontend/public/operator_runtime/orchestrator_decision/latest/orchestrator_decision_status.json` \u2014 does **not** exist",
+    "1. In `v2/backend/app/cli/v2_risk_gateway_runtime_worker.py:73-87`, add `v2/frontend/public/operator_runtime/v2_orchestrator_adapter/latest/v2_orchestrator_adapter_status.json` to `ORCHESTRATOR_DECISION_PUBLIC_PAYLOAD_CANDIDATES` and teach `_load_orchestrator_decision_from_file` (line 341) to unwrap the `decision_record` field; **or**"
+  ],
+  "file_lock_group": "claude_priority_backtest_not_run_20260531",
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/closed_loop_takeover_claude_priority_backtest_not_run_20260531_codex.log",
+  "next_action": "Codex FAIL (CLOSED_LOOP_TAKEOVER_CLAUDE_PRIORITY_BACKTEST_NOT_RUN_20260531_CODEX_FAIL). Remediation: created at claude_worklog/agent_supervisor/tasks/closed_loop_remediation_closed_loop_takeover_claude_priority_backtest_not_run_20260531.json",
+  "operator_required_reason": null,
+  "owner": "CODEX",
+  "pid_or_job_id": 1429223,
+  "reason": "stalled_twice",
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "started_at": "2026-05-31T05:52:22Z",
+  "status": "failed",
+  "task_id": "closed_loop_takeover_claude_priority_backtest_not_run_20260531",
+  "task_type": "CODEX_TAKEOVER",
+  "updated_at": "2026-05-31T05:55:07Z"
+}

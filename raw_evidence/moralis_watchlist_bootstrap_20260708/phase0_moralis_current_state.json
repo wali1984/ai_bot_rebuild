@@ -1,0 +1,15 @@
+{
+  "core_system_blocked": false,
+  "dashboard_color": "GRAY",
+  "generated_utc": "2026-07-08T19:54:14Z",
+  "moralis_actual_payload_count_1h": 0,
+  "moralis_api_key_present": true,
+  "moralis_health_key_exists": false,
+  "moralis_smart_wallet_candidate_count": 0,
+  "moralis_stream_configured": false,
+  "moralis_subscription_status": "CONFIGURED_NO_WATCHLIST",
+  "moralis_token_map_count": 9,
+  "moralis_wallet_watchlist_count": 0,
+  "raw_key_exposed": false,
+  "schema_version": "phase0_moralis_current_state_v1"
+}

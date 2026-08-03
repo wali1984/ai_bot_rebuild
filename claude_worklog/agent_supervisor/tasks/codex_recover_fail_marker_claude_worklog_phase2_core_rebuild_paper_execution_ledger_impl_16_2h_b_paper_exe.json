@@ -1,14 +1,19 @@
 {
-  "task_id": "codex_recover_fail_marker_claude_worklog_phase2_core_rebuild_paper_execution_ledger_impl_16_2h_b_paper_exe",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "lane": "codex_watchdog",
-  "mvp_relevance": "Recovers a non-live failed marker blocking the paper/backtest MVP path.",
+  "allowed_output_prefixes": [
+    "v2/",
+    "claude_worklog/phase2_core_rebuild/",
+    "claude_worklog/security/",
+    "claude_worklog/agent_supervisor/",
+    "claude_worklog/tools/"
+  ],
   "blocked_by": [
     "claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/16_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_GO_NO_GO.md"
   ],
-  "next_gate": "CODEX_FAIL_MARKER_RECOVERY_READY",
+  "completed_at": "2026-05-06T06:59:14.749318+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "codex_watchdog",
   "legacy_evidence_consulted": [
     "current phase2 evidence",
     "runtime task states",
@@ -17,19 +22,23 @@
   "legacy_failure_addressed": [
     "manual recovery loop"
   ],
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
-  "allowed_output_prefixes": [
-    "v2/",
-    "claude_worklog/phase2_core_rebuild/",
-    "claude_worklog/security/",
-    "claude_worklog/agent_supervisor/",
-    "claude_worklog/tools/"
-  ],
+  "mvp_relevance": "Recovers a non-live failed marker blocking the paper/backtest MVP path.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "CODEX_FAIL_MARKER_RECOVERY_READY",
+  "next_recommended_action": "If ready, validate/commit/push and restart planner. If blocked, leave explicit blocker.",
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Full non-live recovery authority. Recover the failed marker or Codex FAIL at claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/16_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_GO_NO_GO.md. Inspect related code, tests, docs, task states, stdout/stderr, and validation evidence. If safe, patch non-live V2 files, tests, validation docs, evidence reconciliation, or planner/supervisor/watchdog logic. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not deploy. Do not expose secrets. Output exactly two BEGIN_FILE blocks. GO/NO-GO one line: CODEX_FAIL_MARKER_RECOVERY_READY or CODEX_FAIL_MARKER_RECOVERY_BLOCKED.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_fail_marker_claude_worklog_phase2_core_rebuild_paper_execution_ledger_impl_16_2h_b_paper_exe_REPORT.md",
     "claude_worklog/phase2_core_rebuild/automation_reliability/codex_recover_fail_marker_claude_worklog_phase2_core_rebuild_paper_execution_ledger_impl_16_2h_b_paper_exe_GO_NO_GO.md"
   ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Full non-live recovery authority. Recover the failed marker or Codex FAIL at claude_worklog/phase2_core_rebuild/paper_execution_ledger_impl/16_2H_B_PAPER_EXECUTION_LEDGER_ASSEMBLER_SERVICE_GO_NO_GO.md. Inspect related code, tests, docs, task states, stdout/stderr, and validation evidence. If safe, patch non-live V2 files, tests, validation docs, evidence reconciliation, or planner/supervisor/watchdog logic. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not deploy. Do not expose secrets. Output exactly two BEGIN_FILE blocks. GO/NO-GO one line: CODEX_FAIL_MARKER_RECOVERY_READY or CODEX_FAIL_MARKER_RECOVERY_BLOCKED.",
-  "next_recommended_action": "If ready, validate/commit/push and restart planner. If blocked, leave explicit blocker."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-06T06:59:14.749318+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_recover_fail_marker_claude_worklog_phase2_core_rebuild_paper_execution_ledger_impl_16_2h_b_paper_exe.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_recover_fail_marker_claude_worklog_phase2_core_rebuild_paper_execution_ledger_impl_16_2h_b_paper_exe",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

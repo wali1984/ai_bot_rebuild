@@ -1,0 +1,127 @@
+{
+  "schema_version": "trainer_scheduled_pretrain_status_v1",
+  "generated_utc": "2026-07-15T16:46:12.163932Z",
+  "training_prefix_rows": 16000,
+  "heldout_rows": 5000,
+  "split_meta": {
+    "cache_path": "claude_worklog/trainer_atlas/scheduled_pretrain_cache.pkl",
+    "cache_hit": true,
+    "load_seconds": 2.74,
+    "examples": 21000,
+    "h2l_heldout_offset": 16000,
+    "h2l_requested_rows": 21000,
+    "h2l_heldout_rows": 5000,
+    "h2l_excluded_prefix_rows": 16000,
+    "cache_rebuilt_for_age": false
+  },
+  "paper_only": true,
+  "places_real_order": false,
+  "routes_to_live": false,
+  "leverage_mutated": false,
+  "margin_mutated": false,
+  "live_gate": "blocked_human_only",
+  "auto_promote": true,
+  "auto_restart": true,
+  "require_risk_gate": true,
+  "min_sortino": 0.0,
+  "max_cvar_loss_bps": null,
+  "gpu_free_vram_mb": 11980.0,
+  "gpu_min_free_vram_mb": 4096.0,
+  "pretrain": {
+    "epochs_run": 12,
+    "best_epoch": 7,
+    "best_validation_loss": 36.06126022338867,
+    "stopped_early": true,
+    "gpu_utilization_max_pct": 98.0,
+    "gpu_utilization_mean_pct": 9.51,
+    "rows_per_second": 10716.6,
+    "saved": {
+      "offline_dir": "/home/wali/Desktop/AI BOT REBUILD/.local_models/v2_native_rl_masa_ppo_offline",
+      "is_live_dir": false,
+      "saved": true,
+      "checkpoint_id": "v2_hybrid_ckpt_4260cdcc506bf3393b2ac488"
+    }
+  },
+  "head_to_head": {
+    "schema_version": "trainer_h2l_promotion_v1",
+    "input_dim": 1908,
+    "held_out_rows": 5000,
+    "live": {
+      "checkpoint_dir": ".local_models/v2_native_rl_masa_ppo",
+      "loaded": true,
+      "checkpoint_id": "v2_hybrid_ckpt_4260cdcc506bf3393b2ac488",
+      "validation_supervised_loss": 46.14898681640625,
+      "validation_rows_evaluated": 5000
+    },
+    "offline": {
+      "checkpoint_dir": ".local_models/v2_native_rl_masa_ppo_offline",
+      "loaded": true,
+      "checkpoint_id": "v2_hybrid_ckpt_4260cdcc506bf3393b2ac488",
+      "validation_supervised_loss": 40.23276901245117,
+      "validation_rows_evaluated": 5000
+    },
+    "min_improvement": 1.0,
+    "offline_loaded": true,
+    "live_loaded": true,
+    "heldout_overlap": {
+      "heldout_row_count": 5000,
+      "excluded_row_count": 16000,
+      "overlap_count": 0,
+      "overlap_samples": []
+    },
+    "paper_only": true,
+    "places_real_order": false,
+    "routes_to_live": false,
+    "leverage_mutated": false,
+    "margin_mutated": false,
+    "live_gate": "blocked_human_only",
+    "offline_better_by": 5.916218,
+    "risk_adjusted_validation": {
+      "live": {
+        "count": 4813,
+        "mean_return": -8.283950623877566,
+        "win_rate": 0.45086224807812175,
+        "sortino_ratio": -0.09969811155710655,
+        "downside_deviation": 83.09034639169231,
+        "cvar": -286.91481153260895,
+        "cvar_alpha": 0.05,
+        "worst_return": -963.9300184162072,
+        "loaded": true,
+        "trades": 4813
+      },
+      "offline": {
+        "count": 1437,
+        "mean_return": 35.65865011760375,
+        "win_rate": 0.5796798886569241,
+        "sortino_ratio": 0.43050504560372704,
+        "downside_deviation": 82.82980764510472,
+        "cvar": -287.7551527445093,
+        "cvar_alpha": 0.05,
+        "worst_return": -845.3951129552787,
+        "loaded": true,
+        "trades": 1437
+      },
+      "gate": {
+        "required": true,
+        "passed": false,
+        "failures": [
+          "OFFLINE_CVAR_WORSE_THAN_LIVE"
+        ],
+        "min_sortino": 0.0,
+        "max_cvar_loss_bps": null,
+        "offline_sortino": 0.43050504560372704,
+        "live_sortino": -0.09969811155710655,
+        "offline_cvar": -287.7551527445093,
+        "live_cvar": -286.91481153260895,
+        "offline_trades": 1437,
+        "live_trades": 4813,
+        "rule": "offline must meet min Sortino, produce OOS trades, stay within CVaR limit when configured, and not be worse than live on Sortino/CVaR"
+      }
+    },
+    "decision": "REFUSE_RISK_ADJUSTED_PROMOTION_GATE",
+    "promoted": false
+  },
+  "promoted": false,
+  "duration_seconds": 471.3,
+  "phase": "COMPLETE"
+}

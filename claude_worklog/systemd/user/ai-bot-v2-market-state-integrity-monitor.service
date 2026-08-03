@@ -1,0 +1,10 @@
+[Unit]
+Description=AI Bot V2 market-state integrity and realtime truth monitor
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+ExecStart=/usr/bin/python3 -m v2.backend.app.cli.v2_realtime_runtime_truth_publisher --once
+
+[Install]
+WantedBy=default.target

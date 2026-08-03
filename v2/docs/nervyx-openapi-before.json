@@ -1,0 +1,3644 @@
+{
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "OrderPreviewRequest": {
+        "properties": {
+          "mode": {
+            "default": "paper",
+            "title": "Mode",
+            "type": "string"
+          },
+          "order_type": {
+            "enum": [
+              "market",
+              "limit",
+              "stop"
+            ],
+            "title": "Order Type",
+            "type": "string"
+          },
+          "paper_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paper Account Id"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "number"
+          },
+          "reduce_only": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reduce Only"
+          },
+          "side": {
+            "enum": [
+              "buy",
+              "sell"
+            ],
+            "title": "Side",
+            "type": "string"
+          },
+          "stop_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Loss"
+          },
+          "stop_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Price"
+          },
+          "symbol": {
+            "minLength": 1,
+            "title": "Symbol",
+            "type": "string"
+          },
+          "take_profit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Take Profit"
+          },
+          "trader_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trader Id"
+          }
+        },
+        "required": [
+          "symbol",
+          "side",
+          "order_type",
+          "quantity"
+        ],
+        "title": "OrderPreviewRequest",
+        "type": "object"
+      },
+      "PaperFillRequest": {
+        "properties": {
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "reason": {
+            "default": "Manual paper fill",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "PaperFillRequest",
+        "type": "object"
+      },
+      "PipelineRunRequest": {
+        "properties": {
+          "dry_run": {
+            "default": true,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "max_rows": {
+            "default": 8192,
+            "maximum": 250000.0,
+            "minimum": 1.0,
+            "title": "Max Rows",
+            "type": "integer"
+          },
+          "reason": {
+            "default": "operator_requested_from_website",
+            "maxLength": 256,
+            "title": "Reason",
+            "type": "string"
+          },
+          "requested_by": {
+            "default": "website",
+            "maxLength": 64,
+            "title": "Requested By",
+            "type": "string"
+          },
+          "run_type": {
+            "enum": [
+              "trainer_cycle",
+              "replay",
+              "backtest",
+              "full_pipeline"
+            ],
+            "title": "Run Type",
+            "type": "string"
+          },
+          "symbols": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Symbols"
+          },
+          "timeframes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeframes"
+          }
+        },
+        "required": [
+          "run_type"
+        ],
+        "title": "PipelineRunRequest",
+        "type": "object"
+      },
+      "PushRegistrationRequest": {
+        "properties": {
+          "app_version": {
+            "default": "",
+            "title": "App Version",
+            "type": "string"
+          },
+          "device_token": {
+            "title": "Device Token",
+            "type": "string"
+          },
+          "environment": {
+            "default": "production",
+            "title": "Environment",
+            "type": "string"
+          },
+          "platform": {
+            "default": "apns",
+            "title": "Platform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_token"
+        ],
+        "title": "PushRegistrationRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "AI BOT V2",
+    "version": "0.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/_meta/agent-health": {
+      "get": {
+        "operationId": "get_agent_health_api_v1__meta_agent_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Agent Health Api V1  Meta Agent Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Agent Health",
+        "tags": [
+          "_meta"
+        ]
+      }
+    },
+    "/api/v1/_meta/audit-chain": {
+      "get": {
+        "operationId": "get_audit_chain_api_v1__meta_audit_chain_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Audit Chain Api V1  Meta Audit Chain Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Audit Chain",
+        "tags": [
+          "_meta"
+        ]
+      }
+    },
+    "/api/v1/_meta/build-status": {
+      "get": {
+        "operationId": "get_build_status_api_v1__meta_build_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Build Status Api V1  Meta Build Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Build Status",
+        "tags": [
+          "_meta"
+        ]
+      }
+    },
+    "/api/v1/_meta/queue-status": {
+      "get": {
+        "operationId": "get_queue_status_api_v1__meta_queue_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Queue Status Api V1  Meta Queue Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Queue Status",
+        "tags": [
+          "_meta"
+        ]
+      }
+    },
+    "/api/v1/live-readiness/banner": {
+      "get": {
+        "description": "Return the online-readiness rollup dict for the GUI banner.\n\nStrictly read-only: this handler opens marker files only via\n`Path.read_text(...)` inside the aggregator, never writes any file,\nand imports no Redis / exchange / child-process surface.",
+        "operationId": "get_banner_api_v1_live_readiness_banner_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Banner Api V1 Live Readiness Banner Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Banner",
+        "tags": [
+          "live-readiness"
+        ]
+      }
+    },
+    "/api/v2/account/exchange-readonly": {
+      "get": {
+        "operationId": "get_exchange_readonly_account_api_v2_account_exchange_readonly_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Exchange Readonly Account Api V2 Account Exchange Readonly Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Exchange Readonly Account",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/account/positions": {
+      "get": {
+        "operationId": "get_account_positions_api_v2_account_positions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Account Positions Api V2 Account Positions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Account Positions",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/account/readiness": {
+      "get": {
+        "operationId": "get_account_readiness_api_v2_account_readiness_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Account Readiness Api V2 Account Readiness Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Account Readiness",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/ai/predictions": {
+      "get": {
+        "description": "Returns the latest AI/model predictions from the trainer service.",
+        "operationId": "get_ai_predictions_api_v2_ai_predictions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Ai Predictions Api V2 Ai Predictions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ai Predictions",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/audit-ledger/summary": {
+      "get": {
+        "operationId": "get_audit_ledger_summary_api_v2_audit_ledger_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Audit Ledger Summary Api V2 Audit Ledger Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Audit Ledger Summary",
+        "tags": [
+          "v2-landing",
+          "v2-landing"
+        ]
+      }
+    },
+    "/api/v2/audit-ledger/tail": {
+      "get": {
+        "description": "Tail of merged audit:ledger* streams, newest first.\n\nObserver+ only. Public requesters get 403 via the RBAC dependency.",
+        "operationId": "get_audit_ledger_tail_api_v2_audit_ledger_tail_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Audit Ledger Tail Api V2 Audit Ledger Tail Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Audit Ledger Tail",
+        "tags": [
+          "v2-landing",
+          "v2-landing"
+        ]
+      }
+    },
+    "/api/v2/backtest/results": {
+      "get": {
+        "description": "Returns list of all backtest results from Redis, newest first.",
+        "operationId": "list_backtest_results_api_v2_backtest_results_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Timeframe"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Backtest Results Api V2 Backtest Results Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Backtest Results",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/backtest/results/{run_id}": {
+      "get": {
+        "description": "Returns full backtest result including equity curve and trades.",
+        "operationId": "get_backtest_result_api_v2_backtest_results__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Backtest Result Api V2 Backtest Results  Run Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Backtest Result",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/backtest/run": {
+      "post": {
+        "description": "Triggers a backtest run via subprocess. Returns run_id immediately.\n\nSafe invariants:\n- Never places exchange orders.\n- Never mutates trading state.\n- Only writes to v2:backtest:* Redis namespace.",
+        "operationId": "trigger_backtest_api_v2_backtest_run_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "default": "BTCUSDT",
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "1h",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lookback",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 500,
+              "minimum": 10,
+              "title": "Lookback",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Trigger Backtest Api V2 Backtest Run Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trigger Backtest",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/backtest/status/{run_id}": {
+      "get": {
+        "description": "Check if a backtest run is still pending/running/complete/expired.",
+        "operationId": "get_backtest_status_api_v2_backtest_status__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Backtest Status Api V2 Backtest Status  Run Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Backtest Status",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/backtests": {
+      "get": {
+        "description": "Returns backtest results. Engine is not yet connected \u2014 returns explicit not-ready state.",
+        "operationId": "get_backtests_api_v2_backtests_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Backtests Api V2 Backtests Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Backtests",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/codex/reviews/latest": {
+      "get": {
+        "operationId": "get_codex_reviews_latest_api_v2_codex_reviews_latest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Codex Reviews Latest Api V2 Codex Reviews Latest Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Codex Reviews Latest",
+        "tags": [
+          "v2-landing",
+          "v2-landing"
+        ]
+      }
+    },
+    "/api/v2/data-health": {
+      "get": {
+        "description": "Public-safe data health summary. Shows freshness and availability of each major data surface.",
+        "operationId": "get_data_health_api_v2_data_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Data Health Api V2 Data Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Data Health",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/execution/audit-events": {
+      "get": {
+        "operationId": "get_execution_audit_events_api_v2_execution_audit_events_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Execution Audit Events Api V2 Execution Audit Events Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Execution Audit Events",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/execution/executions": {
+      "get": {
+        "operationId": "get_execution_executions_api_v2_execution_executions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Execution Executions Api V2 Execution Executions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Execution Executions",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/execution/orders": {
+      "get": {
+        "operationId": "get_execution_orders_api_v2_execution_orders_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Execution Orders Api V2 Execution Orders Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Execution Orders",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/live-readiness/gates": {
+      "get": {
+        "operationId": "get_live_readiness_gates_api_v2_live_readiness_gates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Live Readiness Gates Api V2 Live Readiness Gates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Live Readiness Gates",
+        "tags": [
+          "v2-landing",
+          "v2-landing"
+        ]
+      }
+    },
+    "/api/v2/market-brain/entry-gate-status": {
+      "get": {
+        "description": "Current P0 entry gate config \u2014 symbol exclusions, TF filter, mode blocks.",
+        "operationId": "get_entry_gate_status_api_v2_market_brain_entry_gate_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Entry Gate Status Api V2 Market Brain Entry Gate Status Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Entry Gate Status",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market-brain/hedge-lock-status": {
+      "get": {
+        "description": "All active paper-only hedge lock pairs.",
+        "operationId": "get_hedge_lock_status_api_v2_market_brain_hedge_lock_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Hedge Lock Status Api V2 Market Brain Hedge Lock Status Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Hedge Lock Status",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market-brain/overview": {
+      "get": {
+        "description": "Aggregated market state brain overview across all active symbols/TFs.",
+        "operationId": "get_market_brain_overview_api_v2_market_brain_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Market Brain Overview Api V2 Market Brain Overview Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Market Brain Overview",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market-brain/state": {
+      "get": {
+        "description": "All cached market brain state classifications from Redis.",
+        "operationId": "get_market_brain_all_states_api_v2_market_brain_state_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Market Brain All States Api V2 Market Brain State Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Market Brain All States",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market/overview": {
+      "get": {
+        "operationId": "get_market_overview_api_v2_market_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Market Overview Api V2 Market Overview Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Market Overview",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market/{symbol}": {
+      "get": {
+        "operationId": "get_market_detail_api_v2_market__symbol__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Market Detail Api V2 Market  Symbol  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Market Detail",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market/{symbol}/candles": {
+      "get": {
+        "operationId": "get_market_candles_api_v2_market__symbol__candles_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "1m",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Market Candles Api V2 Market  Symbol  Candles Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Market Candles",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market/{symbol}/depth": {
+      "get": {
+        "operationId": "get_market_depth_api_v2_market__symbol__depth_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Market Depth Api V2 Market  Symbol  Depth Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Market Depth",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market/{symbol}/derivatives": {
+      "get": {
+        "operationId": "get_market_derivatives_api_v2_market__symbol__derivatives_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "5m",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Market Derivatives Api V2 Market  Symbol  Derivatives Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Market Derivatives",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market/{symbol}/indicators": {
+      "get": {
+        "operationId": "get_market_indicators_api_v2_market__symbol__indicators_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "1m",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Market Indicators Api V2 Market  Symbol  Indicators Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Market Indicators",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market/{symbol}/stream-status": {
+      "get": {
+        "operationId": "get_market_stream_status_api_v2_market__symbol__stream_status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Market Stream Status Api V2 Market  Symbol  Stream Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Market Stream Status",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market/{symbol}/ticker": {
+      "get": {
+        "operationId": "get_market_ticker_api_v2_market__symbol__ticker_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Market Ticker Api V2 Market  Symbol  Ticker Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Market Ticker",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/market/{symbol}/trades": {
+      "get": {
+        "operationId": "get_recent_trades_api_v2_market__symbol__trades_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "title": "Symbol",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Recent Trades Api V2 Market  Symbol  Trades Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Recent Trades",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/mobile/admin/summary": {
+      "get": {
+        "description": "Admin overview for mobile admin dashboard. Requires admin role.",
+        "operationId": "get_mobile_admin_summary_api_v2_mobile_admin_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mobile Admin Summary Api V2 Mobile Admin Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mobile Admin Summary",
+        "tags": [
+          "v2-landing",
+          "v2-mobile",
+          "v2-mobile-admin"
+        ]
+      }
+    },
+    "/api/v2/mobile/alerts": {
+      "get": {
+        "description": "Recent market alerts for mobile alerts tab.",
+        "operationId": "get_mobile_alerts_api_v2_mobile_alerts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mobile Alerts Api V2 Mobile Alerts Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mobile Alerts",
+        "tags": [
+          "v2-landing",
+          "v2-mobile"
+        ]
+      }
+    },
+    "/api/v2/mobile/dashboard": {
+      "get": {
+        "description": "Compact system overview for mobile home screen.\nReturns trainer state, GPU, paper loop, open positions summary, top alerts.\nNo auth required (public state only).",
+        "operationId": "get_mobile_dashboard_api_v2_mobile_dashboard_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mobile Dashboard Api V2 Mobile Dashboard Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mobile Dashboard",
+        "tags": [
+          "v2-landing",
+          "v2-mobile"
+        ]
+      }
+    },
+    "/api/v2/mobile/health": {
+      "get": {
+        "description": "System health check for mobile status bar and watch face.",
+        "operationId": "get_mobile_health_api_v2_mobile_health_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mobile Health Api V2 Mobile Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mobile Health",
+        "tags": [
+          "v2-landing",
+          "v2-mobile"
+        ]
+      }
+    },
+    "/api/v2/mobile/paper-summary": {
+      "get": {
+        "description": "Paper trading summary for mobile paper trading tab.",
+        "operationId": "get_mobile_paper_summary_api_v2_mobile_paper_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mobile Paper Summary Api V2 Mobile Paper Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mobile Paper Summary",
+        "tags": [
+          "v2-landing",
+          "v2-mobile"
+        ]
+      }
+    },
+    "/api/v2/mobile/positions": {
+      "get": {
+        "description": "Compact paper positions list for mobile positions tab.",
+        "operationId": "get_mobile_positions_api_v2_mobile_positions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mobile Positions Api V2 Mobile Positions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mobile Positions",
+        "tags": [
+          "v2-landing",
+          "v2-mobile"
+        ]
+      }
+    },
+    "/api/v2/mobile/push/register": {
+      "post": {
+        "description": "Register an APNS/FCM device token for push notifications.\nRequires authentication.",
+        "operationId": "register_push_token_api_v2_mobile_push_register_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushRegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Register Push Token Api V2 Mobile Push Register Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Push Token",
+        "tags": [
+          "v2-landing",
+          "v2-mobile"
+        ]
+      }
+    },
+    "/api/v2/mobile/push/{device_token}": {
+      "delete": {
+        "description": "Unregister an APNS/FCM device token.",
+        "operationId": "unregister_push_token_api_v2_mobile_push__device_token__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_token",
+            "required": true,
+            "schema": {
+              "title": "Device Token",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Unregister Push Token Api V2 Mobile Push  Device Token  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unregister Push Token",
+        "tags": [
+          "v2-landing",
+          "v2-mobile"
+        ]
+      }
+    },
+    "/api/v2/mobile/risk-status": {
+      "get": {
+        "description": "Risk gate status for mobile risk control tab.",
+        "operationId": "get_mobile_risk_status_api_v2_mobile_risk_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mobile Risk Status Api V2 Mobile Risk Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mobile Risk Status",
+        "tags": [
+          "v2-landing",
+          "v2-mobile"
+        ]
+      }
+    },
+    "/api/v2/mobile/signals": {
+      "get": {
+        "description": "Compact signals feed for mobile signals tab. Max 50 rows.",
+        "operationId": "get_mobile_signals_api_v2_mobile_signals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actionable_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Actionable Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Mobile Signals Api V2 Mobile Signals Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mobile Signals",
+        "tags": [
+          "v2-landing",
+          "v2-mobile"
+        ]
+      }
+    },
+    "/api/v2/ollama/health": {
+      "get": {
+        "operationId": "get_ollama_health_api_v2_ollama_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Ollama Health Api V2 Ollama Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Ollama Health",
+        "tags": [
+          "v2-landing",
+          "v2-landing"
+        ]
+      }
+    },
+    "/api/v2/orchestrator/status": {
+      "get": {
+        "description": "Return the current orchestrator heartbeat, proposals, and decisions from Redis.",
+        "operationId": "get_orchestrator_status_api_v2_orchestrator_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Orchestrator Status Api V2 Orchestrator Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Orchestrator Status",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/orders/paper": {
+      "post": {
+        "operationId": "submit_paper_order_api_v2_orders_paper_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Submit Paper Order Api V2 Orders Paper Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Paper Order",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/orders/paper/{order_id}/cancel": {
+      "post": {
+        "operationId": "cancel_paper_order_api_v2_orders_paper__order_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Cancel Paper Order Api V2 Orders Paper  Order Id  Cancel Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Paper Order",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/orders/paper/{order_id}/fill": {
+      "post": {
+        "operationId": "fill_paper_order_api_v2_orders_paper__order_id__fill_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaperFillRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fill Paper Order Api V2 Orders Paper  Order Id  Fill Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fill Paper Order",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/orders/preview": {
+      "post": {
+        "operationId": "preview_order_api_v2_orders_preview_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preview Order Api V2 Orders Preview Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Order",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/paper/status": {
+      "get": {
+        "operationId": "get_paper_status_api_v2_paper_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Paper Status Api V2 Paper Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Paper Status",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/pipeline/run": {
+      "post": {
+        "operationId": "request_pipeline_run_api_v2_pipeline_run_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-role",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Role"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Request Pipeline Run Api V2 Pipeline Run Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Pipeline Run",
+        "tags": [
+          "v2-landing",
+          "v2-pipeline-control"
+        ]
+      }
+    },
+    "/api/v2/pipeline/status": {
+      "get": {
+        "operationId": "get_pipeline_status_api_v2_pipeline_status_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbols",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbols"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Timeframes"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Pipeline Status Api V2 Pipeline Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Pipeline Status",
+        "tags": [
+          "v2-landing",
+          "v2-pipeline-control"
+        ]
+      }
+    },
+    "/api/v2/portfolio": {
+      "get": {
+        "operationId": "get_portfolio_api_v2_portfolio_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Portfolio Api V2 Portfolio Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Portfolio",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/predictions/explain": {
+      "get": {
+        "description": "Return a natural-language explanation of the latest prediction for a symbol/timeframe.",
+        "operationId": "get_prediction_explain_api_v2_predictions_explain_get",
+        "parameters": [
+          {
+            "description": "Symbol, e.g. BTCUSDT",
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "description": "Symbol, e.g. BTCUSDT",
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Timeframe, e.g. 1h",
+            "in": "query",
+            "name": "timeframe",
+            "required": true,
+            "schema": {
+              "description": "Timeframe, e.g. 1h",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Prediction Explain Api V2 Predictions Explain Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Prediction Explain",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/predictions/matrix": {
+      "get": {
+        "description": "Return a matrix of all available trainer predictions from Redis.",
+        "operationId": "get_predictions_matrix_api_v2_predictions_matrix_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbols",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbols"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Timeframes"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Predictions Matrix Api V2 Predictions Matrix Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Predictions Matrix",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/public/status": {
+      "get": {
+        "operationId": "get_public_status_api_v2_public_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Public Status Api V2 Public Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Public Status",
+        "tags": [
+          "v2-landing",
+          "v2-landing-public"
+        ]
+      }
+    },
+    "/api/v2/realtime/manifest": {
+      "get": {
+        "description": "Returns the list of known realtime data sources and their wiring status.",
+        "operationId": "get_realtime_manifest_api_v2_realtime_manifest_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Realtime Manifest Api V2 Realtime Manifest Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Realtime Manifest",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/replay/status": {
+      "get": {
+        "operationId": "get_replay_status_api_v2_replay_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Replay Status Api V2 Replay Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Replay Status",
+        "tags": [
+          "v2-landing",
+          "v2-landing"
+        ]
+      }
+    },
+    "/api/v2/risk/status": {
+      "get": {
+        "description": "Return the current risk gateway state, active profile, and recent decisions from Redis.",
+        "operationId": "get_risk_status_api_v2_risk_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Risk Status Api V2 Risk Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Risk Status",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/signals": {
+      "get": {
+        "operationId": "get_signals_api_v2_signals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "symbol",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Symbol"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeframe",
+            "required": false,
+            "schema": {
+              "default": "5m",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Signals Api V2 Signals Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Signals",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/signals/explain": {
+      "get": {
+        "description": "Return a short natural-language explanation of the latest paper signal for a symbol/timeframe.",
+        "operationId": "get_signal_explain_api_v2_signals_explain_get",
+        "parameters": [
+          {
+            "description": "Symbol, e.g. BTCUSDT",
+            "in": "query",
+            "name": "symbol",
+            "required": true,
+            "schema": {
+              "description": "Symbol, e.g. BTCUSDT",
+              "title": "Symbol",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Timeframe, e.g. 1h",
+            "in": "query",
+            "name": "timeframe",
+            "required": true,
+            "schema": {
+              "description": "Timeframe, e.g. 1h",
+              "title": "Timeframe",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Signal Explain Api V2 Signals Explain Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Signal Explain",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/signals/matrix": {
+      "get": {
+        "description": "Return a matrix of all available paper signals from Redis, grouped by symbol and timeframe.",
+        "operationId": "get_signals_matrix_api_v2_signals_matrix_get",
+        "parameters": [
+          {
+            "description": "Comma-separated symbol filter (default: all)",
+            "in": "query",
+            "name": "symbols",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated symbol filter (default: all)",
+              "title": "Symbols"
+            }
+          },
+          {
+            "description": "Comma-separated timeframe filter (default: all)",
+            "in": "query",
+            "name": "timeframes",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated timeframe filter (default: all)",
+              "title": "Timeframes"
+            }
+          },
+          {
+            "in": "query",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "title": "Args"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kwargs",
+            "required": true,
+            "schema": {
+              "title": "Kwargs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Signals Matrix Api V2 Signals Matrix Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Signals Matrix",
+        "tags": [
+          "v2-landing",
+          "v2-market-contracts"
+        ]
+      }
+    },
+    "/api/v2/trainer/summary": {
+      "get": {
+        "operationId": "get_trainer_summary_api_v2_trainer_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Trainer Summary Api V2 Trainer Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Trainer Summary",
+        "tags": [
+          "v2-landing",
+          "v2-landing"
+        ]
+      }
+    }
+  },
+  "x-nervyx-capture": {
+    "base": "680ddfb12d2810d950f7a465a39a4fb8a77ec205",
+    "base_branch": "codex/nervyx-one-rebrand",
+    "branch": "codex/pipeline-trust-refresh",
+    "generated_at": "2026-06-23T19:45:21.028364Z",
+    "head": "5b0a4997dae6ab50b1f3aba3327ad9959e126247",
+    "raw_capture_error": "Traceback (most recent call last):\n  File \"<string>\", line 9, in <module>\n  File \"/tmp/nervyx-openapi-base-km2xqbqh/backend/app/main.py\", line 26, in <module>\n    from app.api.auth_rbac import router as auth_rbac_router\nModuleNotFoundError: No module named 'app.api.auth_rbac'\n",
+    "raw_capture_failed": true,
+    "shims": [
+      "app.api.auth_rbac",
+      "app.api.v2.alerts_contracts",
+      "app.api.v2.hourly_monitor",
+      "app.api.v2.live_gate_status",
+      "app.api.v2.monitoring_contracts",
+      "app.api.v2.status_contracts",
+      "app.auth.security",
+      "app.auth.users",
+      "app.domain.contracts",
+      "app.services.credential_status",
+      "app.services.live_readiness",
+      "app.services.market_stream_alert_history",
+      "app.services.market_stream_alert_notifier",
+      "app.services.paper_audit_ledger",
+      "app.services.paper_trade_management.entry_gate",
+      "app.services.pipeline_control.service",
+      "app.services.trader_account_repository",
+      "app.domain.governance.audit_chain.local_paper_audit_policy_metadata",
+      "app.api.v1.chart",
+      "app.api.v1.live_gate"
+    ],
+    "status": "captured_with_shims"
+  }
+}

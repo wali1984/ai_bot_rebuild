@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI BOT V2 final operator decision and event watcher execution cycle
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=120s
+AccuracySec=10s
+Persistent=true
+Unit=ai-bot-v2-final-operator-decision-event-watcher.service
+
+[Install]
+WantedBy=timers.target

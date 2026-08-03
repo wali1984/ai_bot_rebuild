@@ -1,0 +1,162 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "live_gate": "blocked_human_only",
+  "places_real_order": false,
+  "total_trades_audited": 645,
+  "go_no_go": "NO_GO",
+  "blockers": [
+    {
+      "id": "B01",
+      "severity": "CRITICAL",
+      "category": "Model",
+      "title": "PPO model produces SHORT only \u2014 LONG path dead",
+      "description": "645/645 closed trades are SHORT. PPO action_probabilities[1] (LONG) is near 0 for all sampled symbols. LONG price discovery, trend following on bull moves, and mean reversion from oversold are all impossible.",
+      "raw_evidence": "redis-cli get v2:prediction:LITUSDT:15m | jq .action_probabilities => [2.42e-07, 1.40e-07, 0.9999996]",
+      "verification_command": "redis-cli keys 'v2:prediction:*' | xargs -I{} redis-cli get {} | python3 -c 'import json,sys; print([json.loads(l)[\"selected_action\"] for l in sys.stdin if l.strip()][:20])'",
+      "confidence": "CONFIRMED",
+      "remediation": "Retrain PPO with balanced long/short reward. Validate on minimum 100 LONG trades in paper before any live consideration.",
+      "tests_required": "test_ppo_long_action_eligible(), test_long_paper_trade_executes()"
+    },
+    {
+      "id": "B02",
+      "severity": "CRITICAL",
+      "category": "Exit Management",
+      "title": "Trailing stop fires at 89.9% loss rate \u2014 primary loss driver",
+      "description": "395/645 exits are TIER_2_TRAILING_STOP. WR at TS exit = 10.1%. TS fires when position briefly moves favorably then reverses, suggesting stop distance (~60 bps) is too tight for natural volatility.",
+      "raw_evidence": "Computed from v2:paper:closed_trades: ts_count=395, ts_wins=40, ts_losses=355, ts_total_pnl=-135.97",
+      "verification_command": "redis-cli get v2:paper:closed_trades | python3 -c \"import json,sys; rows=json.loads(sys.stdin.read()); ts=[r for r in rows if r.get('exit_reason')=='TIER_2_TRAILING_STOP']; print(len(ts), sum(1 for r in ts if r.get('winner') is True)/len(ts))\"",
+      "confidence": "CONFIRMED",
+      "remediation": "Widen TS from ~60 bps to 100-150 bps. Run 200-trade soak. Consider ATR-based dynamic stop.",
+      "tests_required": "test_trailing_stop_fires_at_wider_distance(), test_ts_wr_improves_after_widening()"
+    },
+    {
+      "id": "B03",
+      "severity": "HIGH",
+      "category": "Accounting",
+      "title": "Portfolio equity excludes closed trade realized PnL",
+      "description": "v2:portfolio:state.realized_pnl_usd=0.0 despite 645 closed trades with net $22.23 realized PnL. Portfolio equity ($10,719.36) = initial + unrealized only. Expected: $10,741.59.",
+      "raw_evidence": "redis-cli get v2:portfolio:state | jq '{realized: .realized_pnl_usd, equity: .equity}' => {realized: 0.0, equity: 10719.36}",
+      "verification_command": "redis-cli get v2:paper:closed_trades | python3 -c \"import json,sys; rows=json.loads(sys.stdin.read()); print(f'closed_realized={sum(float(r.get(chr(34)+chr(114)+'ealized_pnl_usd'+chr(34),0) or 0) for r in rows):.2f}')\"",
+      "confidence": "CONFIRMED",
+      "remediation": "Fix paper accounting service (mark_to_market.py or accounting.py) to accumulate realized PnL from closed positions into portfolio equity."
+    },
+    {
+      "id": "B04",
+      "severity": "HIGH",
+      "category": "Feature",
+      "title": "squeeze_evidence_score null on 100% of all trades",
+      "description": "squeeze_evidence_score field is None for all 645 closed trades. Squeeze-detected events (high-volume reversals, liquidation cascades) enter the system with zero squeeze awareness.",
+      "raw_evidence": "Computed: squeeze_null_pct=100.0 from v2:paper:closed_trades",
+      "verification_command": "redis-cli get v2:paper:closed_trades | python3 -c \"import json,sys; rows=json.loads(sys.stdin.read()); print(sum(1 for r in rows if r.get('squeeze_evidence_score') is None), len(rows))\"",
+      "confidence": "CONFIRMED",
+      "remediation": "Populate squeeze_evidence_score from the prediction publisher (OI, funding, liquidation cascade signals). Filter out trades during high-squeeze regimes."
+    },
+    {
+      "id": "B05",
+      "severity": "HIGH",
+      "category": "Risk",
+      "title": "bid_ask_spread_bps hardcoded at 2.0 bps \u2014 not market-observed",
+      "description": "microstructure_context.bid_ask_spread_bps=2.0 for 100% of trades. The router's high_spread_bps_threshold=12.0 never triggers. Low-liquidity symbols (NIGHTUSDT, PUMPUSDT) receive 2 bps spread when actual may be 50-200 bps.",
+      "raw_evidence": "Computed: 645/645 trades have bid_ask_spread_bps=2.0",
+      "confidence": "CONFIRMED",
+      "remediation": "Wire real-time bid/ask spread from Binance orderbook or 24h ticker to microstructure_context. Apply high_spread_bps_threshold filter."
+    },
+    {
+      "id": "B06",
+      "severity": "HIGH",
+      "category": "Risk",
+      "title": "drawdown_at_entry always zero \u2014 adaptive drawdown guard non-functional",
+      "description": "All 645 trades have drawdown_at_entry=0.0. Strategy router drawdown_block_bps=250 and drawdown_reduce_bps=125 thresholds are never reached. Risk management under sustained drawdown is untested.",
+      "raw_evidence": "Computed: 645/645 trades have drawdown_at_entry=0.0",
+      "confidence": "CONFIRMED",
+      "remediation": "Compute current_drawdown_bps from portfolio equity vs high-water mark and pass to strategy router."
+    },
+    {
+      "id": "B07",
+      "severity": "HIGH",
+      "category": "Performance",
+      "title": "5m and 4h timeframes structurally net-negative across 645 trades",
+      "description": "5m: n=143, WR=27.3%, pnl=-$10.15. 4h: n=138, WR=24.6%, pnl=-$3.65. Both negative across full soak. Combined loss: -$13.80.",
+      "raw_evidence": "Computed from v2:paper:closed_trades: tf_pnl={'5m':-10.15, '4h':-3.65}",
+      "confidence": "CONFIRMED",
+      "remediation": "Disable 5m and 4h paper trading. Run 200-trade soak on 1m/15m/1h only to confirm improvement."
+    },
+    {
+      "id": "B08",
+      "severity": "MEDIUM",
+      "category": "Performance",
+      "title": "Global WR 30.39% below 35% soft threshold",
+      "description": "645 trades: wins=196, losses=449, WR=30.39%. System has positive edge (PF=1.11) but win rate gate requires 35%. Cannot approve live trading.",
+      "raw_evidence": "Computed: wins=196, WR=0.3039, pf=1.1056",
+      "confidence": "CONFIRMED",
+      "remediation": "Must reach 35% WR on 200+ new trades after implementing B07 (5m/4h exclusion) and B02 (wider TS). Win rate gate is mandatory before live approval."
+    },
+    {
+      "id": "B09",
+      "severity": "MEDIUM",
+      "category": "Risk",
+      "title": "Zero-WR symbols still receiving trades: NIGHTUSDT, TIAUSDT, TRUMPUSDT, PUMPUSDT",
+      "description": "NIGHTUSDT: 0/5=0% WR, -$5.64. TIAUSDT: 0/3=0% WR, -$2.85. TRUMPUSDT: 0/3=0% WR, -$2.21. PUMPUSDT: 0/3=0% WR, -$2.53. Combined: -$13.23 with 0 wins.",
+      "raw_evidence": "Computed from v2:paper:closed_trades per-symbol aggregates",
+      "confidence": "CONFIRMED",
+      "remediation": "Add circuit breaker: 2 consecutive losses per symbol \u2192 24h paper pause. Add these to exclusion list."
+    },
+    {
+      "id": "B10",
+      "severity": "MEDIUM",
+      "category": "Feature",
+      "title": "LONG action path untested \u2014 zero LONG trades in 645-trade soak",
+      "description": "No LONG paper trade has ever been executed. The LONG position creation, management, trailing stop, and exit code paths are completely untested in paper mode.",
+      "raw_evidence": "645/645 side='short', 0 side='long'",
+      "confidence": "CONFIRMED",
+      "remediation": "Must produce at least 50 LONG paper trades to validate LONG path before any live approval."
+    }
+  ],
+  "gates_summary": {
+    "paper_soak_target": {
+      "required": 500,
+      "actual": 645,
+      "status": "MET"
+    },
+    "win_rate_gate": {
+      "required": 0.35,
+      "actual": 0.3039,
+      "status": "NOT_MET"
+    },
+    "profit_factor_gate": {
+      "required": 1.0,
+      "actual": 1.1056,
+      "status": "MET_MARGINAL"
+    },
+    "negative_timeframes_gate": {
+      "required": "all_positive",
+      "actual": "5m and 4h negative",
+      "status": "NOT_MET"
+    },
+    "pit_violations_gate": {
+      "required": 0,
+      "actual": 0,
+      "status": "MET"
+    },
+    "long_path_gate": {
+      "required": "min_50_longs",
+      "actual": 0,
+      "status": "NOT_MET"
+    },
+    "squeeze_feature_gate": {
+      "required": "populated",
+      "actual": "null_100pct",
+      "status": "NOT_MET"
+    },
+    "drawdown_guard_gate": {
+      "required": "functional",
+      "actual": "always_zero",
+      "status": "NOT_MET"
+    },
+    "human_approval": {
+      "required": true,
+      "actual": false,
+      "status": "NOT_MET"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+[Unit]
+Description=AI Bot Codex continuous remediation review governor
+After=ai-bot-v2-continuous-legacy-log-remediation.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-codex-continuous-remediation-review-governor'
+ExecStart=/usr/bin/env bash -lc 'exec ./.venv/bin/python3 claude_worklog/tools/codex_continuous_remediation_review_governor.py --once'
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

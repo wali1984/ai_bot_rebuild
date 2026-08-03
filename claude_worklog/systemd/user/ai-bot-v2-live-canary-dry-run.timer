@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 live-canary DRY-RUN timer (every 60s; FakeExchangeAdapter only; NEVER enables live trading; NEVER places real orders)
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=60s
+Persistent=true
+AccuracySec=10s
+Unit=ai-bot-v2-live-canary-dry-run.service
+
+[Install]
+WantedBy=timers.target

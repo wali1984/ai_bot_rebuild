@@ -117,6 +117,7 @@ def test_binance_public_klines_fetched_and_persisted_into_v2_namespaced_stream(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     paths = _route_writes_to(tmp_path, monkeypatch)
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
     captured_urls: list[str] = []
 
     def fake_http_get(url: str) -> Tuple[int, Any]:
@@ -125,30 +126,50 @@ def test_binance_public_klines_fetched_and_persisted_into_v2_namespaced_stream(
             return 401, {"error": "coinapi key unavailable in test"}
         if "fapi.binance.com/fapi/v1/klines" in url:
             return 200, _binance_klines_payload()
-        if "fapi.binance.com/fapi/v1/ticker/bookTicker" in url:
-            return 200, {"symbol": "BTCUSDT", "bidPrice": "60049.9", "askPrice": "60050.1"}
-        if "fapi.binance.com/fapi/v1/premiumIndex" in url:
-            return 200, {
-                "symbol": "BTCUSDT",
-                "markPrice": "60051.0",
-                "indexPrice": "60045.0",
-                "estimatedSettlePrice": "60046.0",
-                "lastFundingRate": "0.0001",
-                "interestRate": "0.00001",
-                "nextFundingTime": 1_715_502_000_000,
-                "time": 1_715_500_120_000,
-            }
-        if "fapi.binance.com/fapi/v1/openInterest" in url:
-            return 200, {"symbol": "BTCUSDT", "openInterest": "12345.67", "time": 1_715_500_120_000}
-        if "fapi.binance.com/fapi/v1/depth" in url:
-            return 200, {
-                "lastUpdateId": 101,
-                "bids": [["60049.9", "1.0"]],
-                "asks": [["60050.1", "1.2"]],
-            }
         raise AssertionError(f"unexpected public GET: {url}")
 
     service = MarketIngestService(http_get=fake_http_get, clock=lambda: 1_715_500_120.0)
+    service.data_plane.update(
+        {
+            f"{V2_KEY_PREFIX}:BTCUSDT:bbo": {
+                "symbol": "BTCUSDT",
+                "bid": "60049.9",
+                "ask": "60050.1",
+                "ts_ms": 1_715_500_120_000,
+                "source": "binance_bookticker_wss_cache",
+            },
+            f"{V2_KEY_PREFIX}:mark_price:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "mark_price": "60051.0",
+                "index_price": "60045.0",
+                "estimated_settle_price": "60046.0",
+                "time": 1_715_500_120_000,
+                "source": "binance_mark_price_wss_cache",
+            },
+            f"{V2_KEY_PREFIX}:funding:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "funding_rate": "0.0001",
+                "interest_rate": "0.00001",
+                "next_funding_time": 1_715_502_000_000,
+                "time": 1_715_500_120_000,
+                "source": "binance_funding_wss_cache",
+            },
+            f"{V2_KEY_PREFIX}:open_interest:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "open_interest": "12345.67",
+                "time": 1_715_500_120_000,
+                "source": "market_provider_cache_primary",
+            },
+            f"{V2_KEY_PREFIX}:orderbook_top:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "bids": [["60049.9", "1.0"]],
+                "asks": [["60050.1", "1.2"]],
+                "last_update_id": 101,
+                "event_time_ms": 1_715_500_120_000,
+                "source": "binance_depth_wss_cache",
+            },
+        }
+    )
     args = parse_args(["--once", "--symbol", "BTCUSDT", "--timeframe", "1m", "--limit", "2"])
     status = run_once(args, service=service)
 
@@ -157,6 +178,10 @@ def test_binance_public_klines_fetched_and_persisted_into_v2_namespaced_stream(
     assert status["last_kline_ts"] == 1_715_500_060_000
     assert "rest.coinapi.io/v1/ohlcv" in captured_urls[0]
     assert "fapi.binance.com/fapi/v1/klines" in captured_urls[1]
+    assert all("fapi.binance.com/fapi/v1/ticker/bookTicker" not in url for url in captured_urls)
+    assert all("fapi.binance.com/fapi/v1/premiumIndex" not in url for url in captured_urls)
+    assert all("fapi.binance.com/fapi/v1/openInterest" not in url for url in captured_urls)
+    assert all("fapi.binance.com/fapi/v1/depth" not in url for url in captured_urls)
 
     # V2 namespace strictly enforced:
     bars_key = f"{V2_KEY_PREFIX}:BTCUSDT:ohlcv:1m"
@@ -173,12 +198,16 @@ def test_binance_public_klines_fetched_and_persisted_into_v2_namespaced_stream(
     assert funding_key in service.data_plane
     assert oi_key in service.data_plane
     assert depth_key in service.data_plane
-    assert service.data_plane[price_key]["source"] == "binance_rest"
-    assert status["result"]["klines"]["source"] == "binance_rest"
+    assert service.data_plane[price_key]["source"] == "binance_rest_fallback"
+    assert status["result"]["klines"]["source"] == "binance_rest_fallback"
     assert status["result"]["bbo"]["status"] == "ok"
     assert status["result"]["mark_premium_funding"]["status"] == "ok"
     assert status["result"]["open_interest"]["status"] == "ok"
     assert status["result"]["depth"]["status"] == "ok"
+    assert status["result"]["bbo"]["rest_fallback_used"] is False
+    assert status["result"]["mark_premium_funding"]["rest_fallback_used"] is False
+    assert status["result"]["open_interest"]["rest_fallback_used"] is False
+    assert status["result"]["depth"]["rest_fallback_used"] is False
 
     # Persisted data plane file uses the V2 prefix and nothing else:
     data_plane = json.loads((paths["local"] / "v2_market_data_plane.json").read_text())
@@ -201,6 +230,39 @@ def test_binance_public_klines_fetched_and_persisted_into_v2_namespaced_stream(
         assert field in status, f"missing required public payload field: {field}"
     assert status["live_gate"] == "blocked_human_only"
     assert status["current_gate_state"] == "blocked_human_only"
+
+
+def test_default_market_ingestor_blocks_binance_rest_without_fallback_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+    monkeypatch.setattr(
+        worker.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: pytest.fail("Binance REST fallback must be blocked before urlopen"),
+    )
+
+    status, payload = worker.http_get("https://fapi.binance.com/fapi/v1/depth?symbol=BTCUSDT&limit=20")
+
+    assert status == 599
+    assert payload["error"] == "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY"
+    assert payload["transport_policy"] == "binance_websocket_cache_primary_rest_fallback_only"
+
+
+def test_market_ingestor_methods_block_binance_rest_when_cache_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+
+    def fail_if_called(url: str) -> Tuple[int, Any]:
+        raise AssertionError(f"Binance REST fallback should be blocked before HTTP: {url}")
+
+    svc = MarketIngestService(http_get=fail_if_called, clock=lambda: 1_715_500_120.0)
+
+    assert svc.ingest_bbo("BTCUSDT")["status"] == "blocked_rest_fallback_disabled"
+    assert svc.ingest_mark_premium_funding("BTCUSDT")["status"] == "blocked_rest_fallback_disabled"
+    assert svc.ingest_oi("BTCUSDT")["status"] == "blocked_rest_fallback_disabled"
+    assert svc.ingest_depth("BTCUSDT")["status"] == "blocked_rest_fallback_disabled"
 
 
 def test_coinapi_v1_primary_attempted_on_cold_start_before_binance_fallback(
@@ -286,31 +348,45 @@ def test_realtime_price_provider_pattern_preserved_or_replaced_with_documented_r
     ordered = sorted(labels.items(), key=lambda kv: kv[1])
     assert ordered[0][0] == "coinapi_ws"
     assert ordered[-1][0] == "redis_cache"
-    # And the data-source priority table exposes ohlcv routing as
-    # CoinAPI V1 primary -> Binance REST fallback (the docstring data-source
-    # table from the startup script):
-    assert DATA_SOURCE_PRIORITY["ohlcv"] == ("coinapi_v1", "binance_rest")
-    assert DATA_SOURCE_PRIORITY["quote_bbo"] == ("coinapi_ds", "binance_bookticker")
+    # Binance runtime sources are WebSocket/cache-primary. REST remains an
+    # explicit fallback, not the advertised primary path.
+    assert DATA_SOURCE_PRIORITY["ohlcv"] == (
+        "binance_wss_closed_kline_cache",
+        "coinapi_v1_or_binance_rest_fallback",
+    )
+    assert DATA_SOURCE_PRIORITY["quote_bbo"] == (
+        "binance_bookticker_wss_cache",
+        "binance_bookticker_rest_fallback",
+    )
     assert DATA_SOURCE_PRIORITY["microstructure"] == ("coinapi_ds", None)
     assert DATA_SOURCE_PRIORITY["funding_rate"] == ("binance_ws", None)
     assert DATA_SOURCE_PRIORITY["mark_price"] == ("binance_ws", None)
-    assert DATA_SOURCE_PRIORITY["premium_index"] == ("binance_rest", None)
-    assert DATA_SOURCE_PRIORITY["open_interest"] == ("binance_rest", "coinank")
+    assert DATA_SOURCE_PRIORITY["premium_index"] == (
+        "binance_mark_price_wss_cache",
+        "binance_premium_index_rest_fallback",
+    )
+    assert DATA_SOURCE_PRIORITY["open_interest"] == (
+        "market_cache_or_provider_bridge",
+        "binance_open_interest_rest_fallback",
+    )
     assert DATA_SOURCE_PRIORITY["liquidations"] == ("binance_ws", None)
-    assert DATA_SOURCE_PRIORITY["orderbook_depth"] == ("binance_rest_ws", None)
+    assert DATA_SOURCE_PRIORITY["orderbook_depth"] == (
+        "binance_depth_wss_cache",
+        "binance_depth_rest_fallback",
+    )
 
 
 def test_startup_script_data_source_table_is_fully_represented() -> None:
     expected = {
-        "ohlcv": ("coinapi_v1", "binance_rest"),
-        "quote_bbo": ("coinapi_ds", "binance_bookticker"),
+        "ohlcv": ("binance_wss_closed_kline_cache", "coinapi_v1_or_binance_rest_fallback"),
+        "quote_bbo": ("binance_bookticker_wss_cache", "binance_bookticker_rest_fallback"),
         "microstructure": ("coinapi_ds", None),
         "funding_rate": ("binance_ws", None),
         "mark_price": ("binance_ws", None),
-        "premium_index": ("binance_rest", None),
-        "open_interest": ("binance_rest", "coinank"),
+        "premium_index": ("binance_mark_price_wss_cache", "binance_premium_index_rest_fallback"),
+        "open_interest": ("market_cache_or_provider_bridge", "binance_open_interest_rest_fallback"),
         "liquidations": ("binance_ws", None),
-        "orderbook_depth": ("binance_rest_ws", None),
+        "orderbook_depth": ("binance_depth_wss_cache", "binance_depth_rest_fallback"),
     }
     assert DATA_SOURCE_PRIORITY == expected
 
@@ -331,7 +407,7 @@ def test_ws_reconnect_policy_is_explicitly_preserved_as_delegated_contract() -> 
     assert LEGACY_WS_RECONNECT_POLICY["backoff_multiplier"] == 1.8
     assert LEGACY_WS_RECONNECT_POLICY["backoff_cap_seconds"] == 15.0
     assert LEGACY_WS_RECONNECT_POLICY["max_retries"] == 8
-    assert LEGACY_WS_RECONNECT_POLICY["v2_market_ingestor_mode"] == "rest_pull_only"
+    assert LEGACY_WS_RECONNECT_POLICY["v2_market_ingestor_mode"] == "websocket_cache_primary_rest_fallback_only"
     assert LEGACY_WS_RECONNECT_POLICY["v2_owner"] == "separate_v2_ws_worker"
     assert [round(x, 4) for x in legacy_ws_reconnect_backoff_schedule()] == [
         1.0,
@@ -359,12 +435,13 @@ def test_coinapi_ohlcv_stale_threshold_matches_legacy_default() -> None:
 # ----------------------------------------------------------------------
 
 
-def test_rate_limit_backoff_matches_legacy_behavior_or_is_stricter() -> None:
+def test_rate_limit_backoff_matches_legacy_behavior_or_is_stricter(monkeypatch: pytest.MonkeyPatch) -> None:
     # Legacy live_binance.py -1003 branch (L2416-2417):
     #     backoff_seconds = min(60 * (2 ** min(ban_error_count - 1, 3)), 300)
     # The V2 service must use the same start (60s) and cap (300s).
     assert RATE_LIMIT_BAN_START_SEC == 60
     assert RATE_LIMIT_BAN_CAP_SEC == 300
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
 
     clock_value = [1_000_000.0]
 

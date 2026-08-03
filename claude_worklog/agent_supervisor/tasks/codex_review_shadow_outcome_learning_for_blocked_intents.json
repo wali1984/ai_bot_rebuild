@@ -4,6 +4,7 @@
     "v2/**",
     "claude_worklog/**"
   ],
+  "completed_at": "2026-05-15T16:39:18.318633+00:00",
   "created_by": "codex",
   "forbidden": [
     "legacy_mutation",
@@ -19,8 +20,16 @@
   ],
   "lane": "shutdown_readiness_review",
   "live_gate": "blocked_human_only",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "resolved_from_source_truth": true,
   "risk_level": "L1",
-  "status": "pending",
+  "source_truth_completed_at": "2026-05-15T16:39:18.318633+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_shadow_outcome_learning_for_blocked_intents.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task": "Review paper shadow outcome learning evidence. Fail if future outcome labels can permit paper/live fills, if no-trade correctness is hidden, if positive edge or shutdown/live readiness is claimed without qualified sample evidence, or if old Redis/exchange/live-gate safety regresses.",
   "task_id": "codex_review_shadow_outcome_learning_for_blocked_intents",
-  "task": "Review paper shadow outcome learning evidence. Fail if future outcome labels can permit paper/live fills, if no-trade correctness is hidden, if positive edge or shutdown/live readiness is claimed without qualified sample evidence, or if old Redis/exchange/live-gate safety regresses."
+  "updated_at": "2026-06-15T19:54:42Z"
 }

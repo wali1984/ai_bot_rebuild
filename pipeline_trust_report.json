@@ -1,0 +1,252 @@
+{
+  "data_sources": [],
+  "findings": [
+    {
+      "affected_modules": [
+        "v2/backend/app/services/market_ingest/service.py",
+        "v2/backend/app/cli/v2_binance_kline_wss_loop.py",
+        "v2/backend/app/cli/v2_feature_pipeline_native_loop.py",
+        "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py"
+      ],
+      "affected_symbols": [],
+      "affected_timeframes": [],
+      "check_id": "candle_integrity.no_data",
+      "example_records": [],
+      "recommended_fix": "Provide JSON/JSONL snapshots or Redis access containing OHLCV candle records.",
+      "severity": "High",
+      "status": "WARN",
+      "title": "no candle records found"
+    },
+    {
+      "affected_modules": [
+        "v2/backend/app/services/feature_pipeline_native/service.py",
+        "v2/backend/app/services/all_timeframe_prediction_signal_price_target_publisher.py",
+        "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py"
+      ],
+      "affected_symbols": [],
+      "affected_timeframes": [],
+      "check_id": "mtf_alignment.no_decisions",
+      "example_records": [],
+      "recommended_fix": "Provide prediction/orchestrator/risk decision records with decision_time or generated_at fields.",
+      "severity": "High",
+      "status": "WARN",
+      "title": "no decision records found for multi-timeframe alignment"
+    },
+    {
+      "affected_modules": [
+        "v2/backend/app/services/feature_pipeline_native/service.py",
+        "v2/backend/app/cli/v2_feature_pipeline_native_loop.py",
+        "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py"
+      ],
+      "affected_symbols": [],
+      "affected_timeframes": [],
+      "check_id": "feature_integrity.no_data",
+      "example_records": [],
+      "recommended_fix": "Provide feature snapshot records such as v2:features:latest:* or JSON exports.",
+      "severity": "High",
+      "status": "WARN",
+      "title": "no feature vectors found"
+    },
+    {
+      "affected_modules": [
+        "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/masa.py",
+        "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/model.py",
+        "v2/backend/app/services/rl_core/observation_schema.py"
+      ],
+      "affected_symbols": [],
+      "affected_timeframes": [],
+      "check_id": "masa_ppo.no_decisions",
+      "example_records": [],
+      "recommended_fix": "Provide prediction records containing MASA and PPO metadata.",
+      "severity": "High",
+      "status": "WARN",
+      "title": "no model decision records found for MASA/PPO consistency"
+    },
+    {
+      "affected_modules": [
+        "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py",
+        "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/ppo_trainer.py",
+        "v2/backend/app/services/market_state_integrity/sample_rejection.py"
+      ],
+      "affected_symbols": [],
+      "affected_timeframes": [],
+      "check_id": "training_samples.no_data",
+      "example_records": [],
+      "recommended_fix": "Provide trainer dataset/sample manifests or JSON exports with sample-level cutoffs and labels.",
+      "severity": "High",
+      "status": "WARN",
+      "title": "no training sample records found"
+    },
+    {
+      "affected_modules": [
+        "v2/backend/app/cli/v2_paper_execution_worker.py",
+        "v2/backend/app/services/live_gate/binance_live_order_transport.py",
+        "v2/backend/app/services/account_position_monitor/service.py"
+      ],
+      "affected_symbols": [],
+      "affected_timeframes": [],
+      "check_id": "execution.no_data",
+      "example_records": [],
+      "recommended_fix": "Provide paper ledger, risk decision, live transport, or order records.",
+      "severity": "High",
+      "status": "WARN",
+      "title": "no trade/order/decision execution records found"
+    },
+    {
+      "affected_modules": [
+        "v2/backend/app/api/v1/config_admin.py",
+        "v2/backend/app/cli/v2_config_admin_manager.py",
+        "v2/backend/app/services/config_admin/service.py",
+        "v2/backend/app/api/v2/trainer.py"
+      ],
+      "affected_symbols": [],
+      "affected_timeframes": [],
+      "check_id": "config.no_data",
+      "example_records": [],
+      "recommended_fix": "Provide config-admin status payloads so staged dangerous settings, approvals, secrets, and mutation flags can be audited.",
+      "severity": "High",
+      "status": "WARN",
+      "title": "no config/admin records found"
+    },
+    {
+      "affected_modules": [
+        "v2/backend/app/services/replay_backtest_runner/service.py",
+        "v2/backend/app/services/edge_proof/replay_miner.py",
+        "v2/backend/app/cli/v2_paper_execution_worker.py",
+        "v2/backend/app/services/live_gate/binance_live_order_transport.py"
+      ],
+      "affected_symbols": [],
+      "affected_timeframes": [],
+      "check_id": "parity.known_differences",
+      "example_records": [
+        {
+          "area": "fees",
+          "backtest": "paper projection or edge-proof defaults",
+          "live": "exchange fill fees not fully reconciled by verifier unless provided in records",
+          "paper": "deterministic/default bps fields are expected",
+          "recommended_fix": "Use one cost model contract with actual fill fee override when live data exists.",
+          "severity": "High"
+        },
+        {
+          "area": "slippage_latency_spread",
+          "backtest": "post-hoc/default assumptions",
+          "live": "real market order slippage, latency, and spread",
+          "paper": "deterministic assumptions",
+          "recommended_fix": "Record and replay bid/ask, latency, and fill price assumptions per decision.",
+          "severity": "High"
+        },
+        {
+          "area": "candle_finality",
+          "backtest": "may use corrected/post-hoc candles unless source snapshots are supplied",
+          "live": "trusts upstream finality metadata",
+          "paper": "trusts upstream finality metadata",
+          "recommended_fix": "Replay from immutable source snapshots with closed-candle proof.",
+          "severity": "High"
+        },
+        {
+          "area": "order_fill_assumptions",
+          "backtest": "ledger projection/post-hoc fills",
+          "live": "exchange lifecycle and partial fills required",
+          "paper": "immediate simulated fills",
+          "recommended_fix": "Use a shared order lifecycle model and mark assumptions by mode.",
+          "severity": "High"
+        },
+        {
+          "area": "liquidation_funding_position_transitions",
+          "backtest": "projection from paper/replay records",
+          "live": "exchange state is authoritative",
+          "paper": "local state and simplified costs",
+          "recommended_fix": "Persist funding, liquidation distance, margin mode, hedge mode, and transition state in every mode.",
+          "severity": "Medium"
+        }
+      ],
+      "recommended_fix": "Create one explicit execution-assumption contract consumed by live, paper, replay, training, and reporting.",
+      "severity": "High",
+      "status": "FAIL",
+      "title": "live, paper, and backtest parity differences detected"
+    }
+  ],
+  "generated_at": "2026-06-23T22:55:28.595562+00:00",
+  "mode": "read_only",
+  "summaries": {
+    "candle_integrity": {
+      "groups": [],
+      "total_candles": 0
+    },
+    "config_admin": {
+      "examples": [],
+      "records_checked": 0
+    },
+    "feature_integrity": {
+      "examples": [],
+      "feature_vectors_checked": 0
+    },
+    "live_vs_backtest_parity": {
+      "differences": [
+        {
+          "area": "fees",
+          "backtest": "paper projection or edge-proof defaults",
+          "live": "exchange fill fees not fully reconciled by verifier unless provided in records",
+          "paper": "deterministic/default bps fields are expected",
+          "recommended_fix": "Use one cost model contract with actual fill fee override when live data exists.",
+          "severity": "High"
+        },
+        {
+          "area": "slippage_latency_spread",
+          "backtest": "post-hoc/default assumptions",
+          "live": "real market order slippage, latency, and spread",
+          "paper": "deterministic assumptions",
+          "recommended_fix": "Record and replay bid/ask, latency, and fill price assumptions per decision.",
+          "severity": "High"
+        },
+        {
+          "area": "candle_finality",
+          "backtest": "may use corrected/post-hoc candles unless source snapshots are supplied",
+          "live": "trusts upstream finality metadata",
+          "paper": "trusts upstream finality metadata",
+          "recommended_fix": "Replay from immutable source snapshots with closed-candle proof.",
+          "severity": "High"
+        },
+        {
+          "area": "order_fill_assumptions",
+          "backtest": "ledger projection/post-hoc fills",
+          "live": "exchange lifecycle and partial fills required",
+          "paper": "immediate simulated fills",
+          "recommended_fix": "Use a shared order lifecycle model and mark assumptions by mode.",
+          "severity": "High"
+        },
+        {
+          "area": "liquidation_funding_position_transitions",
+          "backtest": "projection from paper/replay records",
+          "live": "exchange state is authoritative",
+          "paper": "local state and simplified costs",
+          "recommended_fix": "Persist funding, liquidation distance, margin mode, hedge mode, and transition state in every mode.",
+          "severity": "Medium"
+        }
+      ]
+    },
+    "masa_ppo_consistency": {
+      "decisions_checked": 0,
+      "examples": []
+    },
+    "multi_timeframe_alignment": {
+      "decisions_checked": 0,
+      "violations": []
+    },
+    "position_execution": {
+      "examples": [],
+      "records_checked": 0
+    },
+    "training_samples": {
+      "examples": [],
+      "samples_checked": 0
+    }
+  },
+  "summary": {
+    "critical_failures": 0,
+    "failures": 1,
+    "passes": 0,
+    "total_findings": 8,
+    "warnings": 7
+  }
+}

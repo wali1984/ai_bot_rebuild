@@ -1,0 +1,8 @@
+{
+  "status": "FINAL_REGRESSION_EVIDENCE_WITH_OPEN_ITEMS",
+  "web": {"route_templates": 58, "concrete_routes": 71, "viewports": 4, "screenshots_expected": 284, "screenshots_recorded": 280, "fields_checked": 12298, "source_matched_fields": 5532, "failed_requests": 0, "overflow_routes": 0, "forbidden_runtime_text": 4, "console_errors": 154},
+  "public_clean_slice": {"routes": 4, "screenshots": 16, "console_errors": 0, "failed_requests": 0, "overflow_routes": 0},
+  "ios": {"swiftpm_build": "passed", "swift_tests": "36 passed", "native_xcode_build": "not runnable on Linux; Codemagic credentials/signing required"},
+  "evidence": "../../v2/artifacts/final-product-regression/final-product-regression-all.json",
+  "open_items": ["authenticated all-run predates latest audit-panel fix and had expired-token 401s", "four signal-explainability screenshots intentionally blocked by renderer-heavy payload", "live execution remains fail-closed"]
+}

@@ -1,0 +1,148 @@
+{
+  "schema_version": "v2_signal_lineage_remediation_status_v2",
+  "generated_at": "2026-06-17T19:09:12Z",
+  "session_label": "Phase 1 — fabricated ID removal + orchestrator alias remediation",
+  "phase_pass_condition": {
+    "required": [
+      "actionable_missing_rid_or_oid = 0",
+      "RISK_DECISION_MISSING = 0 for actionable rows",
+      "OR blocked rows have exact non-actionable/block reasons",
+      "no paper candidate marked actionable without risk_decision_id and orchestrator_decision_id"
+    ],
+    "met": true
+  },
+  "signal_status": {
+    "publisher_run_generated_at": "2026-06-17T15:09:03-04:00",
+    "total_published_signals": 295,
+    "actionable_paper_fill_allowed_true": 272,
+    "non_actionable": 23,
+    "actionable_missing_rid_or_oid": 0,
+    "orchestrator_decision_source_distribution": {
+      "EXPLICIT_ORCHESTRATOR_DECISION_ID": 189,
+      "RISK_DECISION_ID_ALIAS_NO_SEPARATE_ORCH_IN_HYBRID_TRAINER_PATH": 83,
+      "ORCHESTRATOR_DECISION_UNAVAILABLE": 23
+    },
+    "note": "ORCHESTRATOR_DECISION_UNAVAILABLE count (23) equals RISK_DECISION_MISSING count (23) — all non-actionable"
+  },
+  "lineage_status": {
+    "chain_complete_count": 0,
+    "missing_lineage_count": 295,
+    "exact_blocker_distribution": {
+      "PAPER_INTENT_MISSING": 189,
+      "PAPER_LEDGER_MISSING": 83,
+      "RISK_DECISION_MISSING": 23
+    },
+    "note": "chain_complete requires all 5 IDs: prediction, risk, orchestrator, intent, ledger. paper_intent and paper_ledger gaps are deferred to BLOCKER-1 wiring sprint. Not a Phase 1 pass condition."
+  },
+  "fabricated_ids_removed": [
+    {
+      "pattern": "f\"v2:risk:decisions:{symbol}\"",
+      "file": "v2/backend/app/services/all_timeframe_prediction_signal_price_target_publisher.py",
+      "prior_line_approx": 1511,
+      "old_value": "Redis key name used as risk_decision_id fallback",
+      "new_value": "None — absence of real risk_decision_id is now explicit",
+      "reason": "Redis key name is not a decision ID. Fabricated ID breaks lineage traceability."
+    },
+    {
+      "pattern": "f\"v2:paper:ledger:shadow:{symbol}\"",
+      "file": "v2/backend/app/services/all_timeframe_prediction_signal_price_target_publisher.py",
+      "prior_line_approx": 1516,
+      "old_value": "Redis key name used as paper_ledger_id fallback",
+      "new_value": "None — absence of real paper_ledger_id is now explicit",
+      "reason": "Redis key name is not a ledger ID. Fabricated ID masked absence of real paper ledger record."
+    },
+    {
+      "pattern": "orchestrator_decision_id = source_id (prediction_id reused)",
+      "file": "v2/backend/app/services/all_timeframe_prediction_signal_price_target_publisher.py",
+      "context": "_build_all_tf_signals_from_live_paper_source function",
+      "reason": "Prediction ID silently used as orchestrator_decision_id. Broke ID uniqueness — same value appeared in two chain positions."
+    }
+  ],
+  "orchestrator_alias_resolution": {
+    "hybrid_trainer_path": "v2h_* prefix signals from native PPO/MASA trainer",
+    "gap": "Hybrid trainer has no separate orchestrator step. Risk decision IS the effective orchestrator decision.",
+    "resolution": "risk_decision_id aliased to orchestrator_decision_id with source flag RISK_DECISION_ID_ALIAS_NO_SEPARATE_ORCH_IN_HYBRID_TRAINER_PATH",
+    "enforcement_gate": "if paper_fill_allowed and (not risk_decision_id or not orchestrator_decision_id): paper_fill_allowed = False — applied in both build_signal_from_row and _build_all_tf_signals_from_live_paper_source",
+    "audit_path": "alias value IS present in Redis at v2:risk:decisions — fully traceable",
+    "signals_using_alias": 83
+  },
+  "push_decisions_to_redis": {
+    "function": "_push_decisions_to_redis()",
+    "file": "v2/backend/app/cli/paper_online_runtime.py",
+    "lines": "1192-1323",
+    "redis_keys_written": [
+      "v2:risk:decisions",
+      "v2:risk:decisions:latest",
+      "v2:orchestrator:decisions",
+      "v2:paper:intents",
+      "v2:paper:ledger",
+      "v2:signals:paper:{symbol}:1m",
+      "v2:risk:gateway:decisions",
+      "v2:risk:gateway:decisions:latest"
+    ],
+    "orchestrator_decision_id_injected": true,
+    "note": "orchestrator_decision_id from orch_decision is now injected into the risk_entry written to v2:risk:decisions, so publisher can read it from that single key"
+  },
+  "tests": {
+    "suites_run": [
+      "v2/backend/tests/unit/domain/lineage/",
+      "v2/backend/tests/unit/services/risk_gateway/",
+      "v2/backend/tests/unit/services/orchestrator_decision/",
+      "v2/backend/tests/integration/cli/test_v2_signal_publisher.py"
+    ],
+    "passed": 126,
+    "failed": 0,
+    "duration_seconds": 0.43,
+    "result": "PASS"
+  },
+  "syntax_import_validation": {
+    "paper_online_runtime": {
+      "check": "py_compile v2/backend/app/cli/paper_online_runtime.py",
+      "exit_code": 0,
+      "result": "PASS"
+    },
+    "all_timeframe_publisher": {
+      "check": "py_compile v2/backend/app/services/all_timeframe_prediction_signal_price_target_publisher.py",
+      "exit_code": 0,
+      "result": "PASS"
+    }
+  },
+  "phase_1_pass_condition_evaluation": {
+    "actionable_missing_rid_or_oid_equals_zero": {
+      "value": 0,
+      "met": true
+    },
+    "risk_decision_missing_equals_zero_for_actionable": {
+      "actionable_rows_with_risk_decision_missing": 0,
+      "met": true
+    },
+    "blocked_rows_have_exact_blocker": {
+      "rows_with_exact_blocker": 295,
+      "rows_without_exact_blocker": 0,
+      "met": true
+    },
+    "no_actionable_row_without_both_ids": {
+      "violations": 0,
+      "met": true
+    }
+  },
+  "deferred_lineage_gaps": {
+    "paper_intent_missing_count": 189,
+    "paper_ledger_missing_count": 83,
+    "cause": "BLOCKER-1 wiring — anti_market_maker_detector, enrich_prediction_for_phase6, recommend_leverage_for_signal not yet wired into paper_online_runtime.py; paper_intent_id/paper_ledger_id not written to Redis for all signals",
+    "phase_1_blocker": false,
+    "tracked_in": "NO_GO_LIVE_UNTIL_PAPER_EDGE_VALIDATED.md BLOCKER-1"
+  },
+  "safety_invariants_verified": {
+    "no_real_exchange_calls": true,
+    "no_leverage_mutation": true,
+    "no_old_redis_key_writes": true,
+    "all_redis_writes_v2_prefix": true,
+    "trading_gate": "BLOCKED",
+    "places_real_order": false
+  },
+  "phase_verdict": "PHASE_1_PASS",
+  "phase_status": "COMPLETE",
+  "advance_to_phase_2": true,
+  "phase_2_description": "Feature-family completeness gate — scan every prediction row for required feature families; block high-precision paper entries when critical family is missing"
+}

@@ -1,0 +1,205 @@
+{
+  "schema_version": "v2_live_endpoint_probe_v1",
+  "generated_est": "2026-06-01T18:22:20-0400",
+  "generated_utc": "2026-06-01T22:22:20Z",
+  "coinank_skipped": true,
+  "read_only_only": true,
+  "order_placed": false,
+  "leverage_or_margin_changed": false,
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "total_probes": 21,
+  "ok_count": 19,
+  "fail_count": 2,
+  "results": [
+    {
+      "provider": "Binance",
+      "endpoint": "server_time",
+      "kind": "REST",
+      "auth": "public",
+      "ok": true,
+      "http_status": 200,
+      "note": ""
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "klines",
+      "kind": "REST",
+      "auth": "public",
+      "ok": true,
+      "http_status": 200,
+      "note": ""
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "depth",
+      "kind": "REST",
+      "auth": "public",
+      "ok": true,
+      "http_status": 200,
+      "note": ""
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "openInterest",
+      "kind": "REST",
+      "auth": "public",
+      "ok": true,
+      "http_status": 200,
+      "note": ""
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "premiumIndex(funding)",
+      "kind": "REST",
+      "auth": "public",
+      "ok": true,
+      "http_status": 200,
+      "note": ""
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "ticker24hr",
+      "kind": "REST",
+      "auth": "public",
+      "ok": true,
+      "http_status": 200,
+      "note": ""
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "openInterestHist",
+      "kind": "REST",
+      "auth": "public",
+      "ok": true,
+      "http_status": 200,
+      "note": ""
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "/fapi/v1/apiTradingStatus",
+      "kind": "REST",
+      "auth": "signed(api+secret)",
+      "ok": true,
+      "http_status": 200,
+      "note": "read-only account/permission"
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "/fapi/v3/account",
+      "kind": "REST",
+      "auth": "signed(api+secret)",
+      "ok": true,
+      "http_status": 200,
+      "note": "read-only account/permission"
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "aggTrade(public)",
+      "kind": "WS",
+      "auth": "public",
+      "ok": true,
+      "http_status": 101,
+      "note": "connected (no frame in window)"
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "forceOrder(public liquidations)",
+      "kind": "WS",
+      "auth": "public",
+      "ok": true,
+      "http_status": 101,
+      "note": "connected (no frame in window)"
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "listenKey(open)",
+      "kind": "REST",
+      "auth": "signed(api-key)",
+      "ok": true,
+      "http_status": 200,
+      "note": "user-data stream token issued"
+    },
+    {
+      "provider": "Binance",
+      "endpoint": "userDataStream(auth)",
+      "kind": "WS",
+      "auth": "signed(api-key)",
+      "ok": true,
+      "http_status": 101,
+      "note": "connected (no frame in window)"
+    },
+    {
+      "provider": "KuCoin",
+      "endpoint": "timestamp",
+      "kind": "REST",
+      "auth": "public",
+      "ok": true,
+      "http_status": 200,
+      "note": ""
+    },
+    {
+      "provider": "KuCoin",
+      "endpoint": "allTickers",
+      "kind": "REST",
+      "auth": "public",
+      "ok": true,
+      "http_status": 200,
+      "note": ""
+    },
+    {
+      "provider": "KuCoin",
+      "endpoint": "futures_contracts_active",
+      "kind": "REST",
+      "auth": "public",
+      "ok": true,
+      "http_status": 200,
+      "note": ""
+    },
+    {
+      "provider": "CoinAPI",
+      "endpoint": "exchangerate/BTC/USD",
+      "kind": "REST",
+      "auth": "x-api-key",
+      "ok": true,
+      "http_status": 200,
+      "note": "free-tier quota sensitive"
+    },
+    {
+      "provider": "LunarCrush",
+      "endpoint": "api4/public/coins/list/v1",
+      "kind": "REST",
+      "auth": "Bearer",
+      "ok": false,
+      "http_status": 402,
+      "note": "402=key valid but endpoint now PAID-gated (free tier dropped it); v2 client path /api/v4/public/coins is also stale (404)"
+    },
+    {
+      "provider": "Nansen",
+      "endpoint": "smart-money/holdings",
+      "kind": "REST",
+      "auth": "apikey",
+      "ok": false,
+      "http_status": 405,
+      "note": "405=client uses GET but live API rejects method; client endpoint/method stale"
+    },
+    {
+      "provider": "CoinGecko",
+      "endpoint": "ping",
+      "kind": "REST",
+      "auth": "x-cg-key",
+      "ok": true,
+      "http_status": 200,
+      "note": "no V2 client yet (key validity check)"
+    },
+    {
+      "provider": "CoinGlass",
+      "endpoint": "futures/supported-coins",
+      "kind": "REST",
+      "auth": "CG-API-KEY",
+      "ok": true,
+      "http_status": 200,
+      "note": "no V2 client yet (key validity check)"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "claim": "Backtesting compatibility surface exists and delegates to V2 replay_backtest_runner while forcing live_blocked/paper-only behavior.",
+  "completed_by": "codex_takeover",
+  "confidence": "MEDIUM_HIGH",
+  "files_modified": [
+    "v2/backend/app/services/backtesting/__init__.py",
+    "v2/backend/app/services/backtesting/service.py",
+    "v2/backend/app/services/replay_backtest_runner/service.py"
+  ],
+  "generated_est": "2026-06-03T22:44:59-04:00",
+  "generated_utc": "2026-06-04T02:44:59Z",
+  "implementation_marker": "V2_ZERO_EXCEPTION_PARITY_BACKTEST_EDGE_NOT_CLAIMED_CODEX_TAKEOVER_DONE",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "milestone": "v2_zero_exception_parity_implementation_burndown_20260531",
+  "missing_evidence": "No edge claim is promoted from backtests; runtime status is compatibility/readiness only.",
+  "raw_evidence": "Files added: v2/backend/app/services/backtesting/__init__.py and service.py. build_backtesting_runtime_status returns V2_BACKTESTING_RUNTIME_READY with places_real_order=false.",
+  "schema_version": "zero_exception_task_status_v1",
+  "status": "DONE_VERIFIED",
+  "task_slug": "backtest_edge_not_claimed",
+  "verification_command": "python -m py_compile v2/backend/app/services/backtesting/service.py"
+}

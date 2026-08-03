@@ -1,0 +1,19 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI BOT V2 legacy vs V2 production comparator (read-only)
+After=ai-bot-v2-trade-management-paper-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_legacy_v2_production_comparator.py" --loop --interval-seconds 120'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_legacy_v2_production_comparator.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_legacy_v2_production_comparator.err
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

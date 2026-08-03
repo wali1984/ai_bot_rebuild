@@ -1,0 +1,20 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI BOT V2 CoinAPI WSDS stream (read-only; V2 namespace only)
+After=network-online.target ai-bot-v2-native-ingestors-live-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+Environment="V2_COINAPI_WSDS_OPT_IN=true"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_coinapi_wsds_loop --loop --total-seconds 86400 --max-symbols 0 --max-seconds-per-session 600 --max-messages-per-session 5000 --ttl-seconds 300 --heartbeat-interval-seconds 30'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-coinapi-wsds-loop.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-coinapi-wsds-loop.err
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

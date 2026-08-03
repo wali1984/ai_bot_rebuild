@@ -1,0 +1,92 @@
+{
+  "goal_id": "V2_FULL_UNIVERSE_ADAPTIVE_TRADING_TRUTH_AND_90P_EXECUTION_TIER_AUDIT",
+  "initiated_utc": "2026-06-19T00:15:00Z",
+  "auditor": "claude-sonnet-4-6 (independent auditor mode)",
+  "live_gate": "blocked_human_only",
+  "places_real_order": false,
+  "safety_constraints_active": [
+    "no_real_orders",
+    "no_test_order",
+    "no_leverage_change",
+    "no_margin_mode_change",
+    "no_cancel_real_orders",
+    "no_raw_credentials_exposed",
+    "no_old_redis_writes",
+    "no_legacy_service_restart",
+    "live_trading_blocked"
+  ],
+  "dataset": {
+    "redis_key": "v2:paper:closed_trades",
+    "rows_at_audit_start": 645,
+    "note": "645 rows at 2026-06-19 (prior session had 595; 50 new trades since)",
+    "portfolio_equity": 10719.36,
+    "initial_capital": 10000.0,
+    "reported_realized_in_portfolio_state": 0.0,
+    "actual_realized_from_closed_trades": 22.23,
+    "accounting_gap_usd": 22.23,
+    "accounting_gap_note": "Portfolio state does not accumulate closed trade realized PnL \u2014 structural accounting bug"
+  },
+  "sections": [
+    {
+      "id": "A",
+      "name": "Accounting Truth",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "B",
+      "name": "Long/Short Action Path",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "C",
+      "name": "Exit and Trade Lifecycle",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "D",
+      "name": "Feature and Data Decision Parity",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "E",
+      "name": "Strategy Routing",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "F",
+      "name": "Execution Cost Model",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "G",
+      "name": "Adaptive Capital/Leverage/Margin",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "H",
+      "name": "Adaptive Hedging",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "I",
+      "name": "90% Execution Tier Definition",
+      "status": "COMPLETE"
+    },
+    {
+      "id": "J",
+      "name": "Rare Event Coverage",
+      "status": "COMPLETE"
+    }
+  ],
+  "go_no_go": "NO_GO",
+  "go_no_go_reasons": [
+    "WR=30.39% < 35% threshold",
+    "5m and 4h negative PnL (structural)",
+    "100% SHORT \u2014 LONG path never executed",
+    "bid_ask_spread_bps hardcoded at 2.0 bps (not market-observed)",
+    "drawdown_at_entry always 0.0 (tracker non-functional)",
+    "squeeze_evidence_score null on 100% of trades",
+    "trailing stop WR only 10.1% \u2014 primary loss driver",
+    "portfolio realized_pnl_usd=0 despite $22.23 closed PnL (accounting bug)"
+  ]
+}

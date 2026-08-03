@@ -1,17 +1,26 @@
 {
-  "task_id": "041_codex_review_phase2_legacy_service_map",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/phase2_core_rebuild/legacy_service_map/"
   ],
+  "completed_at": "2026-05-02T06:21:30.973844+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "If pass, allow Claude Master Rebuild Planner to choose the next non-live milestone. If fail, remediate and re-review.",
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Review the Phase 2 legacy service map and Claude Master Rebuild Planner setup only. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Do not create implementation beyond review artifacts. Inputs: claude_worklog/phase2_core_rebuild/legacy_service_map, claude_worklog/tools/build_phase2_legacy_service_map.py, claude_worklog/tools/claude_master_rebuild_planner.py, claude_worklog/autonomous_control_plane/06_CLAUDE_MASTER_REBUILD_PLANNER.md, claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt, claude_worklog/legacy_preservation, claude_worklog/phase2_core_rebuild/ingestors, claude_worklog/phase2_core_rebuild/symbol_universe. Verify: startup script service map is represented, running services are mapped, missing and extra processes are documented, live_coinank copy-as-is rule is included, config.py symbol role is included, trainer/GPU preservation is included, Redis expectations are mapped as read-only/unknown where appropriate, V2 implementation sequence is regenerated, planner preserves safety gates and does not grant live permissions. Output exactly two BEGIN_FILE blocks. GO/NO-GO exactly: PHASE2_LEGACY_SERVICE_MAP_CODEX_PASS or PHASE2_LEGACY_SERVICE_MAP_CODEX_FAIL.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/legacy_service_map/12_CODEX_REVIEW.md",
     "claude_worklog/phase2_core_rebuild/legacy_service_map/13_CODEX_GO_NO_GO.md"
   ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. Review the Phase 2 legacy service map and Claude Master Rebuild Planner setup only. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Do not create implementation beyond review artifacts. Inputs: claude_worklog/phase2_core_rebuild/legacy_service_map, claude_worklog/tools/build_phase2_legacy_service_map.py, claude_worklog/tools/claude_master_rebuild_planner.py, claude_worklog/autonomous_control_plane/06_CLAUDE_MASTER_REBUILD_PLANNER.md, claude_worklog/autonomous_control_plane/claude_master_rebuild_planner_prompt.txt, claude_worklog/legacy_preservation, claude_worklog/phase2_core_rebuild/ingestors, claude_worklog/phase2_core_rebuild/symbol_universe. Verify: startup script service map is represented, running services are mapped, missing and extra processes are documented, live_coinank copy-as-is rule is included, config.py symbol role is included, trainer/GPU preservation is included, Redis expectations are mapped as read-only/unknown where appropriate, V2 implementation sequence is regenerated, planner preserves safety gates and does not grant live permissions. Output exactly two BEGIN_FILE blocks. GO/NO-GO exactly: PHASE2_LEGACY_SERVICE_MAP_CODEX_PASS or PHASE2_LEGACY_SERVICE_MAP_CODEX_FAIL.",
-  "next_recommended_action": "If pass, allow Claude Master Rebuild Planner to choose the next non-live milestone. If fail, remediate and re-review."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-02T06:21:30.973844+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/041_codex_review_phase2_legacy_service_map.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "041_codex_review_phase2_legacy_service_map",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

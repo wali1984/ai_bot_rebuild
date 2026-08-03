@@ -1,0 +1,46 @@
+groups:
+  - name: v2_closed_loop_spark
+    rules:
+      - alert: V2ClosedLoopIdleWithQueuedWork
+        expr: v2_closed_loop_idle_workers > 0 and v2_closed_loop_queue_eligible_tasks > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Spark runtime has idle workers with queued work"
+          description: "Idle workers remain while tasks stay queued."
+      - alert: V2ClosedLoopWorkerHeartbeatStale
+        expr: v2_closed_loop_worker_heartbeat_age_seconds > 120
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Spark worker heartbeat stale"
+      - alert: V2ClosedLoopCodexFailUnmapped
+        expr: v2_closed_loop_burndown_blockers > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unmapped Codex fails are blocking progress"
+      - alert: V2ClosedLoopDuplicateLease
+        expr: v2_closed_loop_duplicate_lease_conflicts_total > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Duplicate lease conflicts detected"
+      - alert: V2ClosedLoopPayloadStale
+        expr: v2_closed_loop_payload_age_seconds > 600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Spark payload stale"
+      - alert: V2ClosedLoopBurndownFlat
+        expr: v2_closed_loop_burndown_blockers > 0 and v2_closed_loop_queue_eligible_tasks == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Burndown flat while blockers remain"

@@ -3,16 +3,25 @@
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/"
   ],
+  "completed_at": "2026-06-28T00:42:59.216720+00:00",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "lane": "non_drift_codex_audit",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "next_gate": "CODEX_AUDIT_READY",
   "prompt": "You are Codex running a non-live audit under AI BOT REBUILD.\n\nAudit topic: legacy bridge readonly.\n\nScope:\n- Work inside /home/wali/Desktop/AI BOT REBUILD only.\n- Legacy bot mutation is forbidden.\n- Legacy Redis mutation is forbidden.\n- Exchange or capital actions are forbidden.\n- Margin and leverage changes are forbidden.\n- Live gate remains blocked_human_only.\n- Website work stays support-only unless there is a fresh regression.\n\nInspect current files and runtime evidence relevant to the audit topic. Do not edit source code.\nEmit exactly two BEGIN_FILE blocks:\n\nBEGIN_FILE: claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_legacy_bridge_readonly_REPORT.md\n...markdown report with PASS or BLOCKED and concrete evidence...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_legacy_bridge_readonly_GO_NO_GO.md\nCODEX_AUDIT_READY\nEND_FILE\n",
+  "reconciled_from_source_truth_at": "2026-06-28T00:43:06Z",
   "required_output_files": [
     "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_legacy_bridge_readonly_REPORT.md",
     "claude_worklog/final_readiness/active_autonomous_dispatch/latest/codex_audits/codex_audit_legacy_bridge_readonly_GO_NO_GO.md"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L1",
-  "status": "pending",
-  "task_id": "codex_audit_legacy_bridge_readonly"
+  "source_truth_completed_at": "2026-06-28T00:42:59.216720+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_audit_legacy_bridge_readonly.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_audit_legacy_bridge_readonly",
+  "updated_at": "2026-06-28T00:43:06Z"
 }

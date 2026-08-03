@@ -1,2 +1,4 @@
 v2/legacy_preserved/full_runtime_closure/binance_websocket.py whitespace=-blank-at-eol
 v2/legacy_preserved/full_runtime_closure/hybrid_rule_based_signals.py whitespace=-blank-at-eol
+raw_evidence/paper_session_archives/pre_recovery_reset_20260702T031938Z/redis/v2__paper__ledger.json filter=lfs diff=lfs merge=lfs -text
+raw_evidence/paper_session_archives/pre_recovery_reset_20260702T031938Z/active_state_files/paper_lifecycle_state.json filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,24 @@
+[Unit]
+Description=AI BOT V2 Pending-Task Watchdog (one-shot, annotation-only)
+Documentation=file:%h/Desktop/AI%%20BOT%%20REBUILD/claude_worklog/final_readiness/v2_autonomous_full_rebuild_self_healing/latest/GO_NO_GO.md
+ConditionPathExists=%h/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_pending_task_watchdog.py
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment="PYTHONPATH=%h/Desktop/AI BOT REBUILD"
+# Annotation-only by default; raise --allow-redispatch when operator
+# explicitly enables active re-dispatch via a drop-in override.
+# Paths must be quoted because "AI BOT REBUILD" contains spaces.
+ExecStart="%h/Desktop/AI BOT REBUILD/.venv/bin/python3" "%h/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_pending_task_watchdog.py"
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=default.target

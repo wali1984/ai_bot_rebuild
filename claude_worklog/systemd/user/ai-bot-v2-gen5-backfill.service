@@ -1,0 +1,26 @@
+[Unit]
+Description=Gen5 authenticated rich-binding fixed-snapshot backfill (paper-only)
+After=ai-bot-v2-profiled-base-feature-publisher.service
+StartLimitIntervalSec=600
+StartLimitBurst=10
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="PYTHONDONTWRITEBYTECODE=1"
+Environment="LIVE_GATE=blocked_human_only"
+Environment="GEN5_BACKFILL_STATE_ROOT=/home/wali/ai_bot_local_data/gen5_snapshot_backfill_v1"
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -P -B -m v2.backend.app.cli.v2_gen5_snapshot_backfill
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=60
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+LimitNOFILE=4096
+TasksMax=128
+MemoryHigh=2G
+MemoryMax=4G
+StandardOutput=journal
+StandardError=journal

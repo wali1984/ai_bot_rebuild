@@ -1,0 +1,82 @@
+"""V2 landing router package — Phase B routes for the redesigned landing.
+
+All routes registered here are READ-ONLY. They never:
+- place exchange orders / cancel orders / mutate leverage or margin
+- write to legacy Redis keys
+- restart or mutate any live runtime
+- import trainer modules directly into the FastAPI process
+
+The single aggregate router is exposed as `router` and mounted by
+`app.main.create_app()` under `/api/v2`.
+
+Each individual route module declares its own `APIRouter` and is
+included into the aggregate router below.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter
+
+from app.api.v2 import (
+    adaptive_status,
+    admin,
+    alerts_contracts,
+    audit_ledger,
+    brand,
+    codex_reviews,
+    control_center_status,
+    coverage_census,
+    goal_trajectory,
+    hourly_monitor,
+    live_gate_status,
+    live_readiness,
+    market_contracts,
+    mobile,
+    monitoring_contracts,
+    ollama,
+    pipeline,
+    public_status,
+    realtime,
+    replay,
+    self_healing_status,
+    status_contracts,
+    symbol_intel,
+    system_metrics,
+    trainer,
+    trader_snapshot,
+    ui,
+)
+
+router = APIRouter(prefix="/api/v2", tags=["v2-landing"])
+
+router.include_router(admin.router)
+router.include_router(admin.config_router)
+router.include_router(market_contracts.router)
+router.include_router(brand.router)
+router.include_router(alerts_contracts.router)
+router.include_router(status_contracts.router)
+router.include_router(audit_ledger.router)
+router.include_router(codex_reviews.router)
+router.include_router(trainer.router)
+router.include_router(ollama.router)
+router.include_router(replay.router)
+router.include_router(pipeline.router)
+router.include_router(live_readiness.router)
+router.include_router(live_gate_status.router)
+router.include_router(public_status.router)
+router.include_router(ui.router)
+router.include_router(realtime.router)
+router.include_router(realtime.stream_router)
+router.include_router(control_center_status.router)
+router.include_router(goal_trajectory.router)
+router.include_router(monitoring_contracts.router)
+router.include_router(hourly_monitor.router)
+router.include_router(mobile.router)
+router.include_router(trader_snapshot.router)
+router.include_router(system_metrics.router)
+router.include_router(self_healing_status.router)
+router.include_router(symbol_intel.router)
+router.include_router(coverage_census.router)
+router.include_router(adaptive_status.router)
+
+__all__ = ["router"]

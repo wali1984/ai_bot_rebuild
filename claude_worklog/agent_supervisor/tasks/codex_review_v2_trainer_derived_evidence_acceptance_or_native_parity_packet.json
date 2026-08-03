@@ -3,6 +3,7 @@
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/codex_review/"
   ],
+  "completed_at": "2026-05-15T01:53:45Z",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "depends_on": [
     "claude_v2_trainer_derived_evidence_acceptance_or_native_parity_packet"
@@ -12,13 +13,21 @@
   "live_gate": "blocked_human_only",
   "managed_by": "codex_legacy_shutdown_readiness_takeover",
   "max_attempts": 1,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "prompt": "You are Codex running the trainer derived-evidence/native-parity packet review. Review the Claude outputs, V2 trainer bridge payload/code/tests, public dashboard payload, current shutdown controller status, and read-only preserved legacy trainer evidence. Do not modify source files. Do not mutate legacy, old Redis, exchange state, leverage, margin mode, or live trading. Keep live_gate=blocked_human_only.\n\nFail if derived evidence is mislabeled as native, feature attribution is fabricated, live/canary readiness is implied, shutdown is recommended without explicit operator acceptance, old Redis write evidence appears, exchange mutation evidence appears, approval tokens appear, live_symbols is non-empty, or GO_NO_GO.md does not contain exactly one allowed token.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/codex_review/CODEX_REVIEW.md\n...findings with PASS/FAIL rationale...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/codex_review/CODEX_GO_NO_GO.md\nCLAUDE_V2_TRAINER_DERIVED_EVIDENCE_ACCEPTANCE_OR_NATIVE_PARITY_PACKET_CODEX_FAIL\nEND_FILE\nUse CLAUDE_V2_TRAINER_DERIVED_EVIDENCE_ACCEPTANCE_OR_NATIVE_PARITY_PACKET_CODEX_PASS instead only if every review condition passes.\n",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/codex_review/CODEX_REVIEW.md",
     "claude_worklog/final_readiness/trainer_derived_evidence_acceptance/latest/codex_review/CODEX_GO_NO_GO.md"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L1",
-  "status": "pending",
+  "source_truth_completed_at": "2026-05-15T01:53:45Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_v2_trainer_derived_evidence_acceptance_or_native_parity_packet.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
   "task_id": "codex_review_v2_trainer_derived_evidence_acceptance_or_native_parity_packet",
-  "task_timeout_seconds": 1200
+  "task_timeout_seconds": 1200,
+  "updated_at": "2026-06-15T19:54:42Z"
 }

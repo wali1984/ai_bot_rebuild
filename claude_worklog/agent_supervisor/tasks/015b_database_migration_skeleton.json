@@ -1,9 +1,5 @@
 {
-  "task_id": "015b_database_migration_skeleton",
   "agent": "claude",
-  "risk_level": "L2",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/security/",
     "claude_worklog/v2_build/",
@@ -13,6 +9,69 @@
     "v2/backend/tests/integration/",
     "v2/pyproject.toml"
   ],
+  "approval_required": true,
+  "audit_evidence": {
+    "audit_events_required": [
+      "governance.task_dispatched",
+      "governance.task_validated",
+      "db.alembic_harness_created",
+      "db.round_trip_test_passed"
+    ],
+    "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash; chain break freezes the queue"
+  },
+  "auto_commit": false,
+  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
+  "commit_message": "Materialize V2 database migration harness skeleton",
+  "completed_at": "2026-05-02T01:08:47.890066+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "015a_repo_package_skeleton"
+  ],
+  "do_not_autorun": true,
+  "emit_files": true,
+  "gate_evidence_ref": [
+    "claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md",
+    "claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md",
+    "claude_worklog/v2_scaffold_planning/03_DATABASE_MIGRATION_PLAN.md",
+    "claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md",
+    "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
+    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
+  ],
+  "gates_required": [
+    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
+    "HUMAN_APPROVAL_FOR_THIS_TASK"
+  ],
+  "go_no_go_marker": "C_DATABASE_SKELETON_VALIDATION_READY",
+  "max_attempts": 1,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "Recover 015B by materializing safe DB skeleton outputs only; then run Codex review for 015B. Do not run 015C.",
+  "next_tasks_on_failure": [],
+  "next_tasks_on_success": [],
+  "normalized_from_artifact": false,
+  "observability": {
+    "dashboard_surfaces": [
+      "Build/Validation Status page (after 015D)",
+      "Audit Ledger (after 015F)"
+    ],
+    "events_emitted": [
+      "task.start",
+      "task.adapter_call",
+      "task.complete",
+      "db.alembic_round_trip"
+    ],
+    "logs_written": [
+      "claude_worklog/agent_supervisor/runs/015b_database_migration_skeleton/<ts>/stdout.log",
+      "claude_worklog/agent_supervisor/runs/015b_database_migration_skeleton/<ts>/stderr.log"
+    ],
+    "metrics_emitted": [
+      "v2.db.migration_files_count (expected 0 in skeleton)",
+      "v2.db.alembic_head_revision (expected base in skeleton)",
+      "v2.db.round_trip_pass_count"
+    ]
+  },
+  "priority": 0,
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not run alembic against any legacy or production DB; only an ephemeral postgres for the round-trip test. Materialize the Alembic + SQLAlchemy harness ONLY (no migration versions). Create v2/backend/migrations/env.py, script.py.mako, README.md, the db engine/session/base modules, and one integration test that boots ephemeral postgres and asserts alembic upgrade head + downgrade base round-trip exits 0. Do NOT author any migration version files; those belong to milestone C proper. Produce claude_worklog/v2_build/C_DATABASE_SKELETON_VALIDATION.md ending in exactly C_DATABASE_SKELETON_VALIDATION_READY or C_DATABASE_SKELETON_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "v2/backend/migrations/env.py",
     "v2/backend/migrations/script.py.mako",
@@ -24,78 +83,9 @@
     "v2/backend/tests/integration/test_alembic_round_trip.py",
     "claude_worklog/v2_build/C_DATABASE_SKELETON_VALIDATION.md"
   ],
-  "depends_on": [
-    "015a_repo_package_skeleton"
-  ],
-  "next_tasks_on_success": [],
-  "next_tasks_on_failure": [],
-  "max_attempts": 1,
-  "priority": 0,
-  "auto_commit": false,
-  "commit_message": "Materialize V2 database migration harness skeleton",
-  "gate_evidence_ref": [
-    "claude_worklog/v2_architecture_remediation/12A_DATABASE_LINEAGE_CLOSURE.md",
-    "claude_worklog/v2_architecture/03_DATABASE_SCHEMA.md",
-    "claude_worklog/v2_scaffold_planning/03_DATABASE_MIGRATION_PLAN.md",
-    "claude_worklog/v2_build/B_SCAFFOLD_VALIDATION.md",
-    "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
-    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
-  ],
-  "safety_boundary": {
-    "forbidden_writes": [
-      "legacy_reference/**",
-      "../AI BOT/**",
-      "**/.env",
-      "**/secrets/**",
-      "v2/backend/app/api/v1/**",
-      "v2/frontend/**",
-      "v2/backend/migrations/versions/**"
-    ],
-    "forbidden_reads": [],
-    "forbidden_runtime_actions": [
-      "execute_alembic_upgrade_against_legacy_db",
-      "execute_alembic_upgrade_against_production_db",
-      "write_legacy_redis",
-      "restart_legacy_services",
-      "place_or_cancel_orders",
-      "enable_live_trading"
-    ],
-    "live_trading_default": "BLOCKED",
-    "trainer_runtime_boundary": "no_trainer_calls_in_this_task",
-    "db_target_constraint": "ephemeral_postgres_only_for_round_trip_test_no_legacy_db_no_production_db"
-  },
-  "observability": {
-    "events_emitted": [
-      "task.start",
-      "task.adapter_call",
-      "task.complete",
-      "db.alembic_round_trip"
-    ],
-    "metrics_emitted": [
-      "v2.db.migration_files_count (expected 0 in skeleton)",
-      "v2.db.alembic_head_revision (expected base in skeleton)",
-      "v2.db.round_trip_pass_count"
-    ],
-    "logs_written": [
-      "claude_worklog/agent_supervisor/runs/015b_database_migration_skeleton/<ts>/stdout.log",
-      "claude_worklog/agent_supervisor/runs/015b_database_migration_skeleton/<ts>/stderr.log"
-    ],
-    "dashboard_surfaces": [
-      "Build/Validation Status page (after 015D)",
-      "Audit Ledger (after 015F)"
-    ]
-  },
-  "tests": {
-    "unit": [],
-    "integration": [
-      "v2/backend/tests/integration/test_alembic_round_trip.py \u2014 boots ephemeral postgres via testcontainers (or local pg_ctl), runs `alembic upgrade head` (no-op on skeleton) and `alembic downgrade base` and asserts return code 0 and zero schema diff"
-    ],
-    "contract": [],
-    "e2e": [],
-    "static": [
-      "schema-drift placeholder: ops/ci/schema_drift_check.py runs and emits zero-version skeleton notice (advisory until milestone C proper)"
-    ]
-  },
+  "requires_human_approval": true,
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
   "rollback": {
     "procedure": [
       "remove every file materialized by this task under v2/backend/migrations/, v2/backend/app/adapters/db/, v2/backend/tests/integration/test_alembic_round_trip.py",
@@ -107,26 +97,45 @@
       "ops/ci/schema_drift_check.py reports no harness present (consistent with rollback)"
     ]
   },
-  "audit_evidence": {
-    "audit_events_required": [
-      "governance.task_dispatched",
-      "governance.task_validated",
-      "db.alembic_harness_created",
-      "db.round_trip_test_passed"
+  "safety_boundary": {
+    "db_target_constraint": "ephemeral_postgres_only_for_round_trip_test_no_legacy_db_no_production_db",
+    "forbidden_reads": [],
+    "forbidden_runtime_actions": [
+      "execute_alembic_upgrade_against_legacy_db",
+      "execute_alembic_upgrade_against_production_db",
+      "write_legacy_redis",
+      "restart_legacy_services",
+      "place_or_cancel_orders",
+      "enable_live_trading"
     ],
-    "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash; chain break freezes the queue"
+    "forbidden_writes": [
+      "legacy_reference/**",
+      "../AI BOT/**",
+      "**/.env",
+      "**/secrets/**",
+      "v2/backend/app/api/v1/**",
+      "v2/frontend/**",
+      "v2/backend/migrations/versions/**"
+    ],
+    "live_trading_default": "BLOCKED",
+    "trainer_runtime_boundary": "no_trainer_calls_in_this_task"
   },
-  "go_no_go_marker": "C_DATABASE_SKELETON_VALIDATION_READY",
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not run alembic against any legacy or production DB; only an ephemeral postgres for the round-trip test. Materialize the Alembic + SQLAlchemy harness ONLY (no migration versions). Create v2/backend/migrations/env.py, script.py.mako, README.md, the db engine/session/base modules, and one integration test that boots ephemeral postgres and asserts alembic upgrade head + downgrade base round-trip exits 0. Do NOT author any migration version files; those belong to milestone C proper. Produce claude_worklog/v2_build/C_DATABASE_SKELETON_VALIDATION.md ending in exactly C_DATABASE_SKELETON_VALIDATION_READY or C_DATABASE_SKELETON_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "Recover 015B by materializing safe DB skeleton outputs only; then run Codex review for 015B. Do not run 015C.",
-  "normalized_from_artifact": false,
-  "status": "blocked_approval",
-  "approval_required": true,
-  "requires_human_approval": true,
-  "do_not_autorun": true,
-  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
-  "gates_required": [
-    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
-    "HUMAN_APPROVAL_FOR_THIS_TASK"
-  ]
+  "source_truth_completed_at": "2026-05-02T01:08:47.890066+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/015b_database_migration_skeleton.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "015b_database_migration_skeleton",
+  "tests": {
+    "contract": [],
+    "e2e": [],
+    "integration": [
+      "v2/backend/tests/integration/test_alembic_round_trip.py \u2014 boots ephemeral postgres via testcontainers (or local pg_ctl), runs `alembic upgrade head` (no-op on skeleton) and `alembic downgrade base` and asserts return code 0 and zero schema diff"
+    ],
+    "static": [
+      "schema-drift placeholder: ops/ci/schema_drift_check.py runs and emits zero-version skeleton notice (advisory until milestone C proper)"
+    ],
+    "unit": []
+  },
+  "updated_at": "2026-06-15T19:54:42Z"
 }

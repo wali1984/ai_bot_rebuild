@@ -1,0 +1,41 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/8h_trade_readiness/latest/codex_reviews/risk/"
+  ],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "shallow_tests",
+    "mutation_reachable"
+  ],
+  "lane": "8h_trade_readiness_review",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_8h_trade_readiness_war_room",
+  "max_attempts": 1,
+  "predecessor_task_ids": [
+    "claude_8h_risk_trader_action_parity_tests"
+  ],
+  "priority": 849,
+  "prompt": "Review the 8-hour risk/trader parity test packet. Fail if tests are skipped or shallow, exchange mutation is reachable, leverage or margin mutation is reachable, live gate changes, or legacy behavior is silently dropped. Emit CODEX_REVIEW.md and CODEX_GO_NO_GO.md.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/8h_trade_readiness/latest/codex_reviews/risk/CODEX_REVIEW.md",
+    "claude_worklog/final_readiness/8h_trade_readiness/latest/codex_reviews/risk/CODEX_GO_NO_GO.md"
+  ],
+  "risk_level": "L1",
+  "status": "completed",
+  "task_id": "codex_review_8h_risk_trader_action_parity_tests",
+  "task_timeout_seconds": 1200
+}

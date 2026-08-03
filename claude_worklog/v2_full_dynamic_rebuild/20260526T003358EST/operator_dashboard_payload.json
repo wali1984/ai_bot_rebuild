@@ -1,0 +1,107 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "by_state_inventory": {
+    "blocked_credential_count": 4,
+    "missing_replacement_count": 9,
+    "running_count": 26,
+    "v2_native_replacement_exists_count": 36
+  },
+  "credentials_canonical_presence_by_name": {
+    "ARKHAM_API_KEY": true,
+    "BINANCE_API_KEY": true,
+    "BINANCE_API_SECRET": true,
+    "COINANK_API_KEY": true,
+    "COINAPI_API_KEY": true,
+    "COINGECKO_API_KEY": true,
+    "COINGLASS_API_KEY": true,
+    "TOKENMETRICS_API_KEY": true
+  },
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_FULL_DYNAMIC_REBUILD_IMPLEMENTATION_BLOCKED",
+  "live_symbols": [],
+  "readiness_ladder": [
+    {
+      "evidence": "running_count=26, visible_terminals=32, not_started_count=19, backtest_has_run=False",
+      "ready": false,
+      "state": "V2_FULL_DYNAMIC_REBUILD_RUNNING"
+    },
+    {
+      "evidence": "after-cost paper edge not yet proven positive; backtest engine scaffold pending first run",
+      "ready": false,
+      "state": "V2_PAPER_EDGE_PROVEN"
+    },
+    {
+      "evidence": "operator has not set risk caps; risk gateway fails closed",
+      "ready": false,
+      "state": "V2_RISK_CAPS_ACCEPTED"
+    },
+    {
+      "evidence": "binance_readonly_connectivity_status.json = READY",
+      "ready": true,
+      "state": "V2_READ_ONLY_EXCHANGE_PROBE_PASS"
+    },
+    {
+      "evidence": "blocked behind earlier states",
+      "ready": false,
+      "state": "V2_CANARY_OPERATOR_DECISION_REQUIRED"
+    },
+    {
+      "evidence": "blocked",
+      "ready": false,
+      "state": "V2_CANARY_PASS"
+    },
+    {
+      "evidence": "blocked",
+      "ready": false,
+      "state": "V2_LIVE_OPERATOR_DECISION_REQUIRED"
+    },
+    {
+      "evidence": "blocked",
+      "ready": false,
+      "state": "V2_LIVE_READY"
+    }
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "summary": {
+    "balances_exposed": "NO",
+    "canary_enabled": "NO",
+    "credentials_values_exposed": "NO",
+    "live_orders_disabled": "YES",
+    "live_trading_enabled": "NO",
+    "missing_components": [
+      "binance_mark_price",
+      "binance_funding",
+      "binance_open_interest",
+      "binance_orderbook",
+      "liquidation_bridge",
+      "liquidation_levels_engine",
+      "coinank_full_poller",
+      "coinank_global_aggregator",
+      "kucoin_ingestor",
+      "coinapi_rest",
+      "coinapi_wsds",
+      "nansen_ingestor",
+      "lunarcrush_ingestor",
+      "arkham_ingestor",
+      "alphavantage_news",
+      "ccxt_aggregator",
+      "dataset_builder",
+      "strategy_engine",
+      "backtest_engine"
+    ],
+    "next_automatic_action": "Spark consumes the missing-component backlog (claude_worklog/v2_full_dynamic_rebuild/.../v2_full_runtime_missing_component_backlog.json) to wire visible-but-not-systemd CLIs into dedicated units; Codex 5.5 reviews each pair; report center refreshes on its timer",
+    "next_operator_only_action": "set risk caps on the website, then approve paper edge proof. Live trading remains blocked until ladder progresses through V2_PAPER_EDGE_PROVEN -> V2_RISK_CAPS_ACCEPTED -> V2_CANARY_PASS -> V2_LIVE_OPERATOR_DECISION",
+    "real_orders_disabled": "YES",
+    "stale_components": [],
+    "v2_full_dynamic_rebuild_running": "NO",
+    "v2_paper_runtime_active": "YES",
+    "why_live_is_still_blocked": "operator gates (risk caps, paper edge proof, canary, live) not yet approved; risk gateway fail-closed; live_symbols=[]"
+  },
+  "ts_est": "20260526T003358EST",
+  "ts_human_est": "2026-05-26 00:49:15 EDT",
+  "ts_iso_est": "2026-05-26T00:49:15-0400",
+  "writes_exchange_orders": false
+}

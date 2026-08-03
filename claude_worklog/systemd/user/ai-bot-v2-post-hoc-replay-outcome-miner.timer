@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 post-hoc replay outcome miner timer (every 10m, paper/shadow only)
+
+[Timer]
+OnBootSec=120s
+OnUnitActiveSec=600s
+AccuracySec=30s
+Persistent=true
+Unit=ai-bot-v2-post-hoc-replay-outcome-miner.service
+
+[Install]
+WantedBy=timers.target

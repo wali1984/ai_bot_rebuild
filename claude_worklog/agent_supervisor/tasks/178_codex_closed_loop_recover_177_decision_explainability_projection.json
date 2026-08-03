@@ -1,10 +1,5 @@
 {
-  "task_id": "178_codex_closed_loop_recover_177_decision_explainability_projection",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "v2/",
     "claude_worklog/phase2_core_rebuild/",
@@ -13,19 +8,15 @@
     "claude_worklog/tools/",
     "claude_worklog/agent_supervisor_reliability/"
   ],
-  "required_output_files": [
-    "claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/178_CODEX_CLOSED_LOOP_RECOVERY_177_REPORT.md",
-    "claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/178_CODEX_CLOSED_LOOP_RECOVERY_177_GO_NO_GO.md"
-  ],
-  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. You have full non-live recovery authority inside AI BOT REBUILD. Recover 177_phase2t_decision_explainability_replay_backtest_projection_implementation. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not delete Redis keys. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Inspect the 177 task definition, required output files, runtime state, stdout/stderr, existing decision explainability/replay/backtest files, and current MVP evidence. If required outputs are missing, create or recover only the missing non-live files under allowed V2/phase2 paths. Add/harden tests for decision_explainability_replay_backtest_projection if required. If 177 is not required for the core V2_BACKTEST_AND_PAPER_MVP_READY gate, document whether it should be deferred to explainability_ui and do not block core paper/backtest readiness. Produce a recovery report and GO/NO-GO. GO/NO-GO must contain exactly one line: CODEX_CLOSED_LOOP_RECOVERY_177_READY or CODEX_CLOSED_LOOP_RECOVERY_177_BLOCKED.",
-  "lane": "codex_watchdog",
-  "mvp_relevance": "Closes or defers the decision explainability replay/backtest projection blocker so the V2_BACKTEST_AND_PAPER_MVP_READY path can proceed without a recovery loop.",
   "blocked_by": [
     "177 required outputs missing",
     "watchdog repeated shallow recovery",
     "stale MVP milestone status"
   ],
-  "next_gate": "CODEX_CLOSED_LOOP_RECOVERY_177_READY",
+  "completed_at": "2026-05-08T16:19:24.518075+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "codex_watchdog",
   "legacy_evidence_consulted": [
     "legacy_readonly_audit",
     "historical_pnl_audit",
@@ -37,5 +28,23 @@
     "manual recovery loop",
     "stale paper/backtest readiness visibility"
   ],
-  "next_recommended_action": "If READY, validate and commit. If BLOCKED, leave explicit blocker and do not loop."
+  "mvp_relevance": "Closes or defers the decision explainability replay/backtest projection blocker so the V2_BACKTEST_AND_PAPER_MVP_READY path can proceed without a recovery loop.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "CODEX_CLOSED_LOOP_RECOVERY_177_READY",
+  "next_recommended_action": "If READY, validate and commit. If BLOCKED, leave explicit blocker and do not loop.",
+  "prompt": "You are local Codex CLI in /home/wali/Desktop/AI BOT REBUILD. You have full non-live recovery authority inside AI BOT REBUILD. Recover 177_phase2t_decision_explainability_replay_backtest_projection_implementation. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not delete Redis keys. Do not restart live services. Do not place/cancel orders. Do not enable live trading. Inspect the 177 task definition, required output files, runtime state, stdout/stderr, existing decision explainability/replay/backtest files, and current MVP evidence. If required outputs are missing, create or recover only the missing non-live files under allowed V2/phase2 paths. Add/harden tests for decision_explainability_replay_backtest_projection if required. If 177 is not required for the core V2_BACKTEST_AND_PAPER_MVP_READY gate, document whether it should be deferred to explainability_ui and do not block core paper/backtest readiness. Produce a recovery report and GO/NO-GO. GO/NO-GO must contain exactly one line: CODEX_CLOSED_LOOP_RECOVERY_177_READY or CODEX_CLOSED_LOOP_RECOVERY_177_BLOCKED.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/178_CODEX_CLOSED_LOOP_RECOVERY_177_REPORT.md",
+    "claude_worklog/phase2_core_rebuild/decision_explainability_replay_backtest_projection/178_CODEX_CLOSED_LOOP_RECOVERY_177_GO_NO_GO.md"
+  ],
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-08T16:19:24.518075+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/178_codex_closed_loop_recover_177_decision_explainability_projection.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "178_codex_closed_loop_recover_177_decision_explainability_projection",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

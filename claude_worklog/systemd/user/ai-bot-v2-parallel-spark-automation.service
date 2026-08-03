@@ -1,0 +1,25 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI Bot V2 parallel Spark automation runner
+After=network-online.target ai-bot-v2-closed-loop-worker-pool.service ai-bot-v2-agent-supervisor.service ai-bot-v2-report-center-indexer.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-parallel-spark-automation'
+ExecStart=/usr/bin/env bash -lc 'exec ./.venv/bin/python3 claude_worklog/tools/v2_parallel_spark_automation_runner.py --loop --loop-interval-seconds 60 --max-cycles 0'
+Restart=always
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=default.target

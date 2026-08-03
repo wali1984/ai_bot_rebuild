@@ -1,0 +1,16 @@
+{
+  "schema_version": "v2_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:27Z",
+  "window_start_est": "2026-06-21T20:02:26+00:00",
+  "window_end_est": "2026-06-21T21:02:26+00:00",
+  "event_count_in_window": 118,
+  "live_gate": "blocked_human_only",
+  "live_mutation_count_must_be_zero": 0,
+  "mutates_exchange": false,
+  "closed_count": 0,
+  "exit_reason_counts": {},
+  "hedge_recommendations": 0,
+  "hedge_accepts": 0,
+  "hedge_blocks": 0,
+  "hedge_note": "hedge_engine fail-closed until operator_paper_hedge_engine_approved=True"
+}

@@ -1,13 +1,15 @@
 {
-  "task_id": "060a_trainer_liveness_domain_source",
   "agent": "claude",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "v2/backend/app/domain/trainer_liveness/"
   ],
+  "completed_at": "2026-05-03T07:57:09.510570+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "After 060A materializes and compiles, run 060B.",
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. STRICT HEADLESS EMIT-ONLY MODE. Do not use tools. Do not write files directly. Do not ask for permission. Output only BEGIN_FILE / END_FILE blocks. No prose outside file blocks. Create only the V2 trainer_liveness domain source files listed in required_output_files. This is non-live local V2 code only. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not run live trainer. Implement a trainer liveness domain model that supports detecting process-alive/worker-dead states, stale predictions, zero stream growth, fatal log signatures, multi-reason alerts, SLA thresholds, and human-readable reasons. Do not emit tests or docs in this task. Do not emit a GO/NO-GO marker in this task.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "v2/backend/app/domain/trainer_liveness/__init__.py",
     "v2/backend/app/domain/trainer_liveness/errors.py",
@@ -16,6 +18,13 @@
     "v2/backend/app/domain/trainer_liveness/alert.py",
     "v2/backend/app/domain/trainer_liveness/evaluator.py"
   ],
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. STRICT HEADLESS EMIT-ONLY MODE. Do not use tools. Do not write files directly. Do not ask for permission. Output only BEGIN_FILE / END_FILE blocks. No prose outside file blocks. Create only the V2 trainer_liveness domain source files listed in required_output_files. This is non-live local V2 code only. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not run live trainer. Implement a trainer liveness domain model that supports detecting process-alive/worker-dead states, stale predictions, zero stream growth, fatal log signatures, multi-reason alerts, SLA thresholds, and human-readable reasons. Do not emit tests or docs in this task. Do not emit a GO/NO-GO marker in this task.",
-  "next_recommended_action": "After 060A materializes and compiles, run 060B."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-03T07:57:09.510570+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/060a_trainer_liveness_domain_source.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "060a_trainer_liveness_domain_source",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

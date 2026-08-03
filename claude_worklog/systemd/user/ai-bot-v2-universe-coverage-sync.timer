@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot V2 adaptive-universe coverage sync every 15 minutes (keeps v2:universe:coverage_census fresh ahead of its 2h TTL; bootstraps any new universe entrant end-to-end)
+
+[Timer]
+OnBootSec=300s
+OnUnitActiveSec=900s
+AccuracySec=30s
+Persistent=true
+Unit=ai-bot-v2-universe-coverage-sync.service
+
+[Install]
+WantedBy=timers.target

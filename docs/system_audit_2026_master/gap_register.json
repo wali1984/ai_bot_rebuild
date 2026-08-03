@@ -1,0 +1,139 @@
+{
+  "generated": "2026-07-01T22:56:31Z",
+  "audit_id": "V2_REBUILD_MASTER_END_TO_END_SYSTEM_AUDIT_AND_OPERATOR_MANUAL",
+  "total_gaps": 11,
+  "p0_count": 2,
+  "p1_count": 3,
+  "p2_count": 3,
+  "p3_count": 3,
+  "gaps": [
+    {
+      "gap_id": "GAP_P0_001",
+      "priority": "P0",
+      "title": "Trainer feedback loop 100% quarantined",
+      "description": "741/741 feedback rows quarantined; 0 consumable; trainer not learning from paper outcomes",
+      "subsystem": "trainer_feedback",
+      "status": "OPEN",
+      "evidence": {
+        "redis_key": "v2:paper:ledger",
+        "field": "trainer_feedback_quarantined_row_count",
+        "value": 741,
+        "consumable": 0
+      },
+      "root_cause": "UNKNOWN — likely pipeline_trust epoch mismatch",
+      "resolution_command": "redis-cli get v2:trainer:feedback:outcomes | python3 -c \"import sys,json; d=json.load(sys.stdin); rows=d if isinstance(d,list) else d.get('rows',[]); reasons={}; [reasons.update({r.get('quarantine_reason','UNKNOWN'):reasons.get(r.get('quarantine_reason','UNKNOWN'),0)+1}) for r in rows[:50]]; print(reasons)\"",
+      "blocked_features": ["trainer_learning", "model_improvement", "paper_performance_validation"]
+    },
+    {
+      "gap_id": "GAP_P0_002",
+      "priority": "P0",
+      "title": "Paper trading PnL negative (-$253.49)",
+      "description": "Realized PnL is -$253.49 across 743 closed trades; no positive edge demonstrated",
+      "subsystem": "paper_trader",
+      "status": "OPEN",
+      "evidence": {
+        "redis_key": "v2:paper:ledger",
+        "field": "realized_pnl_usd",
+        "value": -253.49,
+        "closed_trades": 743
+      },
+      "root_cause": "deny_default blocking new fills + stale model without feedback",
+      "blocked_features": ["live_readiness", "capital_scaling"]
+    },
+    {
+      "gap_id": "GAP_P1_001",
+      "priority": "P1",
+      "title": "Risk gateway deny_default blocking all paper fills",
+      "description": "130/130 decisions per cycle = DENY; no new paper fills being generated",
+      "subsystem": "risk_gateway",
+      "status": "OPEN",
+      "evidence": {
+        "redis_key": "v2:risk:gateway:heartbeat",
+        "field": "deny_default",
+        "value": true
+      },
+      "root_cause": "live_gate=blocked_human_only triggers deny_default for ALL decisions including paper",
+      "blocked_features": ["paper_fills", "new_positions", "feedback_generation"]
+    },
+    {
+      "gap_id": "GAP_P1_002",
+      "priority": "P1",
+      "title": "Trainer heartbeat key has no TTL",
+      "description": "v2:trainer:hybrid_cuda:heartbeat TTL=-1; stale detection by expiry will not work",
+      "subsystem": "trainer",
+      "status": "OPEN",
+      "evidence": {
+        "redis_command": "redis-cli ttl v2:trainer:hybrid_cuda:heartbeat",
+        "result": -1
+      },
+      "resolution": "Set TTL=300 on heartbeat write in v2_native_cuda_trainer_persistent_loop.py"
+    },
+    {
+      "gap_id": "GAP_P1_003",
+      "priority": "P1",
+      "title": "Prediction keys have no TTL",
+      "description": "v2:prediction:BTCUSDT:1h TTL=-1; stale predictions cannot be detected by expiry",
+      "subsystem": "prediction_publisher",
+      "status": "OPEN",
+      "evidence": {
+        "redis_command": "redis-cli ttl v2:prediction:BTCUSDT:1h",
+        "result": -1
+      },
+      "resolution": "Set TTL=1200 on prediction key writes in v2_all_timeframe_prediction_signal_price_target_publisher.py"
+    },
+    {
+      "gap_id": "GAP_P2_001",
+      "priority": "P2",
+      "title": "AICoin credentials missing",
+      "description": "5 env vars absent: AICOIN_ACCESS_KEY_ID, AICOIN_ACCESS_SECRET, AICOIN_API_KEY, AICOIN_API_SECRET, AICOIN_API_BASE_URL",
+      "subsystem": "aicoin_ingestor",
+      "status": "OPEN",
+      "impact": "Whale wall order book data unavailable; enrichment feature missing"
+    },
+    {
+      "gap_id": "GAP_P2_002",
+      "priority": "P2",
+      "title": "LunarCrush status unknown",
+      "description": "LunarCrush social sentiment ingestor status not verified during audit",
+      "subsystem": "lunarcrush_ingestor",
+      "status": "OPEN",
+      "resolution": "redis-cli ttl v2:altdata:lunarcrush:BTCUSDT"
+    },
+    {
+      "gap_id": "GAP_P2_003",
+      "priority": "P2",
+      "title": "Nansen status unknown",
+      "description": "Nansen on-chain analytics ingestor status not verified during audit",
+      "subsystem": "nansen_ingestor",
+      "status": "OPEN",
+      "resolution": "redis-cli ttl v2:altdata:nansen:BTCUSDT"
+    },
+    {
+      "gap_id": "GAP_P3_001",
+      "priority": "P3",
+      "title": "1 failed systemd service",
+      "description": "ai-bot-v2-autonomous-no-manual-next-task-policy.service in FAILED state",
+      "subsystem": "systemd",
+      "status": "OPEN",
+      "impact": "LOW — non-critical autonomous scheduling service"
+    },
+    {
+      "gap_id": "GAP_P3_002",
+      "priority": "P3",
+      "title": "Live gate state intentionally stale",
+      "description": "live_gate:state has TTL=-1 and age > 1.6M seconds; intentional design",
+      "subsystem": "live_gate",
+      "status": "OPEN_INTENTIONAL",
+      "impact": "LOW — by design; operator-managed persistent state"
+    },
+    {
+      "gap_id": "GAP_P3_003",
+      "priority": "P3",
+      "title": "~28 backend API stub routes",
+      "description": "Approximately 28 routes return placeholder data; documented in docs/api-gap-register.md",
+      "subsystem": "backend_api",
+      "status": "OPEN",
+      "impact": "LOW — website pages show empty data; non-critical"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "task_id": "codex_review_fix_v2_gap_full_observation_vector_builder",
+  "kind": "codex_review",
+  "paired_claude_task_id": "claude_fix_v2_gap_full_observation_vector_builder",
+  "gap_id": "full_observation_vector_builder",
+  "severity": "OPERATOR_DECISION_REQUIRED",
+  "created_utc": "2026-05-17T18:00:00Z",
+  "updated_utc": "2026-05-17T18:00:00Z",
+  "status": "pending_codex_review_of_partial_scaffold_only",
+  "review_inputs": [
+    "claude_worklog/final_readiness/v2_model_parity_sprint/latest/full_observation_builder_status.json",
+    "claude_worklog/final_readiness/v2_model_parity_sprint/latest/legacy_observation_shape_contract.json",
+    "claude_worklog/final_readiness/v2_model_parity_sprint/latest/v2_vs_legacy_observation_gap_matrix.json",
+    "v2/backend/app/services/rl_core/full_observation_builder.py",
+    "v2/backend/tests/integration/cli/test_v2_full_observation_builder.py"
+  ],
+  "fail_conditions": [
+    "zero-fill or random-fill missing observation categories without operator approval",
+    "claim checkpoint compatibility before all V3 slices have V2-native sources",
+    "approve live or canary",
+    "approve legacy shutdown",
+    "approve Redis trim",
+    "change live_gate or live_symbols",
+    "approve loading any legacy pickle into V2 process",
+    "commit any checkpoint blob to Git"
+  ],
+  "verification_checklist": [
+    "full_observation_builder reports FULL_OBSERVATION_BUILDER_PARTIAL_MISSING_FIELDS while categories remain missing",
+    "compact_observation_v1 dim is still 26 and kept as runtime policy input",
+    "missing categories include unified_features, onchain_btc, onchain_eth (large slices)",
+    "no torch import in the builder",
+    "no pickle load attempted",
+    "no fabrication of dimensions",
+    "live_gate=blocked_human_only and live_symbols=[]"
+  ]
+}

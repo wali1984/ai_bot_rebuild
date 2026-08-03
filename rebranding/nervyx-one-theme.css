@@ -1,0 +1,36 @@
+:root {
+  --nx-canvas: #070A12;
+  --nx-surface: #101522;
+  --nx-surface-elevated: #171E2E;
+  --nx-violet: #7C5CFF;
+  --nx-blue: #4B7BFF;
+  --nx-cyan: #22D3C5;
+  --nx-mint: #5CF2B3;
+  --nx-text: #F6F7FB;
+  --nx-muted: #94A3B8;
+  --nx-warning: #FFB547;
+  --nx-danger: #FF5D7A;
+  --nx-gradient-neural: linear-gradient(135deg, #7C5CFF 0%, #4B7BFF 52%, #22D3C5 100%);
+  --nx-radius-sm: 10px;
+  --nx-radius-md: 16px;
+  --nx-radius-lg: 24px;
+  --nx-radius-xl: 32px;
+  --nx-shadow-panel: 0 18px 60px rgba(0,0,0,.30);
+}
+
+[data-nx-theme="polar"] {
+  --nx-canvas: #F3F6FB;
+  --nx-surface: #FFFFFF;
+  --nx-surface-elevated: #E9EEF7;
+  --nx-text: #101522;
+  --nx-muted: #5D697C;
+}
+
+[data-nx-theme="ops"] {
+  --nx-canvas: #030507;
+  --nx-surface: #0A0D10;
+  --nx-surface-elevated: #11161B;
+  --nx-text: #F6F7FB;
+  --nx-muted: #8A969F;
+  --nx-cyan: #5CF2B3;
+}

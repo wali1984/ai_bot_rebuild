@@ -1,0 +1,13 @@
+{
+  "bundle_identifier": "com.wali1984.aibot-v2",
+  "marketing_version": "1.0.0",
+  "previous_uploaded_build_number": 4,
+  "required_minimum_build_number": 5,
+  "source": "App Store Connect rejection on 2026-06-21: previousBundleVersion=4",
+  "ci_override_env": [
+    "ASC_PREVIOUS_BUILD_NUMBER",
+    "APP_STORE_CONNECT_PREVIOUS_BUILD_NUMBER",
+    "IOS_PREVIOUS_UPLOADED_BUILD",
+    "LATEST_TESTFLIGHT_BUILD_NUMBER"
+  ]
+}

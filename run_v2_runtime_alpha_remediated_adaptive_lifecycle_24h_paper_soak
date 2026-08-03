@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")"
+exec ./.venv/bin/python -m v2.backend.app.cli.v2_runtime_alpha_remediated_adaptive_lifecycle_24h_paper_soak "$@"

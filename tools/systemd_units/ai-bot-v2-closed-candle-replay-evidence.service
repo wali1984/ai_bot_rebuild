@@ -1,0 +1,18 @@
+[Unit]
+Description=AI Bot V2 closed-candle replay evidence generator (refreshes replay dataset; paper/blocked)
+After=network-online.target redis.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI BOT REBUILD/v2/backend"
+Environment="LIVE_GATE=blocked_human_only"
+Environment="V2_LIVE=0"
+Nice=10
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_accelerated_closed_candle_replay_evidence
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-closed-candle-replay-evidence.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-closed-candle-replay-evidence.err
+
+[Install]
+WantedBy=default.target

@@ -1,8 +1,0 @@
-# Next Blockers
-
-- TRAINER_RUNTIME_MONITOR_REPAIR_OR_STARTUP_DECISION
-- CURRENT_SIGNAL_LINEAGE_MISSING
-- RISK_GATEWAY_FAIL_CLOSED_RUNTIME_CHAIN_VALIDATION
-- SUPERVISOR_CONTROL_PLANE_STALE_OR_NOT_RUNNING
-
-These blockers do not require live trading. They are the next safe pre-live online-readiness tasks.

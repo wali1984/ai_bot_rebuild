@@ -1,15 +1,78 @@
 {
-  "task_id": "015d_enterprise_frontend_shell",
   "agent": "claude",
-  "risk_level": "L2",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/security/",
     "claude_worklog/v2_build/",
     "claude_worklog/v2_scaffold_reviews/",
     "v2/frontend/"
   ],
+  "approval_required": true,
+  "audit_evidence": {
+    "audit_events_required": [
+      "governance.task_dispatched",
+      "governance.task_validated",
+      "frontend.page_scaffolded (one per page folder)",
+      "frontend.banner_persistence_pass",
+      "frontend.default_deny_inventory_pass"
+    ],
+    "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash"
+  },
+  "auto_commit": false,
+  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
+  "commit_message": "Materialize V2 enterprise frontend shell with 26 placeholder pages",
+  "completed_at": "2026-05-02T03:19:15.743457+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "015c_api_route_skeleton"
+  ],
+  "do_not_autorun": true,
+  "emit_files": true,
+  "gate_evidence_ref": [
+    "claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md",
+    "claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md",
+    "claude_worklog/v2_architecture/16_MOBILE_IPHONE_AND_PWA_READINESS.md",
+    "claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md",
+    "claude_worklog/v2_scaffold_planning/05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md",
+    "claude_worklog/v2_build/D_API_SKELETON_VALIDATION.md",
+    "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
+    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
+  ],
+  "gates_required": [
+    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
+    "HUMAN_APPROVAL_FOR_THIS_TASK"
+  ],
+  "go_no_go_marker": "E_GUI_SHELL_VALIDATION_READY",
+  "max_attempts": 1,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "Validate recovered 015D frontend shell and run Codex review for 015D. Do not run 015E.",
+  "next_tasks_on_failure": [],
+  "next_tasks_on_success": [],
+  "normalized_from_artifact": false,
+  "observability": {
+    "dashboard_surfaces": [
+      "Build/Validation Status page itself (self-surfacing)",
+      "Mission Control page (LiveBlockBanner is rendered there too)"
+    ],
+    "events_emitted": [
+      "task.start",
+      "task.adapter_call",
+      "task.complete",
+      "frontend.page_scaffolded",
+      "frontend.banner_assertion_pass"
+    ],
+    "logs_written": [
+      "claude_worklog/agent_supervisor/runs/015d_enterprise_frontend_shell/<ts>/stdout.log"
+    ],
+    "metrics_emitted": [
+      "v2.gui.pages_count (must equal 26 admin/operator + 3 public = 29)",
+      "v2.gui.dangerous_controls_disabled_count",
+      "v2.gui.banner_persistence_pass_count",
+      "v2.gui.a11y_violation_count (must be 0 at AA)"
+    ]
+  },
+  "priority": 0,
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not render any dangerous control as enabled. Do not allow the LIVE TRADING: BLOCKED banner to be dismissed. Materialize the V2 enterprise frontend shell with placeholder pages for all 26 admin/operator pages plus the 3 public pages enumerated in claude_worklog/v2_scaffold_planning/05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md \u00a73. Every page folder MUST include index.tsx + route.ts + rbac.ts + meta.ts. Render LiveBlockBanner on every route. Render every dangerous control disabled with a RequiresApprovalBadge. Implement RBAC nav visibility via auth/rbac.ts. Implement lineage block component. Implement PWA manifest + cache-only service worker (no background trade actions). Implement mobile bridge contract (TypeScript-only). Add Playwright e2e tests: nav_smoke, live_block_banner, rbac_visibility, default_deny_inventory. Produce claude_worklog/v2_build/E_GUI_SHELL_VALIDATION.md ending in exactly E_GUI_SHELL_VALIDATION_READY or E_GUI_SHELL_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "v2/frontend/package.json",
     "v2/frontend/index.html",
@@ -63,84 +126,9 @@
     "v2/frontend/tests/e2e/default_deny_inventory.spec.ts",
     "claude_worklog/v2_build/E_GUI_SHELL_VALIDATION.md"
   ],
-  "depends_on": [
-    "015c_api_route_skeleton"
-  ],
-  "next_tasks_on_success": [],
-  "next_tasks_on_failure": [],
-  "max_attempts": 1,
-  "priority": 0,
-  "auto_commit": false,
-  "commit_message": "Materialize V2 enterprise frontend shell with 26 placeholder pages",
-  "gate_evidence_ref": [
-    "claude_worklog/v2_architecture/06_ENTERPRISE_GUI_UX_ARCHITECTURE.md",
-    "claude_worklog/v2_architecture/15_PUBLIC_HOSTING_SECURITY_AND_RBAC_ARCHITECTURE.md",
-    "claude_worklog/v2_architecture/16_MOBILE_IPHONE_AND_PWA_READINESS.md",
-    "claude_worklog/v2_requirements/16_ENTERPRISE_GUI_PAGE_MAP.md",
-    "claude_worklog/v2_scaffold_planning/05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md",
-    "claude_worklog/v2_build/D_API_SKELETON_VALIDATION.md",
-    "claude_worklog/v2_scaffold_queue/05_SCAFFOLD_QUEUE_GO_NO_GO.md",
-    "claude_worklog/v2_scaffold_queue/06_CODEX_QUEUE_GO_NO_GO.md"
-  ],
-  "safety_boundary": {
-    "forbidden_writes": [
-      "legacy_reference/**",
-      "../AI BOT/**",
-      "**/.env",
-      "**/secrets/**",
-      "v2/backend/**",
-      "v2/backend/migrations/**"
-    ],
-    "forbidden_reads": [],
-    "forbidden_runtime_actions": [
-      "render_dangerous_control_as_enabled",
-      "dismiss_live_blocked_banner",
-      "background_trade_action_via_service_worker",
-      "place_or_cancel_orders",
-      "enable_live_trading"
-    ],
-    "live_trading_default": "BLOCKED",
-    "default_deny_inventory_required": true,
-    "banner_persistence_required_across_routes": true
-  },
-  "observability": {
-    "events_emitted": [
-      "task.start",
-      "task.adapter_call",
-      "task.complete",
-      "frontend.page_scaffolded",
-      "frontend.banner_assertion_pass"
-    ],
-    "metrics_emitted": [
-      "v2.gui.pages_count (must equal 26 admin/operator + 3 public = 29)",
-      "v2.gui.dangerous_controls_disabled_count",
-      "v2.gui.banner_persistence_pass_count",
-      "v2.gui.a11y_violation_count (must be 0 at AA)"
-    ],
-    "logs_written": [
-      "claude_worklog/agent_supervisor/runs/015d_enterprise_frontend_shell/<ts>/stdout.log"
-    ],
-    "dashboard_surfaces": [
-      "Build/Validation Status page itself (self-surfacing)",
-      "Mission Control page (LiveBlockBanner is rendered there too)"
-    ]
-  },
-  "tests": {
-    "unit": [],
-    "integration": [],
-    "contract": [],
-    "e2e": [
-      "nav_smoke.spec.ts \u2014 every one of the 26 admin pages + 3 public pages renders its placeholder",
-      "live_block_banner.spec.ts \u2014 banner persists across every route change, cannot be dismissed",
-      "rbac_visibility.spec.ts \u2014 viewer/operator/reviewer/admin/live_approver each see the documented set of pages and no others",
-      "default_deny_inventory.spec.ts \u2014 every dangerous control listed in 05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md \u00a76 renders disabled with a RequiresApprovalBadge"
-    ],
-    "static": [
-      "tsc --noEmit (zero errors)",
-      "eslint (zero warnings; no-undocumented-page rule passes)",
-      "axe-core a11y check inside Playwright (zero AA violations)"
-    ]
-  },
+  "requires_human_approval": true,
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
   "rollback": {
     "procedure": [
       "remove every file materialized under v2/frontend/ by this task",
@@ -152,27 +140,48 @@
       "tsc --noEmit and eslint still pass against the residual skeleton (no orphan imports)"
     ]
   },
-  "audit_evidence": {
-    "audit_events_required": [
-      "governance.task_dispatched",
-      "governance.task_validated",
-      "frontend.page_scaffolded (one per page folder)",
-      "frontend.banner_persistence_pass",
-      "frontend.default_deny_inventory_pass"
+  "safety_boundary": {
+    "banner_persistence_required_across_routes": true,
+    "default_deny_inventory_required": true,
+    "forbidden_reads": [],
+    "forbidden_runtime_actions": [
+      "render_dangerous_control_as_enabled",
+      "dismiss_live_blocked_banner",
+      "background_trade_action_via_service_worker",
+      "place_or_cancel_orders",
+      "enable_live_trading"
     ],
-    "hash_chain_link": "prior_event_hash + this_event_payload -> event_hash"
+    "forbidden_writes": [
+      "legacy_reference/**",
+      "../AI BOT/**",
+      "**/.env",
+      "**/secrets/**",
+      "v2/backend/**",
+      "v2/backend/migrations/**"
+    ],
+    "live_trading_default": "BLOCKED"
   },
-  "go_no_go_marker": "E_GUI_SHELL_VALIDATION_READY",
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart live services. Do not enable live trading. Do not render any dangerous control as enabled. Do not allow the LIVE TRADING: BLOCKED banner to be dismissed. Materialize the V2 enterprise frontend shell with placeholder pages for all 26 admin/operator pages plus the 3 public pages enumerated in claude_worklog/v2_scaffold_planning/05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md \u00a73. Every page folder MUST include index.tsx + route.ts + rbac.ts + meta.ts. Render LiveBlockBanner on every route. Render every dangerous control disabled with a RequiresApprovalBadge. Implement RBAC nav visibility via auth/rbac.ts. Implement lineage block component. Implement PWA manifest + cache-only service worker (no background trade actions). Implement mobile bridge contract (TypeScript-only). Add Playwright e2e tests: nav_smoke, live_block_banner, rbac_visibility, default_deny_inventory. Produce claude_worklog/v2_build/E_GUI_SHELL_VALIDATION.md ending in exactly E_GUI_SHELL_VALIDATION_READY or E_GUI_SHELL_VALIDATION_BLOCKED. Output BEGIN_FILE blocks only.",
-  "next_recommended_action": "Validate recovered 015D frontend shell and run Codex review for 015D. Do not run 015E.",
-  "normalized_from_artifact": false,
-  "status": "blocked_approval",
-  "approval_required": true,
-  "requires_human_approval": true,
-  "do_not_autorun": true,
-  "blocked_reason": "Implementation scaffold task remains blocked until scaffold queue Codex review passes and user explicitly approves unblocking this individual task.",
-  "gates_required": [
-    "V2_SCAFFOLD_QUEUE_CODEX_PASS",
-    "HUMAN_APPROVAL_FOR_THIS_TASK"
-  ]
+  "source_truth_completed_at": "2026-05-02T03:19:15.743457+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/015d_enterprise_frontend_shell.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "015d_enterprise_frontend_shell",
+  "tests": {
+    "contract": [],
+    "e2e": [
+      "nav_smoke.spec.ts \u2014 every one of the 26 admin pages + 3 public pages renders its placeholder",
+      "live_block_banner.spec.ts \u2014 banner persists across every route change, cannot be dismissed",
+      "rbac_visibility.spec.ts \u2014 viewer/operator/reviewer/admin/live_approver each see the documented set of pages and no others",
+      "default_deny_inventory.spec.ts \u2014 every dangerous control listed in 05_ENTERPRISE_GUI_SCAFFOLD_PLAN.md \u00a76 renders disabled with a RequiresApprovalBadge"
+    ],
+    "integration": [],
+    "static": [
+      "tsc --noEmit (zero errors)",
+      "eslint (zero warnings; no-undocumented-page rule passes)",
+      "axe-core a11y check inside Playwright (zero AA violations)"
+    ],
+    "unit": []
+  },
+  "updated_at": "2026-06-15T19:54:42Z"
 }

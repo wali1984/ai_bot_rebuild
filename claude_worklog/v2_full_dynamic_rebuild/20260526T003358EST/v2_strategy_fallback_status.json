@@ -1,0 +1,29 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_STRATEGY_FALLBACK_STATUS_READY",
+  "implementation_status": "specifications_only_per_directive_5_5_review_pending",
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "strategies": [
+    "trend_following",
+    "mean_reversion",
+    "breakout",
+    "momentum",
+    "funding_oi_divergence",
+    "liquidation_cascade_squeeze",
+    "orderbook_imbalance",
+    "volatility_expansion",
+    "multi_timeframe_confirmation",
+    "rsi_macd_ema",
+    "support_resistance",
+    "liquidation_levels",
+    "no_trade_capital_preservation"
+  ],
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "writes_exchange_orders": false
+}

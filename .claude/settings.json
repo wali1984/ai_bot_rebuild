@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(python3 -m py_compile v2/backend/app/services/native_trainer/hybrid_cuda_trainer/config.py v2/backend/app/services/native_trainer/hybrid_cuda_trainer/runtime.py v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py v2/backend/app/services/native_trainer/persistent_cuda_trainer_runtime.py v2/backend/app/cli/v2_native_cuda_trainer_persistent_loop.py)",
+      "Bash(.venv/bin/python -m pytest v2/backend/tests/integration/cli/test_v2_native_rl_masa_ppo_cuda_trainer.py v2/backend/tests/integration/cli/test_v2_all_timeframe_prediction_signal_price_target_publisher.py v2/backend/tests/integration/cli/test_v2_rl_core_inference_loop_sidecar.py v2/backend/tests/unit/test_runtime_alpha_decision_chain.py --no-header -q)",
+      "Bash(systemctl --user is-active ai-bot-v2-trainer-bridge.service)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('rl_core_role:', d.get\\('role_scope','?'\\)\\); print\\('primary_owner:', d.get\\('prediction_role','?'\\)\\)\")",
+      "Bash(systemctl --user is-enabled ai-bot-v2-trainer-bridge.service)",
+      "Bash(awk '{print $9, \"\\(\" $5 \"\\)\"}')",
+      "Bash(redis-cli GET \"v2:features:latest:BTCUSDT:5m\")",
+      "Bash(python3 v2/backend/app/cli/v2_coinapi_orderbook_ingestor.py --symbols BTCUSDT,ETHUSDT --interval 5)",
+      "Bash(python3 ./v2/backend/app/cli/v2_coinapi_orderbook_ingestor.py --symbols BTCUSDT,ETHUSDT)",
+      "Bash(python3 v2/backend/app/cli/v2_coinapi_orderbook_ingestor.py --symbols BTCUSDT,ETHUSDT)",
+      "Bash(python3 v2/backend/app/cli/v2_coinapi_orderbook_ingestor.py --symbols BTCUSDT,ETHUSDT --redis-url redis://localhost:6379)",
+      "Bash(redis-cli GET \"v2:microstructure:orderbook:BTCUSDT\")",
+      "Bash(python3 v2/backend/app/cli/v2_tokenmetrics_onchain_ingestor.py --symbols BTC,ETH,SOL --redis-url redis://localhost:6379)",
+      "Bash(redis-cli GET \"v2:onchain:tokenmetrics:BTC\")",
+      "Bash(python3 v2/backend/app/cli/v2_crossexchange_analyzer.py --symbols BTCUSDT,ETHUSDT --redis-url redis://localhost:6379)",
+      "Bash(redis-cli GET \"v2:crossexchange:analysis:BTCUSDT\")",
+      "Bash(python3 v2/backend/app/cli/v2_liquidation_enhanced.py --symbols BTCUSDT,ETHUSDT --redis-url redis://localhost:6379)",
+      "Bash(redis-cli GET \"v2:liquidation:enhanced:BTCUSDT\")",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(systemctl status *)"
+    ],
+    "additionalDirectories": [
+      "/home/wali/Desktop/AI\\ BOT\\ REBUILD/v2/backend/app/services/rl_core",
+      "/home/wali/Desktop/AI\\ BOT\\ REBUILD/v2/backend/app/cli",
+      "/home/wali/Desktop/AI\\ BOT\\ REBUILD/v2/backend/app/services/microstructure",
+      "/home/wali/Desktop/AI\\ BOT\\ REBUILD/claude_worklog"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Run AI Bot V2 no-status-change SLA watchdog
+
+[Timer]
+OnBootSec=75s
+OnUnitActiveSec=300s
+AccuracySec=15s
+Persistent=true
+Unit=ai-bot-v2-no-status-change-sla-watchdog.service
+
+[Install]
+WantedBy=timers.target

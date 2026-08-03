@@ -1,0 +1,76 @@
+# Files/Dirs Requiring Operator Review Before Further Cleanup
+# Generated: 2026-07-01T18:40:46Z
+# Goal: V2_REPO_CLEANUP_RUNTIME_SAFE_SOURCE_TREE_AND_ARTIFACT_ARCHIVE_READY
+
+## ACTIVE CODE REFERENCES — DO NOT DELETE WITHOUT CODE CHANGE
+
+goal_state/V2_P0_DIRECTIONAL_EXIT_EXECUTION_RISK_AND_ADAPTIVE_CAPITAL_REMEDIATION
+  REASON: Actively READ by v2_adaptive_capital_productivity_status.py:9698
+  FILE READ: RUNTIME_VALIDATION_REPORT_AFTER_TRAILING_STOP_PRICE_COST_FLOOR_PATCH.json
+  ACTION: NEVER ARCHIVE without updating the reader CLI
+
+goal_state/V2_ADAPTIVE_CAPITAL_PRODUCTIVITY_COMPOUNDING_AND_1000X_FEASIBILITY
+  REASON: GOAL_ID used by v2_adaptive_capital_productivity_status.py:36 (write target)
+  ACTION: Keep until goal is superseded
+
+goal_state/V2_CHALLENGER_V2_REPRODUCIBLE_COST_PARITY_FEATURE_ADAPTER_BLIND_LOCKBOX_AND_FORWARD_CANARY
+  SIZE: 1.8G
+  REASON: GOAL_ID in v2_challenger_v2_reproducible_pipeline.py:49, v2_paper_timeframe_churn_governance_audit.py:15
+  ACTION: Keep until these CLIs are retired or point to new goal dir
+
+goal_state/V2_MODEL_EDGE_RECOVERY_CHAMPION_CHALLENGER_AND_A_GRADE_BOOTSTRAP
+  REASON: GOAL_ID in model_edge_recovery_challenger.py:35
+  ACTION: Keep until service is retired or GOAL_ID updated
+
+goal_state/V2_ADAPTIVE_CAPITAL_OUT_OF_SAMPLE_LIVE_GRADE_REVERIFY
+  REASON: OUT_OF_SAMPLE_REVERIFY_GATE_ID in v2_adaptive_capital_productivity_status.py:358
+  ACTION: Verify if this gate reads from this dir before archiving
+
+## DOCS REFERENCES ONLY — LOWER RISK
+
+goal_state/V2_POST_POLICY_CAPITAL_PRODUCTIVITY_AND_LIVE_CANARY_READINESS
+  REASON: Referenced in docs/nervyx-starting-status-short.txt
+  ACTION: Operator may confirm safe to archive
+
+goal_state/V2_STOP_THE_LINE_FULL_SYSTEM_TRAINER_PAPER_ALPHA_LIVE_GRADE_REMEDIATION
+  REASON: Referenced in docs/nervyx-starting-status-short.txt
+  ACTION: Operator may confirm safe to archive
+
+## ACTIVE WORKTREES WITH UNCOMMITTED CHANGES
+
+.claude/worktrees/agent-afeb952e1fe1b36e6  [4.1G combined for all 4]
+.claude/worktrees/agent-a39550bb1950ba33d
+.claude/worktrees/agent-a990d4d5dc9180fbd
+.claude/worktrees/agent-ac74949e2d6d4f121
+  REASON: Each has uncommitted changes in frontend/src files
+  ACTION: Run 'git -C .claude/worktrees/<name> status' and stash/merge or abandon each
+
+## PRODUCTION SERVING — NEVER DELETE
+
+v2/frontend/dist/  [7.8G]
+  REASON: Served by FastAPI PID 2932284 via app/main.py — this IS the live website
+  ACTION: Only delete after npm run build produces fresh dist/
+
+## SOURCE FILES — REQUIRE OPERATOR APPROVAL FOR DELETION
+
+v2/backend/app/cli/paper_online_runtime.py  (if it still exists — now superseded)
+  REASON: v2_trade_management_paper_loop is now sole paper owner per memory
+  ACTION: Verify file exists and no active process references it, then operator approve deletion
+
+## LARGE DATA FILES — REVIEW ONLY
+
+claude_worklog/agent_supervisor/events.jsonl  [5.4G]
+  REASON: Actively written by agent_supervisor (PID 5516) — do not truncate or delete
+  ACTION: If size becomes a problem, implement rotation in agent_supervisor config
+
+v2/backend/market_stream_alert_history.jsonl  [12G]
+  REASON: Runtime telemetry from market stream workers
+  ACTION: Verify if needed for live system or just historical; operator to decide retention
+
+v2/legacy_owned_runtime/data/  [113G]
+  REASON: Live ingestor JSONL data feeds — actively written by multiple PIDs
+  ACTION: Do not touch; this is the raw market data archive
+
+.local_data/v2_native_trainer/  [9.2G]
+  REASON: Trainer feature snapshot archive — needed for trainer recovery
+  ACTION: Do not touch without trainer admin approval

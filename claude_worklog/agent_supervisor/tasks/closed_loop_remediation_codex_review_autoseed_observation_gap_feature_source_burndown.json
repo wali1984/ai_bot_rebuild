@@ -1,0 +1,31 @@
+{
+  "codex_pair_task_id": "codex_review_autoseed_observation_gap_feature_source_burndown",
+  "completed_at": "2026-05-24T19:56:49Z",
+  "created_at": "2026-05-24T19:52:17Z",
+  "fail_blockers": [
+    "1. Decide whether to extend V2-native unified_features beyond the current",
+    "1. **Edit** `v2/backend/app/cli/v2_orchestrator_arbitration_loop.py` \u2014 reorder per-cycle writes and stamp `v2_orchestrator_keys_written_count` into the `v2:orchestrator:decisions` payload."
+  ],
+  "file_lock_group": "v2_observation_gap_feature_source_burndown",
+  "lease_id": "89369ba50c1e48b489f3d4c7eeb4acb2",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "pid_or_job_id": 1572990,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "started_at": "2026-05-24T19:53:34Z",
+  "status": "completed",
+  "task_id": "closed_loop_remediation_codex_review_autoseed_observation_gap_feature_source_burndown",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-24T19:56:49Z",
+  "worker_id": "claude-2"
+}

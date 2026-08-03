@@ -1,0 +1,17 @@
+{
+  "schema_version": "v2_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:27Z",
+  "window_start_est": "2026-06-21T21:02:26+00:00",
+  "window_end_est": "2026-06-21T22:02:26+00:00",
+  "event_count_in_window": 118,
+  "live_gate": "blocked_human_only",
+  "live_mutation_count_must_be_zero": 0,
+  "mutates_exchange": false,
+  "trainer_feedback_consumed": 0,
+  "trainer_feedback_quarantined": 0,
+  "checkpoint_updates": 0,
+  "stale_prediction_rows": 0,
+  "missing_critical_feature_rows": 0,
+  "prediction_count": 0,
+  "trainer_note": "trainer_feedback_consumed = closed trades that triggered backfill_realized_outcome. Trainer is a protected ML runtime; consumes feedback on its own evaluation cycle."
+}

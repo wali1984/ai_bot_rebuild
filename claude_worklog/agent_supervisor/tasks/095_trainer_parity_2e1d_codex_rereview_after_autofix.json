@@ -1,22 +1,14 @@
 {
-  "task_id": "095_trainer_parity_2e1d_codex_rereview_after_autofix",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "depends_on": [
-    "094_trainer_parity_2e1d_codex_autofix"
-  ],
-  "predecessor_task_ids": [
-    "094_trainer_parity_2e1d_codex_autofix"
-  ],
-  "predecessor_required_marker": "PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_PASSED",
-  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/122_2E1D_AUTOFIX_GO_NO_GO.md",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
-  "task_granularity_mode": "consolidated_default",
   "allowed_output_prefixes": [
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
   ],
+  "completed_at": "2026-05-04T22:23:23.202239+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "094_trainer_parity_2e1d_codex_autofix"
+  ],
+  "emit_files": true,
   "forbidden_output_paths": [
     "v2/backend/app/services/trainer_parity/",
     "v2/backend/tests/unit/services/",
@@ -31,10 +23,27 @@
     "claude_worklog/autonomous_control_plane/",
     "claude_worklog/agent_supervisor/tasks/"
   ],
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "On PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_CODEX_PASS, evidence reconciliation marks the trainer-liveness assembly stack complete; the planner opens 2E1.E (composition root under v2/backend/app/services/trainer_parity/composition_root.py \u2014 the first milestone allowed to import the gamma.real factory) under a fresh spec turn. On PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_CODEX_FAIL with concrete blockers and no safety violation, surface to human attention; no further autofix layer is permitted. On any safety violation, surface to human attention; no autofix is permitted.",
+  "predecessor_required_marker": "PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_PASSED",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/122_2E1D_AUTOFIX_GO_NO_GO.md",
+  "predecessor_task_ids": [
+    "094_trainer_parity_2e1d_codex_autofix"
+  ],
+  "prompt": "You are Codex acting as adversarial re-reviewer for milestone 2E1D after the 094 autofix. This is read-only review except for emitting 123 and 124. Work only inside /home/wali/Desktop/AI BOT REBUILD. Do not modify v2 source or tests, task definitions, runtime prompts, or files 112 through 122. Do not access external venues, live services, production key-value stores, secrets, release systems, or production schema tooling. Verify predecessor marker 122 is exactly PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_PASSED. Re-evaluate the full 24-row 092 rubric from 118 against the post-autofix tree, with specific focus on rows 9, 14, 15, 17, and 24. Confirm the forbidden-token guard now covers every authored service source/test file except package markers; the mutation test has tuple and element identity assertions; pass-through growth compares against compute_stream_id_growth_in_window for prediction and proposal; 120 makes the 34-test count canonical; and the happy-path growth test asserts positive sequential growth and beta-calculator equality. Run read-only validation using pytest, py_compile, rg, and git status as appropriate. Emit 123_2E1D_CODEX_REREVIEW_AFTER_AUTOFIX.md with files reviewed, blocker remediation status, full rubric re-evaluation, diff-scope verification, validation summaries, concrete blockers, safety review, and recommendation. Emit 124_2E1D_CODEX_REREVIEW_AFTER_AUTOFIX_GO_NO_GO.md with exactly one line: PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_CODEX_PASS or PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_CODEX_FAIL.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/123_2E1D_CODEX_REREVIEW_AFTER_AUTOFIX.md",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/124_2E1D_CODEX_REREVIEW_AFTER_AUTOFIX_GO_NO_GO.md"
   ],
-  "prompt": "You are Codex acting as adversarial re-reviewer for milestone 2E1D after the 094 autofix. This is read-only review except for emitting 123 and 124. Work only inside /home/wali/Desktop/AI BOT REBUILD. Do not modify v2 source or tests, task definitions, runtime prompts, or files 112 through 122. Do not access external venues, live services, production key-value stores, secrets, release systems, or production schema tooling. Verify predecessor marker 122 is exactly PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_PASSED. Re-evaluate the full 24-row 092 rubric from 118 against the post-autofix tree, with specific focus on rows 9, 14, 15, 17, and 24. Confirm the forbidden-token guard now covers every authored service source/test file except package markers; the mutation test has tuple and element identity assertions; pass-through growth compares against compute_stream_id_growth_in_window for prediction and proposal; 120 makes the 34-test count canonical; and the happy-path growth test asserts positive sequential growth and beta-calculator equality. Run read-only validation using pytest, py_compile, rg, and git status as appropriate. Emit 123_2E1D_CODEX_REREVIEW_AFTER_AUTOFIX.md with files reviewed, blocker remediation status, full rubric re-evaluation, diff-scope verification, validation summaries, concrete blockers, safety review, and recommendation. Emit 124_2E1D_CODEX_REREVIEW_AFTER_AUTOFIX_GO_NO_GO.md with exactly one line: PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_CODEX_PASS or PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_CODEX_FAIL.",
-  "next_recommended_action": "On PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_CODEX_PASS, evidence reconciliation marks the trainer-liveness assembly stack complete; the planner opens 2E1.E (composition root under v2/backend/app/services/trainer_parity/composition_root.py — the first milestone allowed to import the gamma.real factory) under a fresh spec turn. On PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_CODEX_FAIL with concrete blockers and no safety violation, surface to human attention; no further autofix layer is permitted. On any safety violation, surface to human attention; no autofix is permitted."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-04T22:23:23.202239+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/095_trainer_parity_2e1d_codex_rereview_after_autofix.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_granularity_mode": "consolidated_default",
+  "task_id": "095_trainer_parity_2e1d_codex_rereview_after_autofix",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

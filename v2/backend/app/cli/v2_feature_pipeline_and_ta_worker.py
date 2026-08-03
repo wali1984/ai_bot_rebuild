@@ -12,7 +12,8 @@ Hard rules (asserted by tests):
     entries under ``v2:features:*`` to a JSON file under
     ``v2/runtime/v2_feature_pipeline_and_ta_worker/latest/``.
   - No exchange mutating method invocation.
-  - Public REST GETs only (used by the optional input fallback).
+  - Binance public websocket cache is the default live input path. REST can
+    appear only inside the unified fallback client when explicitly enabled.
   - Paralysis-detector alerts route into the V2 worker public payload, NOT
     the legacy Redis stream.
 """
@@ -23,9 +24,6 @@ import datetime as dt
 import json
 import sys
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -52,12 +50,16 @@ from v2.backend.app.services.feature_pipeline_and_ta.service import (
     VALIDATE_ORDERBOOK_STALE_SEC,
     VALIDATE_SLOW_TF_MAX_AGE_SEC,
 )
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    fetch_unified_market_snapshot,
+)
 from v2.backend.app.services.symbol_universe.service import (
     DYNAMIC_SYMBOL_SOURCES,
     LEGACY_ACTIVE_SYMBOLS_25,
     SYMBOL_SELECTION_SCORE_FACTORS,
     SymbolUniverseService,
 )
+from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 
 WORKER_ID = "v2_feature_pipeline_and_ta_worker"
@@ -123,41 +125,25 @@ def iso_now() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _http_json(url: str, timeout: int = 8) -> Any:
-    request = urllib.request.Request(
-        url,
-        method="GET",
-        headers={"User-Agent": f"ai-bot-v2-{WORKER_ID}-readonly"},
-    )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
 def fetch_live_snapshot(symbol: str, timeframe: str) -> Dict[str, Any]:
-    """Build a minimal per-symbol/tf snapshot from Binance public REST.
+    """Build a minimal per-symbol/tf snapshot from the unified Binance feed.
 
-    Read-only. No credentials. Public GET endpoints only. The CLI uses this as
-    a default input when no ``--input-file`` is provided.
+    Read-only. No credentials. The unified client reads the Binance public
+    websocket cache first and only falls back to REST when the fallback flag is
+    explicitly enabled.
     """
-    encoded = urllib.parse.urlencode({"symbol": symbol})
-    klines_url = (
-        "https://fapi.binance.com/fapi/v1/klines?"
-        + urllib.parse.urlencode({"symbol": symbol, "interval": timeframe, "limit": "200"})
-    )
-    bookticker = _http_json(
-        f"https://fapi.binance.com/fapi/v1/ticker/bookTicker?{encoded}"
-    )
-    klines = _http_json(klines_url)
+    unified = fetch_unified_market_snapshot(symbol, timeframe=timeframe, limit=200)
     candles = [
         {
-            "ts_ms": int(row[0]),
-            "open": float(row[1]),
-            "high": float(row[2]),
-            "low": float(row[3]),
-            "close": float(row[4]),
-            "volume": float(row[5]),
+            "ts_ms": int(row.get("open_time_ms") or row.get("event_time_ms") or 0),
+            "open": float(row.get("open") or 0.0),
+            "high": float(row.get("high") or 0.0),
+            "low": float(row.get("low") or 0.0),
+            "close": float(row.get("close") or 0.0),
+            "volume": float(row.get("volume") or 0.0),
         }
-        for row in klines
+        for row in unified.candles
+        if isinstance(row, dict)
     ]
     last = candles[-1] if candles else {}
     snapshot = {
@@ -166,9 +152,10 @@ def fetch_live_snapshot(symbol: str, timeframe: str) -> Dict[str, Any]:
         "per_symbol": {
             symbol: {
                 "orderbook_top": {
-                    "bid": float(bookticker.get("bidPrice", 0.0)),
-                    "ask": float(bookticker.get("askPrice", 0.0)),
+                    "bid": None,
+                    "ask": None,
                     "ts_ms": int(time.time() * 1000),
+                    "missing_reason": "ORDERBOOK_TOP_NOT_IN_UNIFIED_KLINE_SNAPSHOT",
                 },
                 "timeframes": {
                     timeframe: {
@@ -183,12 +170,22 @@ def fetch_live_snapshot(symbol: str, timeframe: str) -> Dict[str, Any]:
                         "ohlcv_list": candles,
                         "unified": {
                             "ts_ms": int(time.time() * 1000),
+                            "source": unified.source,
+                            "source_pointer": unified.source_pointer,
+                            "wss_cache_used": unified.wss_cache_used,
+                            "rest_backup_used": unified.rest_backup_used,
+                            "rest_backup_reason": unified.rest_backup_reason,
+                            "freshness_state": unified.freshness_state,
                         },
                     }
                 },
             }
         },
-        "snapshot_source": "binance_public_rest",
+        "snapshot_source": unified.source,
+        "snapshot_source_pointer": unified.source_pointer,
+        "websocket_primary": True,
+        "rest_backup_used": unified.rest_backup_used,
+        "rest_backup_reason": unified.rest_backup_reason,
     }
     return snapshot
 
@@ -198,7 +195,11 @@ def load_input(args: argparse.Namespace) -> Tuple[Dict[str, Any], str]:
         path = Path(args.input_file)
         payload = json.loads(path.read_text())
         return payload, str(payload.get("snapshot_source") or path)
-    return fetch_live_snapshot(args.symbol, args.timeframe), f"binance_public_rest:{args.symbol}:{args.timeframe}"
+    snapshot = fetch_live_snapshot(args.symbol, args.timeframe)
+    return snapshot, str(
+        snapshot.get("snapshot_source")
+        or f"binance_unified_websocket_cache:{args.symbol}:{args.timeframe}"
+    )
 
 
 def _as_symbol_list(value: Any) -> List[str]:
@@ -276,7 +277,8 @@ def build_symbol_scope(snapshot: Dict[str, Any], observed_symbols: List[str]) ->
 
     return {
         "symbol_universe_contract": SYMBOL_UNIVERSE_CONTRACT,
-        "symbol_universe_source_path": public_path or SYMBOL_UNIVERSE_SERVICE_PATH,
+        "symbol_universe_source_path": SYMBOL_UNIVERSE_SERVICE_PATH,
+        "symbol_universe_public_payload_path": public_path,
         "symbol_universe_public_payload_status": (
             "PRESENT" if public_path else "MISSING_SYMBOL_UNIVERSE_PUBLIC_PAYLOAD"
         ),
@@ -542,11 +544,12 @@ def verify_baseline_shas(manifest_path: Path = COPIED_BASELINE_MANIFEST) -> Dict
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog=WORKER_ID)
-    parser.add_argument("--symbol", default="BTCUSDT")
+    parser.add_argument("--symbol", default=None)
     parser.add_argument("--timeframe", default="1m")
     parser.add_argument("--interval", type=int, default=FAST_LANE_INTERVAL_SEC)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--loop", action="store_true")
+    parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--no-write", action="store_true")
     parser.add_argument("--input-file", default=None,
                         help="Read snapshot input (per-symbol/tf dict) from a JSON file.")
@@ -557,6 +560,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--verify-baseline-shas", action="store_true")
     args = parser.parse_args(argv)
+    args.symbol = (args.symbol or resolve_symbols(smoke_test=args.smoke_test)[0]).strip().upper()
     if not args.loop and not args.once:
         args.once = True
     return args

@@ -1,0 +1,229 @@
+{
+  "A_grade_rows": 0,
+  "accepted_b_grade_lifecycle_rows": 456,
+  "allocator_pass_rows": 354,
+  "b_grade_lifecycle_supply_present": false,
+  "candidate_rows": 452,
+  "closed_b_grade_lifecycle_outcome_rows": 742,
+  "closest_gap_reason": "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
+  "closest_gap_source_owner": "continuous_edge_guardian",
+  "counts_as_a_grade_evidence": false,
+  "current_cycle_b_grade_supply_counts": {
+    "canary_candidates": 0,
+    "canary_intents": 0,
+    "canary_pending_rows": 0
+  },
+  "current_cycle_b_grade_supply_present": false,
+  "dominant_current_runtime_reasons": {
+    "BLOCK_SPREAD_SLIPPAGE": 21,
+    "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST": 77,
+    "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE": 354
+  },
+  "generated_utc": "2026-07-02T02:10:00.351Z",
+  "guardian_gate_status": {
+    "a_grade_new_entries_allowed": false,
+    "allowed_runtime_actions": [
+      "reduce",
+      "close",
+      "emergency_de_risk"
+    ],
+    "block_all_new_a_grade_entries": true,
+    "failure_reasons": [
+      {
+        "observed": 5000,
+        "reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+        "required": 50000
+      },
+      {
+        "observed": 0,
+        "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+        "required": 100
+      },
+      {
+        "observed": 0,
+        "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+        "required": 300
+      },
+      {
+        "observed": null,
+        "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+        "required": 0.9
+      },
+      {
+        "observed": null,
+        "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+        "required": "> 0"
+      },
+      {
+        "observed": null,
+        "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+        "required": "> 0"
+      },
+      {
+        "observed": null,
+        "reason": "PROFIT_FACTOR_BELOW_2",
+        "required": 2.0
+      },
+      {
+        "observed": 0,
+        "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+        "required": 1000
+      },
+      {
+        "observed": 0,
+        "reason": "INSUFFICIENT_REALTIME_SYMBOL_COVERAGE",
+        "required": 50
+      },
+      {
+        "observed": 0,
+        "reason": "INSUFFICIENT_REALTIME_LONG_OUTCOMES",
+        "required": 250
+      },
+      {
+        "observed": 0,
+        "reason": "INSUFFICIENT_REALTIME_SHORT_OUTCOMES",
+        "required": 250
+      },
+      {
+        "observed": 0,
+        "reason": "INSUFFICIENT_REALTIME_STRATEGY_REGIME_COVERAGE",
+        "required": 10
+      },
+      {
+        "observed": 0,
+        "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+        "required": 100
+      },
+      {
+        "observed": 0,
+        "reason": "INSUFFICIENT_ROLLING_300_TRADE_WINDOW",
+        "required": 300
+      },
+      {
+        "observed": null,
+        "reason": "OVERALL_95PCT_LCB_WIN_RATE_BELOW_90P",
+        "required": 0.9
+      },
+      {
+        "observed": null,
+        "reason": "AFTER_COST_EXPECTANCY_NOT_POSITIVE",
+        "required": "> 0"
+      },
+      {
+        "observed": null,
+        "reason": "EXPECTANCY_95PCT_LCB_NOT_POSITIVE",
+        "required": "> 0"
+      },
+      {
+        "observed": null,
+        "reason": "PROFIT_FACTOR_BELOW_2",
+        "required": 2.0
+      },
+      {
+        "eligibility_counts": {},
+        "observed": "BLOCKED_NO_A_GRADE_STRATEGY_ELIGIBILITY",
+        "reason": "ADAPTIVE_STRATEGY_BRAIN_BLOCKED",
+        "required": "ACTIVE_A_GRADE_STRATEGY_BRAIN",
+        "state_counts": {
+          "ACTIVE": 0,
+          "B_GRADE_ONLY": 0,
+          "COOLDOWN": 0,
+          "QUARANTINED": 0,
+          "REDUCED_SIZE": 0,
+          "REEVALUATION": 0,
+          "SHADOW_ONLY": 0
+        }
+      },
+      {
+        "a_grade_candidate_count": 0,
+        "blocker_counts": {},
+        "observed": "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED",
+        "passed_a_grade_candidate_count": 0,
+        "reason": "ZERO_LIQUIDATION_STRESS_SUITE_BLOCKED",
+        "required": "PASSED_ZERO_LIQUIDATION_RARE_EVENT_STRESS_SUITE"
+      }
+    ],
+    "generated_utc": "2026-07-02T02:08:34.611Z",
+    "new_candidate_tier_override": "SHADOW_ONLY",
+    "status": "A_GRADE_HALTED_PERFORMANCE"
+  },
+  "guardian_realtime_performance_status": {
+    "closed_economic_trade_count": null,
+    "long_outcomes": null,
+    "short_outcomes": null,
+    "status": null,
+    "symbol_count": null
+  },
+  "guardian_strategy_brain_status": {
+    "a_grade_active_bucket_count": 0,
+    "blocker_counts": {},
+    "bucket_count": 0,
+    "status": "BLOCKED_NO_A_GRADE_STRATEGY_ELIGIBILITY"
+  },
+  "guardian_zero_liquidation_status": {
+    "a_grade_candidate_count": 0,
+    "passed_a_grade_candidate_count": 0,
+    "status": "BLOCKED_NO_A_GRADE_CANDIDATES_STRESS_VERIFIED"
+  },
+  "liquidity_pass_rows": 427,
+  "live_path_changed": false,
+  "near_A_grade_rows": 0,
+  "open_b_grade_lifecycle_rows": 0,
+  "paper_only": true,
+  "pass_conditions": {
+    "A_grade_rows_gt_zero": false,
+    "a_grade_new_entries_allowed": false,
+    "ready_allowed": false,
+    "source_owned_zero_supply_root_cause_mapped": true
+  },
+  "places_real_order": false,
+  "predicate_counts": {
+    "allocator_pass_rows": 354,
+    "expected_edge_after_cost_favorable_rows": 375,
+    "integrity_pass_rows": 452,
+    "liquidity_pass_rows": 427,
+    "orchestrator_rows": 452,
+    "paper_only_safety_rows": 452,
+    "production_grade_cost_rows": 448,
+    "risk_pass_rows": 0,
+    "score_threshold_pass_rows": 436,
+    "strategy_pass_rows": 0
+  },
+  "prediction_rows": 452,
+  "production_grade_cost_rows": 448,
+  "risk_pass_rows": 0,
+  "root_cause_counts": {
+    "allocator_failed": 98,
+    "expected_edge_below_cost": 77,
+    "guardian_halted": 452,
+    "integrity_failed": 0,
+    "liquidity_failed": 25,
+    "orchestrator_failed": 0,
+    "production_grade_cost_missing": 4,
+    "risk_failed": 452,
+    "score_below_threshold": 16,
+    "strategy_failed": 452,
+    "unsafe_live_route_flags": 0
+  },
+  "routes_to_live": false,
+  "sample_a_grade_rows": [],
+  "sample_near_a_grade_rows": [],
+  "schema_version": "paper_a_grade_gate_burndown_status_v1",
+  "source_owned_zero_supply_root_cause": {
+    "guardian_halted": true,
+    "near_a_grade_rows_present": false,
+    "reason": "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
+    "source_owner": "continuous_edge_guardian",
+    "top_current_runtime_reason": "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
+    "top_guardian_reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS"
+  },
+  "source_rows": {
+    "accepted_rows": 456,
+    "closed_rows": 743,
+    "intent_rows": 452,
+    "open_position_rows": 0
+  },
+  "status": "A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED",
+  "strategy_pass_rows": 0,
+  "zero_supply_source_owner": "continuous_edge_guardian"
+}

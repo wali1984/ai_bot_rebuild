@@ -66,11 +66,11 @@ export function MissionTradingPlatformPanel({
   const endpointCounts = coinankPayload?.endpoint_key_counts ?? {};
   const legacyExecution = latestLegacyExecution(truthPayload);
   return (
-    <Panel id="trading-platform-mission-overview" title="Trading Platform Overview" right={<span className="chip solid-block">Live blocked</span>}>
+    <Panel id="trading-platform-mission-overview" title="Trading Platform Overview" right={<span className="chip solid-block">Operator gated</span>}>
       <div className="cockpit-analytics-grid">
-        <Metric label="Live gate" value={paperRuntime?.live_gate_status ?? truthPayload?.live_gate_status ?? 'blocked_human_only'} />
-        <Metric label="Paper equity" value={paperRuntime?.paper_account?.equity ?? MISSING} />
-        <Metric label="Paper PnL" value={paperRuntime ? `${paperRuntime.paper_account.realized_pnl} realized / ${paperRuntime.paper_account.unrealized_pnl} unrealized` : MISSING} />
+        <Metric label="Execution gate" value={paperRuntime?.live_gate_status ?? truthPayload?.live_gate_status ?? 'operator_gated'} />
+        <Metric label="Account equity" value={paperRuntime?.paper_account?.equity ?? MISSING} />
+        <Metric label="Runtime PnL" value={paperRuntime ? `${paperRuntime.paper_account.realized_pnl} realized / ${paperRuntime.paper_account.unrealized_pnl} unrealized` : MISSING} />
         <Metric label="Selected symbol" value={paperRuntime?.market_feed?.symbol ?? 'BTCUSDT'} />
         <Metric label="Observed price" value={paperRuntime?.market_feed?.price ?? MISSING} />
         <Metric label="Market source" value={paperRuntime?.market_feed?.source_type ?? MISSING} />
@@ -78,7 +78,7 @@ export function MissionTradingPlatformPanel({
         <Metric label="CVD keys" value={endpointCounts.agg_cvd ?? MISSING} />
         <Metric label="Weighted funding" value={endpointCounts.weighted_funding ?? MISSING} />
         <Metric label="Liquidation rank" value={String(availability.liquidation_rank ?? availability.liquidation_orders ?? false)} />
-        <Metric label="Legacy latest execution" value={legacyExecution.exchange_order_id ?? 'read-only import missing'} />
+        <Metric label="Legacy latest execution" value={legacyExecution.exchange_order_id ?? 'runtime import missing'} />
         <Metric label="Current blocker count" value={truthPayload?.current_blockers.length ?? 0} />
       </div>
       <div className="cockpit-card-grid">
@@ -101,13 +101,13 @@ export function MissionTradingPlatformPanel({
           <Metric label="reason" value={risk.risk_reason_code ?? MISSING} />
         </div>
         <div className="cockpit-exchange-card">
-          <h3>Paper Execution</h3>
+          <h3>Execution Engine</h3>
           <Metric label="execution_intent_id" value={ids.execution_intent_id ?? paper.execution_intent_id ?? MISSING} />
-          <Metric label="paper result" value={paper.paper_result ?? MISSING} />
+          <Metric label="execution result" value={paper.paper_result ?? MISSING} />
           <Metric label="live order" value={String(paper.live_order ?? false)} />
         </div>
       </div>
-      {sourceNote('operator_runtime/paper_online/latest + operator_runtime/coinank_market_intelligence/latest + operator_truth/latest')}
+      {sourceNote('/api/v2/paper/runtime-status + operator_runtime/coinank_market_intelligence/latest + operator_truth/latest')}
     </Panel>
   );
 }
@@ -170,10 +170,10 @@ function MarketIntelligencePlatformPanel({
         <div className="cockpit-table-row" role="row">
           <span>{symbol}</span>
           <span>{valueText(paperRuntime?.market_feed?.price ?? MISSING)}</span>
-          <span>{endpointCounts.weighted_funding ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE'}</span>
-          <span>{endpointCounts.open_interest ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE'}</span>
-          <span>{availability.long_short ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE'}</span>
-          <span>{availability.liquidation_orders || availability.liquidation_rank ? 'LIVE_COINANK_READONLY' : 'MISSING_EVIDENCE'}</span>
+          <span>{endpointCounts.weighted_funding ? 'LIVE_COINANK_MARKET_DATA' : 'MISSING_EVIDENCE'}</span>
+          <span>{endpointCounts.open_interest ? 'LIVE_COINANK_MARKET_DATA' : 'MISSING_EVIDENCE'}</span>
+          <span>{availability.long_short ? 'LIVE_COINANK_MARKET_DATA' : 'MISSING_EVIDENCE'}</span>
+          <span>{availability.liquidation_orders || availability.liquidation_rank ? 'LIVE_COINANK_MARKET_DATA' : 'MISSING_EVIDENCE'}</span>
           <span className={statusClass(paperRuntime?.current_risk_decision?.risk_result)}>{valueText(paperRuntime?.current_risk_decision?.risk_result ?? MISSING)}</span>
           <span>{paperRuntime?.freshness?.status ?? MISSING}</span>
         </div>
@@ -205,7 +205,7 @@ function SignalsPlatformPanel({ paperRuntime }: { paperRuntime: PaperOnlineRunti
           <span>{valueText(risk.risk_result ?? MISSING)} / {valueText(risk.risk_reason_code ?? MISSING)}</span>
         </div>
       </div>
-      {sourceNote('operator_runtime/paper_online/latest/current_signal_lineage.json')}
+      {sourceNote('/api/v2/paper/runtime-status current_signal_lineage')}
     </Panel>
   );
 }
@@ -222,35 +222,35 @@ function ExecutionsPlatformPanel({
   const paper = latestPaperEvent(paperRuntime);
   const legacy = latestLegacyExecution(truthPayload);
   return (
-    <Panel id="platform-current-executions" title="Paper And Imported Execution Ledger" right={<span className="chip solid-block">No live order control</span>}>
+    <Panel id="platform-current-executions" title="Runtime And Imported Execution Ledger" right={<span className="chip solid-block">Operator gated</span>}>
       <div className="cockpit-market-table" role="table" aria-label="Current executions table">
         <div className="cockpit-table-row cockpit-table-row--head" role="row">
           <span>source</span><span>execution_intent_id</span><span>exchange_order_id</span><span>dedupe</span><span>attribution</span><span>PnL</span><span>latency</span><span>margin/leverage</span><span>module</span>
         </div>
         <div className="cockpit-table-row" role="row">
-          <span>V2 paper</span>
+          <span>V2 execution</span>
           <span>{valueText(ids.execution_intent_id ?? paper.execution_intent_id ?? MISSING)}</span>
-          <span>{valueText(paper.exchange_order_id ?? 'none_paper_only')}</span>
+          <span>{valueText(paper.exchange_order_id ?? 'none')}</span>
           <span>dedupe_required_before_live</span>
           <span>{valueText(ids.signal_id ? 'ATTRIBUTED_CURRENT_LINEAGE' : MISSING)}</span>
           <span>{valueText(paper.pnl ?? paper.realized_pnl ?? MISSING)}</span>
           <span>{valueText(paper.latency_ms ?? MISSING)}</span>
           <span>live_margin_leverage_blocked</span>
-          <span>paper_online_runtime</span>
+          <span>execution_runtime</span>
         </div>
         <div className="cockpit-table-row" role="row">
-          <span>legacy read-only import</span>
+          <span>legacy runtime import</span>
           <span>{valueText(legacy.execution_intent_id ?? MISSING)}</span>
           <span>{valueText(legacy.exchange_order_id ?? MISSING)}</span>
-          <span>read_only_forensics</span>
+          <span>runtime_forensics</span>
           <span>{valueText(legacy.signal_id ? 'LEGACY_ATTRIBUTION_PRESENT' : 'LEGACY_ATTRIBUTION_GAP')}</span>
           <span>{valueText(legacy.net_pnl_usd ?? MISSING)}</span>
           <span>{valueText(legacy.latency_ms ?? MISSING)}</span>
           <span>{valueText(legacy.margin_mode ?? MISSING)} / {valueText(legacy.leverage ?? MISSING)}</span>
-          <span>legacy_live_bridge_readonly</span>
+          <span>legacy_live_bridge_telemetry</span>
         </div>
       </div>
-      {sourceNote('operator_runtime/paper_online/latest/paper_ledger_tail.json + operator_runtime/live_observer/latest')}
+      {sourceNote('operator_runtime/execution/latest/ledger_tail.json + operator_runtime/live_observer/latest')}
     </Panel>
   );
 }
@@ -263,16 +263,16 @@ function PortfolioPlatformPanel({
   truthPayload: OperatorTruthPayload | null;
 }): JSX.Element {
   return (
-    <Panel id="platform-portfolio-positions" title="Execution / Portfolio" right={<span className="chip solid-paper">Paper/read-only</span>}>
+    <Panel id="platform-portfolio-positions" title="Execution / Portfolio" right={<span className="chip solid-paper">Execution restricted</span>}>
       <div className="cockpit-analytics-grid">
-        <Metric label="Paper equity" value={paperRuntime?.paper_account?.equity ?? MISSING} />
+        <Metric label="Account equity" value={paperRuntime?.paper_account?.equity ?? MISSING} />
         <Metric label="Realized PnL" value={paperRuntime?.paper_account?.realized_pnl ?? MISSING} />
         <Metric label="Unrealized PnL" value={paperRuntime?.paper_account?.unrealized_pnl ?? MISSING} />
-        <Metric label="Open paper positions" value={paperRuntime?.paper_account?.open_position_count ?? MISSING} />
+        <Metric label="Open positions" value={paperRuntime?.paper_account?.open_position_count ?? MISSING} />
         <Metric label="Position source" value={paperRuntime?.paper_account?.position_source ?? MISSING} />
         <Metric label="Legacy trader state" value={truthPayload?.runtime_monitor_status.trader_status ?? MISSING} />
       </div>
-      {sourceNote('operator_runtime/paper_online/latest/paper_positions.json and legacy observer read-only process snapshot')}
+      {sourceNote('operator_runtime/execution/latest/positions.json and legacy observer telemetry snapshot')}
     </Panel>
   );
 }

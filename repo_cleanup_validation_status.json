@@ -1,0 +1,55 @@
+{
+  "generated_at": "2026-07-01T18:40:46Z",
+  "goal_id": "V2_REPO_CLEANUP_RUNTIME_SAFE_SOURCE_TREE_AND_ARTIFACT_ARCHIVE_READY",
+
+  "backend_compile": {
+    "status": "PASS",
+    "files_checked": [
+      "v2/backend/app/main.py",
+      "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+      "v2/backend/app/cli/v2_risk_gateway_live_loop.py",
+      "v2/backend/app/cli/v2_orchestrator_arbitration_loop.py"
+    ]
+  },
+
+  "focused_tests": {
+    "status": "PASS",
+    "suite": "v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py",
+    "passed": 138,
+    "failed": 0,
+    "duration_seconds": 0.14
+  },
+
+  "git_diff_check": {
+    "status": "PASS",
+    "whitespace_errors": 0
+  },
+
+  "secret_scan": {
+    "status": "PASS",
+    "files_scanned": ["repo_cleanup_active_runtime_lock.json", "safe_delete_cache_manifest.json"],
+    "secrets_found": 0
+  },
+
+  "active_runtime_disruption": {
+    "status": "NONE",
+    "services_stopped": [],
+    "pids_killed": [],
+    "redis_writes": 0,
+    "db_files_deleted": 0,
+    "env_files_deleted": 0
+  },
+
+  "active_payloads_integrity": {
+    "status": "VERIFIED",
+    "operator_runtime_latest_dirs_preserved": true,
+    "uvicorn_still_running": true,
+    "paper_loop_still_running": true,
+    "trainer_still_running": true
+  },
+
+  "archive_restore_manifest_exists": true,
+  "operator_review_list_exists": true,
+
+  "overall_pass": true
+}

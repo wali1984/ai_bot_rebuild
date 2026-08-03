@@ -1,5 +1,43 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(which pytest *)",
+      "Read(//home/wali/**)",
+      "Bash(curl -s http://127.0.0.1:5173/)",
+      "Bash(pkill -f \"vite --port 5173\")",
+      "Bash(pkill -f \"vite.*5173\")",
+      "Bash(xargs kill -9)",
+      "Bash(echo \"Started PID $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(node -e ' *)",
+      "Bash(python3 -m pytest v2/backend/tests/unit/domain/risk_gateway/ v2/backend/tests/unit/services/risk_gateway/ -x -q)",
+      "Bash(.venv/bin/pytest v2/backend/tests/unit/domain/risk_gateway/ v2/backend/tests/unit/services/risk_gateway/ -x -q)",
+      "Bash(../.venv/bin/pytest backend/tests/unit/domain/risk_gateway/ backend/tests/unit/services/risk_gateway/ -x -q)",
+      "Bash(.venv/bin/pytest v2/backend/tests/unit/domain/risk_gateway/ v2/backend/tests/unit/services/risk_gateway/ -q)",
+      "Bash(.venv/bin/pytest v2/backend/tests/unit/domain/risk_gateway/test_risk_gateway_domain_forbidden_tokens.py -q)",
+      "Bash(.venv/bin/pytest v2/backend/tests/unit/services/risk_gateway/test_assembler_service_forbidden_tokens.py -q)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/src/main.tsx)",
+      "Bash(python3 \"/home/wali/Desktop/AI BOT REBUILD/scripts/verify_claude_guardian_completion.py\")",
+      "Bash(python3 -c ' *)",
+      "Bash(sudo cp \"/home/wali/Desktop/AI BOT REBUILD/scripts/verify_claude_guardian_completion.py\" /usr/local/lib/ai-bot-guardian/verify_claude_guardian_completion.py)",
+      "Bash(sqlite3 -readonly ~/.config/Code/User/globalStorage/state.vscdb \"SELECT key, length\\(value\\) FROM ItemTable WHERE key LIKE '%chatgpt%' OR key LIKE '%codex%';\")",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(redis-cli GET \"meta:coinank:last_update\")",
+      "Bash(redis-cli LRANGE \"coinank:call_log\" 0 0)",
+      "Bash(read key *)",
+      "Bash(redis-cli GET 'meta:coinank:last_update')",
+      "Bash(echo \"Data freshness: $\\(redis-cli GET 'meta:coinank:last_update'\\)\")",
+      "Bash(redis-cli GET \"v2:technical_analysis:BTCUSDT:1h\")",
+      "Bash(redis-cli HGETALL \"ta:BTCUSDT:1h\")",
+      "Bash(cat)",
+      "Bash(python3 /tmp/implement_ttl.py)",
+      "Bash(python3 v2/backend/app/services/enhanced_unified_feature_builder.py)",
+      "Bash(redis-cli TYPE \"v2:market:ohlcv:binance:BTCUSDT:1h\")",
+      "Bash(redis-cli HGETALL \"v2:market:ohlcv:binance:BTCUSDT:1h\")",
+      "Bash(redis-cli GET \"v2:market:ohlcv:binance:BTCUSDT:1h\")",
+      "Bash(python3 -m json.tool)"
+    ],
     "deny": [
       "Read(./legacy_reference/.env)",
       "Read(./legacy_reference/.env.*)",
@@ -53,6 +91,27 @@
           {
             "type": "command",
             "command": "./.claude/hooks/block_dangerous.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/guardian-stop.sh",
+            "timeout": 120
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./.claude/hooks/guardian_stop_hook.sh"
           }
         ]
       }

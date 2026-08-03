@@ -1,17 +1,38 @@
 {
-  "task_id": "086A_trainer_parity_2e1c_gamma_reader_protocol",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
-  "predecessor_required_marker": "PHASE_2E1C_GAMMA_082_RECOVERY_PASS",
-  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/91_GAMMA_082_RECOVERY_GO_NO_GO.md",
   "allowed_output_prefixes": [
     "v2/backend/app/domain/trainer_liveness_observation_collector/",
     "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
   ],
+  "completed_at": "2026-06-15T20:13:05Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "fail_blockers": [
+    "1. v2/backend/app/adapters/redis_v2/errors.py defines `class RedisStreamReaderError(Exception)` with `__init__(self, code: str, *, field: str | None = None)` storing `code` and `field`, `__str__` returning `f\"{code} ({field})\"` when field is non-None else `code`. No inheritance from gamma/beta/alpha/delta error types.",
+    "1. __init__ public surface re-exports exactly RedisStreamReaderError and RedisStreamLatestIdReader via __all__ in that exact order; no extras; no submodule re-exports; no _ -prefixed leaks; no re-export of gamma/beta/alpha/delta public symbols; no re-export from client.py or streams.py.",
+    "1. v2/backend/app/adapters/redis_v2/url_env.py defines `read_v2_redis_url(*, env: object | None = None) -> str` with the eight-step contract from spec 104. The module imports os and the existing RedisStreamReaderError from v2.backend.app.adapters.redis_v2.errors, and nothing else. The module MUST NOT contain `import redis`, `from redis`, `redis.asyncio`, `aioredis`, or `hiredis`. The module MUST NOT log, print, or emit the URL.",
+    "1. url_env.py implements the eight-step `read_v2_redis_url` contract from spec 104 in exact order. The signature is `def read_v2_redis_url(*, env: object | None = None) -> str`.",
+    "1. `StreamLatestIdReader`",
+    "1. If `reader` does not have a callable attribute `latest_stream_id`,",
+    "1. If `history` is not a `tuple`, raise",
+    "1. **Never make broad refactors unless explicitly requested.**",
+    "1. v2/backend/app/adapters/redis_v2/errors.py defines `class RedisStreamReaderError(Exception)` with `__init__(self, code: str, *, field: str | None = None)` storing `code` and `field`, `__str__` returning `f\"{code} ({field})\"` when field is non-None else `code`. No inheritance from gamma/beta/alpha/delta error types.",
+    "1. __init__ public surface re-exports exactly RedisStreamReaderError and RedisStreamLatestIdReader via __all__ in that exact order; no extras; no submodule re-exports; no _ -prefixed leaks; no re-export of gamma/beta/alpha/delta public symbols; no re-export from client.py or streams.py.",
+    "1. v2/backend/app/adapters/redis_v2/url_env.py defines `read_v2_redis_url(*, env: object | None = None) -> str` with the eight-step contract from spec 104. The module imports os and the existing RedisStreamReaderError from v2.backend.app.adapters.redis_v2.errors, and nothing else. The module MUST NOT contain `import redis`, `from redis`, `redis.asyncio`, `aioredis`, or `hiredis`. The module MUST NOT log, print, or emit the URL.",
+    "1. url_env.py implements the eight-step `read_v2_redis_url` contract from spec 104 in exact order. The signature is `def read_v2_redis_url(*, env: object | None = None) -> str`.",
+    "1. `StreamLatestIdReader`",
+    "1. If `reader` does not have a callable attribute `latest_stream_id`,",
+    "1. If `history` is not a `tuple`, raise",
+    "1. **Never make broad refactors unless explicitly requested.**"
+  ],
+  "log_path": "claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/086A_trainer_parity_2e1c_gamma_reader_protocol_codex.log",
+  "next_action": "Codex FAIL (CODEX_GO_NO_GO_CODEX_FAIL). Remediation: created at claude_worklog/agent_supervisor/tasks/closed_loop_remediation_086A_trainer_parity_2e1c_gamma_reader_protocol.json",
+  "next_recommended_action": "Run compile/tests for the gamma reader slice, then run 086B.",
+  "pid_or_job_id": 248934,
+  "predecessor_required_marker": "PHASE_2E1C_GAMMA_082_RECOVERY_PASS",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/91_GAMMA_082_RECOVERY_GO_NO_GO.md",
+  "prompt": "You are Codex in /home/wali/Desktop/AI BOT REBUILD. Implement only the gamma reader/protocol slice from specs 88/89/90. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not import Redis clients. Do not restart services. Do not enable live trading. Do not deploy. Emit only BEGIN_FILE blocks for required_output_files. Create __init__, errors, reader_protocol, in_memory_reader, and the listed tests. GO/NO-GO must contain exactly PHASE_2E1C_GAMMA_READER_PROTOCOL_PASS or PHASE_2E1C_GAMMA_READER_PROTOCOL_BLOCKED. No implementation outside allowed prefixes.",
   "required_output_files": [
     "v2/backend/app/domain/trainer_liveness_observation_collector/__init__.py",
     "v2/backend/app/domain/trainer_liveness_observation_collector/errors.py",
@@ -28,6 +49,9 @@
     "v2/backend/tests/unit/domain/trainer_liveness_observation_collector/test_in_memory_reader_does_not_mutate_input_dict.py",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/086A_GAMMA_READER_PROTOCOL_GO_NO_GO.md"
   ],
-  "prompt": "You are Codex in /home/wali/Desktop/AI BOT REBUILD. Implement only the gamma reader/protocol slice from specs 88/89/90. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not import Redis clients. Do not restart services. Do not enable live trading. Do not deploy. Emit only BEGIN_FILE blocks for required_output_files. Create __init__, errors, reader_protocol, in_memory_reader, and the listed tests. GO/NO-GO must contain exactly PHASE_2E1C_GAMMA_READER_PROTOCOL_PASS or PHASE_2E1C_GAMMA_READER_PROTOCOL_BLOCKED. No implementation outside allowed prefixes.",
-  "next_recommended_action": "Run compile/tests for the gamma reader slice, then run 086B."
+  "risk_level": "L1",
+  "started_at": "2026-06-15T20:07:50Z",
+  "status": "failed",
+  "task_id": "086A_trainer_parity_2e1c_gamma_reader_protocol",
+  "updated_at": "2026-06-15T20:13:05Z"
 }

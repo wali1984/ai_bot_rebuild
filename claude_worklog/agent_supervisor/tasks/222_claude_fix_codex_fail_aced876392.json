@@ -1,0 +1,58 @@
+{
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_live": false,
+  "approves_redis_trim": false,
+  "category": "codex_failure_remediation",
+  "codex_governor_origin_source": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_8h_war_room/latest/codex_review/codex_5m_status.json",
+  "created_utc": "2026-05-23T01:43:11Z",
+  "hard_constraints": [
+    "Do not modify /home/wali/Desktop/AI BOT.",
+    "Do not stop legacy.",
+    "Do not stop V2 runtime.",
+    "Do not write old Redis.",
+    "Do not call exchange mutation.",
+    "Do not enable live.",
+    "Do not create approvals.",
+    "Do not start policy architecture.",
+    "Do not claim checkpoint compatibility.",
+    "live_gate=blocked_human_only.",
+    "live_symbols=[]."
+  ],
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "owner": "CLAUDE",
+  "prompt": "Remediate the exact Codex failure selected by the self-healing governor. This is a focused blocker remediation. Fix only the cited blocker, preserve runtime, do not touch legacy, do not write old Redis, do not call exchange mutation, do not create approvals, do not start policy architecture, and do not claim checkpoint compatibility. If the cited failure is frontend truth, surface the blocked state honestly rather than implying readiness.",
+  "renamed_from": "222_claude_remediate_codex_fail_aced876392",
+  "required_outputs": [
+    "focused remediation report",
+    "refreshed relevant public payloads",
+    "paired Codex review descriptor or explicit blocker"
+  ],
+  "completion_utc": "2026-05-23T03:44:56Z",
+  "resolution": {
+    "taken_over_by": "CODEX",
+    "reason": "stale Claude remediation task; self-healing timers were not installed/running",
+    "fixed_blocker": "WEBSITE_MARKET_DOES_NOT_SURFACE_BINANCE_DASHBOARDS",
+    "files_changed": [
+      "v2/frontend/src/pages/market/index.tsx"
+    ],
+    "codex_pass_marker": "claude_worklog/final_readiness/v2_realtime_user_website_from_real_payloads/latest/codex_review/CODEX_GO_NO_GO.md",
+    "codex_pass_value": "V2_REALTIME_USER_WEBSITE_FROM_REAL_PAYLOADS_CODEX_PASS",
+    "war_room_governor": "CODEX_8H_WAR_ROOM_REVIEW_GOVERNOR_READY"
+  },
+  "selected_work": {
+    "category": "CODEX_REVIEW_FAIL",
+    "duplicate_key": "de9ec41e2945fff9",
+    "evidence": {
+      "age_seconds": 286.9068558216095,
+      "path": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_8h_war_room/latest/codex_review/codex_5m_status.json"
+    },
+    "owner": "CLAUDE",
+    "remediation": "parse fail-blocker text and create focused remediation task",
+    "severity": "P1",
+    "source": "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_8h_war_room/latest/codex_review/codex_5m_status.json"
+  },
+  "status": "completed",
+  "task_id": "222_claude_fix_codex_fail_aced876392"
+}

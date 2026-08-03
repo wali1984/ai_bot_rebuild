@@ -1,22 +1,35 @@
 {
-  "task_id": "125_orchestrator_decision_2fc_composition_root_codex_review",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
+  "allowed_output_prefixes": [
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/"
+  ],
+  "blocked_by": [
+    "PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED"
+  ],
+  "completed_at": "2026-05-05T22:50:04.637956+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "depends_on": [
     "124_orchestrator_decision_2fc_composition_root_implementation"
   ],
-  "predecessor_task_ids": [
-    "124_orchestrator_decision_2fc_composition_root_implementation"
-  ],
-  "predecessor_required_marker": "PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED",
-  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/23_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_GO_NO_GO.md",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
-  "task_granularity_mode": "consolidated_default",
-  "requires_clean_worktree": true,
-  "allowed_output_prefixes": [
-    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/"
+  "forbidden_actions": [
+    "modify any v2/ source or test file",
+    "modify any task definition",
+    "modify the master planner prompt",
+    "modify any prior-milestone artifact byte content",
+    "modify any 2F.C spec/test-plan/safety-boundary/go-no-go-request/implementation-report/go-no-go file (18, 19, 20, 21, 22, 23)",
+    "modify /home/wali/Desktop/AI BOT",
+    "read or write any Redis key",
+    "invoke any Redis command",
+    "restart any live service",
+    "place or cancel exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "ship to anywhere",
+    "run a migration in any environment",
+    "expose or commit credentials",
+    "approve the live gate",
+    "emit a standalone harness BEGIN/END framing token marker line in any authored file body"
   ],
   "forbidden_output_paths": [
     "v2/backend/app/composition/orchestrator_decision/",
@@ -73,42 +86,38 @@
     "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/22_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_IMPLEMENTATION_REPORT.md",
     "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/23_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_GO_NO_GO.md"
   ],
-  "required_output_files": [
-    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/24_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_REVIEW.md",
-    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/25_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_GO_NO_GO.md"
-  ],
-  "forbidden_actions": [
-    "modify any v2/ source or test file",
-    "modify any task definition",
-    "modify the master planner prompt",
-    "modify any prior-milestone artifact byte content",
-    "modify any 2F.C spec/test-plan/safety-boundary/go-no-go-request/implementation-report/go-no-go file (18, 19, 20, 21, 22, 23)",
-    "modify /home/wali/Desktop/AI BOT",
-    "read or write any Redis key",
-    "invoke any Redis command",
-    "restart any live service",
-    "place or cancel exchange orders",
-    "change leverage or margin",
-    "enable live trading",
-    "ship to anywhere",
-    "run a migration in any environment",
-    "expose or commit credentials",
-    "approve the live gate",
-    "emit a standalone harness BEGIN/END framing token marker line in any authored file body"
-  ],
-  "scope_dirty_paths": [],
-  "prompt": "You are Codex acting as adversarial reviewer for Phase 2F.C of REQ_0006 intersect REQ_0017 (orchestrator decision composition root). This task is read-only review except for emitting 24 and 25. You do NOT modify v2/ source or test code in this task. You do NOT modify any task definition. You do NOT modify the master planner prompt. You do NOT modify any 2F.C artifact at 18-23. You do NOT modify any 2F.A, 2F.B, 2E1, 2E2, or 2E3 artifact. You do NOT modify legacy. You do NOT access Redis in any mode. You do NOT invoke any Redis command. You do NOT run the live trainer. You do NOT place exchange orders. You do NOT change leverage or margin. You do NOT ship or release. You do NOT expose or commit secrets. You may run read-only validation: pytest, py_compile, rg, git status, and read the authored artifacts.\n\nWorktree precondition: this task requires a clean worktree. Run `git status --porcelain` first. If it returns ANY non-empty line, surface to human attention and stop without writing 24 or 25.\n\nPredecessor gate: 23_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_GO_NO_GO.md MUST contain exactly PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED. If absent or different, write PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_FAIL to 25, capture the missing-marker reason in 24 'Concrete blockers', and stop.\n\nRead exactly these files as authoritative for review:\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/00_PHASE_2F_SUB_PHASE_BREAKDOWN.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/02_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/10_PHASE_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/18_PHASE_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/19_PHASE_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_TEST_PLAN.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/20_PHASE_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_SAFETY_BOUNDARIES.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/21_PHASE_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_GO_NO_GO_REQUEST.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/22_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_IMPLEMENTATION_REPORT.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/23_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_GO_NO_GO.md\n- v2/backend/app/composition/orchestrator_decision/__init__.py\n- v2/backend/app/composition/orchestrator_decision/errors.py\n- v2/backend/app/composition/orchestrator_decision/runtime.py\n- v2/backend/tests/unit/composition/orchestrator_decision/__init__.py\n- the 28 test files under v2/backend/tests/unit/composition/orchestrator_decision/\n\nReview rubric: evaluate each of the 44 rows in 21 'Codex review task 125 rubric' and mark PASS or FAIL with a one-line evidence pointer per PASS row. Run the validation commands documented in 124 'Validation commands you MUST run and capture exit codes for in 22' on the actual repo state and re-confirm zero non-zero exit codes. Run `git status -s` over the cross-isolation paths in 20 and confirm zero output lines outside the additive 2F.C scope. Run the forbidden-token scan and confirm zero matches per token. Run a fresh-subprocess import of v2.backend.app.composition.orchestrator_decision and confirm none of redis, redis.asyncio, aioredis, hiredis, httpx, requests, fastapi, uvicorn, asyncio, threading, or v2.backend.app.adapters.redis_v2.url_env are loaded.\n\nCodex review out-of-scope per 21: do NOT propose adding the risk gateway in this milestone, do NOT propose adding the execution-side surface, do NOT propose modifying any prior-milestone artifact, do NOT propose modifying any 2F.A, 2F.B, or 2F.C-planning artifact, do NOT propose modifying any 2E1/2E2/2E3 artifact, do NOT propose adding any new lineage ID at the composition layer beyond the derived decision_id already produced by the 2F.B service, do NOT propose adding any FastAPI surface, Redis adapter, GPU runner, or model-loading subsystem, do NOT propose adding any new binder parameter beyond the two build-time parameters and the one call-time prediction parameter, do NOT propose adding any non-trivial logic at the composition layer beyond the documented validation, closure capture, and assembler forwarding.\n\nEmit 24_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_REVIEW.md with sections: 'Worktree precondition check' (with the full `git status --porcelain` output and a one-line PASS/FAIL verdict), 'Predecessor marker check', 'Files reviewed' (list with line ranges), 'Rubric findings' (one row per rubric item 1-44 with PASS / FAIL + cited evidence), 'Validation commands run' (each command with exit code and summary line), 'Concrete blockers' (zero rows on PASS; otherwise enumerate), 'Safety review' (live behavior, Redis read access at construction, Redis mutation access, Redis commands at construction, legacy mutation, release intent, secret-shaped strings, URL logging, prior-milestone modification, factory import, url_env import, FastAPI lifespan registration, module-level singleton, wall-clock helper use, REQ_0017 scope cap (no risk gateway, no execution-side, no model-loading, no GPU, no checkpoint, no FastAPI surface, no adapter expansion), trainer_worker_health import (none allowed), trainer_parity import (none allowed), trainer_prediction_output composition or service import (none allowed), now_ms_clock invocation at build time (none allowed), assembler invocation at build time (none allowed), threshold mutation at runtime (none allowed), prediction mutation at runtime (none allowed) - each must be 'none observed' to PASS), 'Recommendation' (PASS or FAIL). Final marker line: PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_REVIEW_READY. The file MUST NOT contain any harness BEGIN/END framing token marker line in its body.\n\nEmit 25_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_GO_NO_GO.md. Exactly one of:\n  PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_PASS\n  PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_FAIL\nNo other content. The file MUST NOT contain any harness BEGIN/END framing token marker line.\n\nIf you find any concrete non-live blocker, do NOT autofix it in this task. Emit FAIL with a precise blocker enumeration in 24 'Concrete blockers'. The supervisor will dispatch a separate REQ_0007 / REQ_0014 autofix task that is allowed to patch the three authored 2F.C source files plus the 28 new test files only. The autofix task is not allowed to touch any prior-milestone file.\n\nStop conditions: any live behavior, any Redis access at construction or import time, any Redis command at construction, any legacy mutation, any release intent, any modification of any prior-milestone source or test file, any modification of any 2F.A, 2F.B, or 2F.C-planning artifact, any FastAPI startup hook / lifespan registration in any authored file, any module-level singleton or cache, any wall-clock helper call in the authored files, any direct redis import, any direct url_env import, any direct factory import, any URL logging, any REQ_0017 scope-cap violation, any trainer_worker_health or trainer_parity or trainer_prediction_output service or composition import in the authored source files, any now_ms_clock invocation at build time, any assembler invocation at build time, any threshold mutation at runtime, any prediction mutation at runtime, or any secret leakage in the 2F.C milestone diff is an unconditional FAIL with no autofix path; surface to human attention.",
-  "next_recommended_action": "On PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_PASS, the planner closes Phase 2F.C and Phase 2F entirely, satisfies REQ_0017 milestone 2 ORCHESTRATOR_DECISION_MVP, and opens REQ_0017 milestone 3 RISK_GATEWAY_DEFAULT_DENY_MVP under a fresh consolidated milestone turn with no risk-gateway behavior, execution-side surface, or strategy library carried into the next milestone. On PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_FAIL with concrete code/test blockers and no safety violation, supervisor dispatches a REQ_0007 / REQ_0014 autofix task scoped to the three authored source files plus the 28 new test files only and re-runs Codex review. On any safety violation, surface to human attention; no autofix is permitted.",
   "lane": "paper_backtest_mvp",
-  "mvp_relevance": "Closes the Codex review gate for the orchestrator decision composition root so the planner can satisfy REQ_0017 milestone 2 ORCHESTRATOR_DECISION_MVP and open RISK_GATEWAY_DEFAULT_DENY_MVP on the Paper/Backtest MVP path.",
-  "next_gate": "PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_PASS",
   "legacy_evidence_consulted": [
     "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/01_PHASE_2F_LEGACY_EVIDENCE_REVIEW.md",
     "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/22_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_IMPLEMENTATION_REPORT.md",
     "PHASE2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_CODEX_PASS gate marker"
   ],
   "legacy_failure_addressed": "review hardens the binder that pins the abstain/proceed threshold and the decision clock at construction time, so legacy-style divergent thresholds or wall-clock helpers cannot silently produce inconsistent abstain reason codes downstream of trainer prediction output.",
-  "blocked_by": [
-    "PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED"
-  ]
+  "mvp_relevance": "Closes the Codex review gate for the orchestrator decision composition root so the planner can satisfy REQ_0017 milestone 2 ORCHESTRATOR_DECISION_MVP and open RISK_GATEWAY_DEFAULT_DENY_MVP on the Paper/Backtest MVP path.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_PASS",
+  "next_recommended_action": "On PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_PASS, the planner closes Phase 2F.C and Phase 2F entirely, satisfies REQ_0017 milestone 2 ORCHESTRATOR_DECISION_MVP, and opens REQ_0017 milestone 3 RISK_GATEWAY_DEFAULT_DENY_MVP under a fresh consolidated milestone turn with no risk-gateway behavior, execution-side surface, or strategy library carried into the next milestone. On PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_FAIL with concrete code/test blockers and no safety violation, supervisor dispatches a REQ_0007 / REQ_0014 autofix task scoped to the three authored source files plus the 28 new test files only and re-runs Codex review. On any safety violation, surface to human attention; no autofix is permitted.",
+  "predecessor_required_marker": "PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/23_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_GO_NO_GO.md",
+  "predecessor_task_ids": [
+    "124_orchestrator_decision_2fc_composition_root_implementation"
+  ],
+  "prompt": "You are Codex acting as adversarial reviewer for Phase 2F.C of REQ_0006 intersect REQ_0017 (orchestrator decision composition root). This task is read-only review except for emitting 24 and 25. You do NOT modify v2/ source or test code in this task. You do NOT modify any task definition. You do NOT modify the master planner prompt. You do NOT modify any 2F.C artifact at 18-23. You do NOT modify any 2F.A, 2F.B, 2E1, 2E2, or 2E3 artifact. You do NOT modify legacy. You do NOT access Redis in any mode. You do NOT invoke any Redis command. You do NOT run the live trainer. You do NOT place exchange orders. You do NOT change leverage or margin. You do NOT ship or release. You do NOT expose or commit secrets. You may run read-only validation: pytest, py_compile, rg, git status, and read the authored artifacts.\n\nWorktree precondition: this task requires a clean worktree. Run `git status --porcelain` first. If it returns ANY non-empty line, surface to human attention and stop without writing 24 or 25.\n\nPredecessor gate: 23_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_GO_NO_GO.md MUST contain exactly PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_IMPL_AND_VALIDATION_PASSED. If absent or different, write PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_FAIL to 25, capture the missing-marker reason in 24 'Concrete blockers', and stop.\n\nRead exactly these files as authoritative for review:\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/00_PHASE_2F_SUB_PHASE_BREAKDOWN.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/02_PHASE_2F_A_ORCHESTRATOR_DECISION_DOMAIN_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/10_PHASE_2F_B_ORCHESTRATOR_DECISION_ASSEMBLER_SERVICE_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/18_PHASE_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_SPEC.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/19_PHASE_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_TEST_PLAN.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/20_PHASE_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_SAFETY_BOUNDARIES.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/21_PHASE_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_GO_NO_GO_REQUEST.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/22_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_IMPLEMENTATION_REPORT.md\n- claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/23_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_GO_NO_GO.md\n- v2/backend/app/composition/orchestrator_decision/__init__.py\n- v2/backend/app/composition/orchestrator_decision/errors.py\n- v2/backend/app/composition/orchestrator_decision/runtime.py\n- v2/backend/tests/unit/composition/orchestrator_decision/__init__.py\n- the 28 test files under v2/backend/tests/unit/composition/orchestrator_decision/\n\nReview rubric: evaluate each of the 44 rows in 21 'Codex review task 125 rubric' and mark PASS or FAIL with a one-line evidence pointer per PASS row. Run the validation commands documented in 124 'Validation commands you MUST run and capture exit codes for in 22' on the actual repo state and re-confirm zero non-zero exit codes. Run `git status -s` over the cross-isolation paths in 20 and confirm zero output lines outside the additive 2F.C scope. Run the forbidden-token scan and confirm zero matches per token. Run a fresh-subprocess import of v2.backend.app.composition.orchestrator_decision and confirm none of redis, redis.asyncio, aioredis, hiredis, httpx, requests, fastapi, uvicorn, asyncio, threading, or v2.backend.app.adapters.redis_v2.url_env are loaded.\n\nCodex review out-of-scope per 21: do NOT propose adding the risk gateway in this milestone, do NOT propose adding the execution-side surface, do NOT propose modifying any prior-milestone artifact, do NOT propose modifying any 2F.A, 2F.B, or 2F.C-planning artifact, do NOT propose modifying any 2E1/2E2/2E3 artifact, do NOT propose adding any new lineage ID at the composition layer beyond the derived decision_id already produced by the 2F.B service, do NOT propose adding any FastAPI surface, Redis adapter, GPU runner, or model-loading subsystem, do NOT propose adding any new binder parameter beyond the two build-time parameters and the one call-time prediction parameter, do NOT propose adding any non-trivial logic at the composition layer beyond the documented validation, closure capture, and assembler forwarding.\n\nEmit 24_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_REVIEW.md with sections: 'Worktree precondition check' (with the full `git status --porcelain` output and a one-line PASS/FAIL verdict), 'Predecessor marker check', 'Files reviewed' (list with line ranges), 'Rubric findings' (one row per rubric item 1-44 with PASS / FAIL + cited evidence), 'Validation commands run' (each command with exit code and summary line), 'Concrete blockers' (zero rows on PASS; otherwise enumerate), 'Safety review' (live behavior, Redis read access at construction, Redis mutation access, Redis commands at construction, legacy mutation, release intent, secret-shaped strings, URL logging, prior-milestone modification, factory import, url_env import, FastAPI lifespan registration, module-level singleton, wall-clock helper use, REQ_0017 scope cap (no risk gateway, no execution-side, no model-loading, no GPU, no checkpoint, no FastAPI surface, no adapter expansion), trainer_worker_health import (none allowed), trainer_parity import (none allowed), trainer_prediction_output composition or service import (none allowed), now_ms_clock invocation at build time (none allowed), assembler invocation at build time (none allowed), threshold mutation at runtime (none allowed), prediction mutation at runtime (none allowed) - each must be 'none observed' to PASS), 'Recommendation' (PASS or FAIL). Final marker line: PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_REVIEW_READY. The file MUST NOT contain any harness BEGIN/END framing token marker line in its body.\n\nEmit 25_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_GO_NO_GO.md. Exactly one of:\n  PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_PASS\n  PHASE2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_FAIL\nNo other content. The file MUST NOT contain any harness BEGIN/END framing token marker line.\n\nIf you find any concrete non-live blocker, do NOT autofix it in this task. Emit FAIL with a precise blocker enumeration in 24 'Concrete blockers'. The supervisor will dispatch a separate REQ_0007 / REQ_0014 autofix task that is allowed to patch the three authored 2F.C source files plus the 28 new test files only. The autofix task is not allowed to touch any prior-milestone file.\n\nStop conditions: any live behavior, any Redis access at construction or import time, any Redis command at construction, any legacy mutation, any release intent, any modification of any prior-milestone source or test file, any modification of any 2F.A, 2F.B, or 2F.C-planning artifact, any FastAPI startup hook / lifespan registration in any authored file, any module-level singleton or cache, any wall-clock helper call in the authored files, any direct redis import, any direct url_env import, any direct factory import, any URL logging, any REQ_0017 scope-cap violation, any trainer_worker_health or trainer_parity or trainer_prediction_output service or composition import in the authored source files, any now_ms_clock invocation at build time, any assembler invocation at build time, any threshold mutation at runtime, any prediction mutation at runtime, or any secret leakage in the 2F.C milestone diff is an unconditional FAIL with no autofix path; surface to human attention.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "required_output_files": [
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/24_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_REVIEW.md",
+    "claude_worklog/phase2_core_rebuild/orchestrator_decision_impl/25_2F_C_ORCHESTRATOR_DECISION_COMPOSITION_ROOT_CODEX_GO_NO_GO.md"
+  ],
+  "requires_clean_worktree": true,
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "scope_dirty_paths": [],
+  "source_truth_completed_at": "2026-05-05T22:50:04.637956+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/125_orchestrator_decision_2fc_composition_root_codex_review.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_granularity_mode": "consolidated_default",
+  "task_id": "125_orchestrator_decision_2fc_composition_root_codex_review",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

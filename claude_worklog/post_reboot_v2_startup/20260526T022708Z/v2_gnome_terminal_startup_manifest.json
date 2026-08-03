@@ -1,0 +1,461 @@
+{
+  "entries": [
+    {
+      "category": "redis_status_monitor",
+      "command": "while true; do clear; date -u; echo '---PING---'; redis-cli ping; echo '---DBSIZE---'; redis-cli dbsize; echo '---v2:* keys---'; redis-cli --scan --pattern 'v2:*' | wc -l; echo '---v2:prediction:* sample---'; redis-cli --scan --pattern 'v2:prediction:*' | head -5; sleep 5; done",
+      "expected_public_payload": null,
+      "expected_redis_keys": [
+        "v2:*"
+      ],
+      "log_path": "(tty only)",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 Redis status monitor",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "market_runtime",
+      "command": "journalctl --user -fu ai-bot-v2-paper-online-runtime.service --since '5 min ago'",
+      "expected_public_payload": "v2/frontend/public/paper_online/",
+      "expected_redis_keys": [
+        "v2:market:ohlcv:*",
+        "v2:features:latest:*"
+      ],
+      "log_path": "v2/runtime/paper_online_runtime.log",
+      "notes": "systemd-managed; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 paper online runtime (market+features+orchestrator)",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "feature_pipeline",
+      "command": "journalctl --user -fu ai-bot-v2-feature-snapshot-builder.service --since '5 min ago'",
+      "expected_public_payload": null,
+      "expected_redis_keys": [
+        "v2:features:latest:*",
+        "v2:features:ta:*"
+      ],
+      "log_path": "v2/runtime/feature_snapshot_builder.log",
+      "notes": "systemd-managed; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 feature snapshot builder",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "technical_analysis",
+      "command": "./.venv/bin/python3 -m v2.backend.app.cli.v2_feature_pipeline_and_ta_worker --loop --symbol BTCUSDT --timeframe 1m --interval 15",
+      "expected_public_payload": null,
+      "expected_redis_keys": [
+        "v2:technical_analysis:*"
+      ],
+      "log_path": "v2/runtime/v2_feature_pipeline_and_ta_worker/ta_loop.log",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 feature pipeline + TA worker (loop)",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "symbol_universe",
+      "command": "journalctl --user -fu ai-bot-v2-symbol-universe-publisher.service --since '5 min ago'",
+      "expected_public_payload": "v2/frontend/public/symbol_universe/",
+      "expected_redis_keys": [],
+      "log_path": "v2/runtime/symbol_universe_public_payload.log",
+      "notes": "systemd-managed; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 symbol universe publisher",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "trainer_prediction_publisher",
+      "command": "journalctl --user -fu ai-bot-v2-trainer-bridge.service --since '5 min ago'",
+      "expected_public_payload": null,
+      "expected_redis_keys": [
+        "v2:prediction:*"
+      ],
+      "log_path": "v2/runtime/v2_trainer_bridge.log",
+      "notes": "systemd-managed; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 trainer bridge (prediction publisher)",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "risk_decision_loop",
+      "command": "./.venv/bin/python3 -m v2.backend.app.cli.v2_risk_gateway_runtime_worker --once",
+      "expected_public_payload": null,
+      "expected_redis_keys": [
+        "v2:risk:decisions:*"
+      ],
+      "log_path": "v2/runtime/v2_risk_gateway_runtime_worker/loop.log",
+      "notes": "one-shot; rerun via terminal up-arrow to refresh",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 risk gateway runtime loop",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "orchestrator_arbitration",
+      "command": "journalctl --user -fu ai-bot-v2-orchestrator-arbitration-loop.service --since '5 min ago'",
+      "expected_public_payload": null,
+      "expected_redis_keys": [
+        "v2:orchestrator:decisions:*"
+      ],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 orchestrator arbitration loop",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "paper_trade_management",
+      "command": "journalctl --user -fu ai-bot-v2-trade-management-paper-loop.service --since '5 min ago'",
+      "expected_public_payload": null,
+      "expected_redis_keys": [
+        "v2:paper:trade_management:*"
+      ],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 trade management paper loop",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "paper_ledger_paper_runtime",
+      "command": "journalctl --user -fu ai-bot-v2-paper-shadow-observation.service --since '5 min ago'",
+      "expected_public_payload": "v2/frontend/public/paper_shadow_observation/",
+      "expected_redis_keys": [
+        "v2:paper:shadow_outcome:*"
+      ],
+      "log_path": "v2/runtime/paper_shadow_observation.log",
+      "notes": "systemd-managed; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 paper shadow observation publisher",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "position_history_tracker",
+      "command": "journalctl --user -fu ai-bot-v2-position-history-persistent-tracker.service --since '5 min ago'",
+      "expected_public_payload": null,
+      "expected_redis_keys": [
+        "v2:paper:position_history:*"
+      ],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 position history persistent tracker",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "liquidation_wss_paper_shadow",
+      "command": "journalctl --user -fu ai-bot-v2-liquidation-wss-paper-shadow.service --since '5 min ago'",
+      "expected_public_payload": null,
+      "expected_redis_keys": [
+        "v2:liquidation:wss:*"
+      ],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed; public Binance forceOrder stream only; paper-shadow only",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 liquidation WSS (paper-shadow)",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "replay_outcome_miner",
+      "command": "journalctl --user -fu ai-bot-v2-post-hoc-replay-outcome-miner.service --since '5 min ago'",
+      "expected_public_payload": null,
+      "expected_redis_keys": [
+        "v2:replay:outcome:*"
+      ],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed; ran on timer cadence",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 post-hoc replay outcome miner",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "production_equivalence_comparator",
+      "command": "./.venv/bin/python3 -m v2.backend.app.cli.v2_production_equivalence_comparator --once",
+      "expected_public_payload": "v2/frontend/public/v2_production_equivalence_comparator/",
+      "expected_redis_keys": [],
+      "log_path": "v2/runtime/v2_production_equivalence_comparator.log",
+      "notes": "one-shot; rerun via terminal up-arrow",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 production-equivalence comparator (once)",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "report_center_indexer",
+      "command": "journalctl --user -fu ai-bot-v2-report-center-indexer.service --since '5 min ago'",
+      "expected_public_payload": "v2/frontend/public/v2_report_center/",
+      "expected_redis_keys": [],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed by timer; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 report center indexer",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "executive_command_center",
+      "command": "journalctl --user -fu ai-bot-v2-executive-command-center.service --since '5 min ago'",
+      "expected_public_payload": "v2/frontend/public/v2_executive_command_center/",
+      "expected_redis_keys": [],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed by timer; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 executive command center",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "no_manual_next_action_policy",
+      "command": "journalctl --user -fu ai-bot-v2-autonomous-no-manual-next-task-policy.service --since '5 min ago'",
+      "expected_public_payload": "v2/frontend/public/v2_autonomous_no_manual_next_task_policy/",
+      "expected_redis_keys": [],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed by timer; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 autonomous no-manual next-task policy",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "spark_worker_pool",
+      "command": "journalctl --user -fu ai-bot-v2-closed-loop-worker-pool.service --since '5 min ago'",
+      "expected_public_payload": "v2/frontend/public/v2_closed_loop_persistent_worker_pool/",
+      "expected_redis_keys": [],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed by timer; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 closed-loop worker pool (Spark)",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "claude_workers",
+      "command": "journalctl --user -f -u 'ai-bot-v2-closed-loop-claude-worker@*.service' --since '5 min ago'",
+      "expected_public_payload": null,
+      "expected_redis_keys": [],
+      "log_path": "(journal only)",
+      "notes": "three Claude workers under closed-loop-claude-worker@1..3; tail combined journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 Claude closed-loop workers (1-3)",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "codex_workers",
+      "command": "journalctl --user -f -u 'ai-bot-v2-closed-loop-codex-worker@*.service' --since '5 min ago'",
+      "expected_public_payload": null,
+      "expected_redis_keys": [],
+      "log_path": "(journal only)",
+      "notes": "three Codex workers under closed-loop-codex-worker@1..3; tail combined journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 Codex closed-loop workers (1-3)",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "event_watchers",
+      "command": "journalctl --user -fu ai-bot-v2-final-operator-decision-event-watcher.service --since '5 min ago'",
+      "expected_public_payload": "v2/frontend/public/v2_final_operator_decision_and_event_watcher_execution/",
+      "expected_redis_keys": [],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed by timer; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 final-operator-decision event watcher",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    },
+    {
+      "category": "runtime_cutover_watchdog",
+      "command": "journalctl --user -fu ai-bot-v2-automation-liveness-watchdog.service --since '5 min ago'",
+      "expected_public_payload": "v2/frontend/public/automation_liveness/",
+      "expected_redis_keys": [],
+      "log_path": "(journal only)",
+      "notes": "systemd-managed by timer; terminal tails journal",
+      "paper_only": true,
+      "restart_behavior": "manual_keep_open",
+      "safety_env": {
+        "DISABLE_LIVE_TRADING": "true",
+        "LIVE_GATE": "blocked_human_only",
+        "LIVE_SYMBOLS": "[]",
+        "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+        "V2_PAPER_ONLY": "true"
+      },
+      "terminal_title": "V2 automation liveness watchdog",
+      "working_directory": "/home/wali/Desktop/AI BOT REBUILD"
+    }
+  ],
+  "entry_count": 22,
+  "go_no_go": "V2_GNOME_TERMINAL_STARTUP_MANIFEST_READY",
+  "missing_count": 0,
+  "paper_only": true,
+  "repo_root": "/home/wali/Desktop/AI BOT REBUILD",
+  "safety_env_template": {
+    "DISABLE_LIVE_TRADING": "true",
+    "LIVE_GATE": "blocked_human_only",
+    "LIVE_SYMBOLS": "[]",
+    "PYTHONPATH": "/home/wali/Desktop/AI BOT REBUILD",
+    "V2_PAPER_ONLY": "true"
+  },
+  "ts_utc": "20260526T022708Z",
+  "venv_python": "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3",
+  "writes_exchange_orders": false
+}

@@ -1,0 +1,135 @@
+{
+  "goal_id": "CLAUDE_FINAL_RUNTIME_CUTOVER_COST_WEBSITE_AND_1000X_VERIFIER",
+  "generated_utc": "2026-06-28T05:20:00Z",
+  "verifier": "claude-sonnet-4-6 read-only blocker verifier",
+  "mode": "READ_ONLY",
+  "checks": {
+    "1_paper_online_runtime_inactive": {
+      "result": "PASS",
+      "evidence": "No paper_online_runtime.py process in ps aux. Redis v2:paper_online:ledger / v2:paper_online:intents idle=32030s (8.9h since last write). No v2:paper_online:* key has been written since 2026-06-27T21:00Z. process list confirms only v2_trade_management_paper_loop and v2_paper_decision_lineage_publisher running under AI BOT REBUILD venv.",
+      "idle_seconds": 32030,
+      "paper_online_process_found": false
+    },
+    "2_v2_trade_management_paper_loop_sole_writer": {
+      "result": "PASS",
+      "evidence": "PID 1259707 running: /home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3 -m v2.backend.app.cli.v2_trade_management_paper_loop --loop --interval-seconds 60. Started Jun27, running 28+ hours. Heartbeat v2:paper:heartbeat idle=1s, worker_id=v2_trade_management_paper_loop, paper_only=True, places_real_order=False, writes_legacy_redis=False. All 133 closed trades have paper_policy_owner=challenger_v2 from this process.",
+      "pid": 1259707,
+      "heartbeat_idle_seconds": 1,
+      "heartbeat_worker_id": "v2_trade_management_paper_loop"
+    },
+    "3_no_old_policy_entries_after_cutover": {
+      "result": "PASS",
+      "evidence": "133 closed trades examined. old_policy_owner_trades=0. fixed_notional_25_hits=0. hold_time_900s_exact=0 (hold times range 2s-36173s, median=656s). v2:paper_online:* idle 32030s confirms no post-cutover old-policy writes. One-shot confirmed old_policy_new_entries=0 at 2026-06-28T01:09Z.",
+      "old_policy_trades": 0,
+      "fixed_notional_25_hits": 0,
+      "hold_900s_exact": 0,
+      "closed_trades_total": 133
+    },
+    "4_cost_coverage_real_not_fallback": {
+      "result": "PASS",
+      "evidence": "candidate_cost_field_coverage.json (generated 2026-06-27T22:26:47Z): 550 rows, 550 production_grade_cost_rows, coverage=1.0, 0 fallback. All 133 closed trades: production_grade_cost_flag=True, fallback=False, fallback_cost_flag=False. fee_bps=4.0 (configured schedule, not static 8bps). Dynamic notional sizing confirmed (21.46-151.5 USD range). One-shot redis validation: PRODUCTION_GRADE_COST_CAPTURE=550/550.",
+      "production_grade_cost_coverage": 1.0,
+      "fallback_rows": 0,
+      "sample_fee_bps": 4.0,
+      "fixed_notional_25_hits": 0
+    },
+    "5_challenger_identity_reaches_intent_fill_close_outcome": {
+      "result": "PASS",
+      "evidence": "133 closed trades: ALL paper_policy_owner=challenger_v2, candidate_id=challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e. ALL 133 have outcome_label_id populated. LONG=19, SHORT=114, 50 unique symbols. Net P&L=1.66. One-shot proves 550 challenger candidates per cycle. Phase 11 now RESOLVED: 133 economic outcomes > 100 required.",
+      "challenger_closed_trades": 133,
+      "with_outcome_label": 133,
+      "long_count": 19,
+      "short_count": 114,
+      "unique_symbols": 50,
+      "net_pnl_usd": 11.66,
+      "forward_canary_resolved": true,
+      "forward_canary_count": 133
+    },
+    "6_controlled_one_shot_completed": {
+      "result": "PASS",
+      "evidence": "controlled_post_cutover_one_shot_status.json generated 2026-06-28T01:09:10Z: status=PASSED, one_shot_completed=true. Procedure: stopped paper loop, verified no paper_online_runtime, ran with LIVE_GATE=blocked_human_only timeout 180. Result: classification=V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK, 550 challenger candidates, 550 production-grade-cost rows, 0 fixed_notional_hits, 0 fixed_stop_hits, 0 fixed_hold_hits. Paper loop restarted (PID 1259707, running 28h+).",
+      "one_shot_status": "PASSED",
+      "challenger_candidates": 550,
+      "production_grade_cost_candidates": 550,
+      "fixed_notional_hits": 0,
+      "places_real_order": false,
+      "live_gate": "blocked_human_only"
+    },
+    "7_website_data_validation_errors": {
+      "result": "PARTIAL",
+      "evidence": "website_data_validation_error_matrix.json (generated 2026-06-28T02:38:11Z): visible_data_validation_error_count=0, stale_contradiction_count=0, failed_route_count=0. HOWEVER: fresh curl of /api/v2/portfolio returns source=static_payload, stale=True, lag_ms=84716691 (~23.5h stale, timestamp 2026-06-27T05:35:32Z). Portfolio is serving a June 27 snapshot, not live Redis data. This IS a data contract problem even though the validation matrix does not count it as an error.",
+      "validation_matrix_errors": 0,
+      "portfolio_api_stale": true,
+      "portfolio_api_lag_ms": 84716691,
+      "portfolio_api_source": "static_payload",
+      "portfolio_api_timestamp": "2026-06-27T05:35:32Z",
+      "finding": "PORTFOLIO_API_SERVING_STALE_FALLBACK_NOT_LIVE_REDIS"
+    },
+    "8_a_grade_blocker_exact_and_current": {
+      "result": "PASS",
+      "evidence": "Redis v2:paper:a_grade_gate_burndown_status generated 2026-06-28T05:06:29Z (fresh, <15min). Status=A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED. A_grade_rows=0 (BLOCKED). near_A_grade_rows=25 (improvement from 0). Funnel: candidate_rows=545, production_grade_cost=545, liquidity_pass=535, risk_pass=539, allocator_pass=31 (5.7%). closest_gap=BASE_A_GRADE_PREDICATES_PRESENT_BUT_SOURCE_TIER_OR_GUARDIAN_NOT_A_GRADE_READY. FINAL_BLOCKERS phase 6 active.",
+      "a_grade_gate_status": "A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED",
+      "a_grade_gate_generated_utc": "2026-06-28T05:06:29.043Z",
+      "A_grade_rows": 0,
+      "near_A_grade_rows": 25,
+      "candidate_rows": 545,
+      "production_grade_cost_rows": 545,
+      "liquidity_pass_rows": 535,
+      "risk_pass_rows": 539,
+      "allocator_pass_rows": 31,
+      "closest_gap_reason": "BASE_A_GRADE_PREDICATES_PRESENT_BUT_SOURCE_TIER_OR_GUARDIAN_NOT_A_GRADE_READY",
+      "blocking_stage": "ALLOCATOR_5.7pct_PASS_RATE"
+    },
+    "9_no_static_25_8bps_900s_active_path": {
+      "result": "PASS",
+      "evidence": "fixed_notional_25_hits=0 across 133 closed trades and 550 one-shot candidates. fee_bps=4.0 from configured schedule (not static 8bps fallback). hold_time_900s_exact=0 (900s is PREDICTION_STALE_SECONDS threshold, not a hold time policy). paper_canary_fixed_notional_allowed=False in all fills. Dynamic notional range: 21.45-151.5 USD confirmed adaptive sizing active.",
+      "fixed_notional_25_hits": 0,
+      "fee_bps_static_8": false,
+      "hold_900s_hits": 0,
+      "paper_canary_fixed_notional_allowed": false
+    },
+    "10_no_real_exchange_mutations": {
+      "result": "PASS",
+      "evidence": "All 133 closed trades: places_real_order=False, paper_only=True. Heartbeat: places_real_order=False, writes_legacy_redis=False. One-shot: places_real_order=false, routes_to_live=false. v2:paper_online:* (legacy) idle 32030s with no recent writes. LIVE_GATE=blocked_human_only confirmed in one-shot command. No exchange_orders, leverage_changes, or margin_mode_changes in FINAL_BLOCKERS runtime_api check.",
+      "places_real_order": false,
+      "exchange_orders": false,
+      "leverage_changes": false,
+      "margin_mode_changes": false,
+      "legacy_redis_writes": false,
+      "live_gate": "blocked_human_only"
+    }
+  },
+  "summary": {
+    "pass_count": 9,
+    "partial_count": 1,
+    "fail_count": 0,
+    "partial_checks": [
+      "7_website_data_validation_errors"
+    ],
+    "partial_reason": "Portfolio API serving stale June 27 snapshot (lag=23.5h, source=static_payload). Validation matrix artifact predates this regression.",
+    "phase_11_resolved": true,
+    "phase_11_evidence": "133 challenger economic outcomes, 50 symbols, LONG+SHORT (was 33/100 in previous session)"
+  },
+  "hard_blockers": [
+    {
+      "phase": 6,
+      "id": "A_GRADE_GATE_HALTED",
+      "detail": "A_grade_rows=0, allocator admits only 31/545 (5.7%). near_A_grade_rows=25. Bottleneck is allocator stage. closest_gap=SOURCE_TIER_OR_GUARDIAN_NOT_A_GRADE_READY."
+    },
+    {
+      "phase": 7,
+      "id": "ADAPTIVE_DYNAMIC_THRESHOLD_AND_RISK_MATRIX_PARTIAL",
+      "detail": "10 static trade thresholds still require contextual replacement per FINAL_BLOCKERS."
+    },
+    {
+      "phase": 12,
+      "id": "1000X_TRAJECTORY_INSUFFICIENT_EVIDENCE",
+      "detail": "actual_1d_return=None, actual_7d_return=None. Insufficient runtime history for trajectory calculation."
+    }
+  ],
+  "new_finding": {
+    "id": "PORTFOLIO_API_STALE_FALLBACK",
+    "severity": "MEDIUM",
+    "detail": "/api/v2/portfolio returning source=static_payload, lag_ms=84716691, timestamp=2026-06-27T05:35:32Z. Should serve live Redis v2:portfolio:state which shows equity=$10,049+ and 133 closed trades. Causes dashboard to show stale June 27 data."
+  }
+}

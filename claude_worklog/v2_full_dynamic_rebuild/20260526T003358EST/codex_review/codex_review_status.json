@@ -1,0 +1,82 @@
+{
+  "schema_version": "codex_5_5_v2_full_dynamic_rebuild_review_v1",
+  "generated_utc": "2026-05-26T04:50:22Z",
+  "generated_local": "2026-05-26 00:50:22 EDT",
+  "go_no_go": "V2_FULL_DYNAMIC_REBUILD_IMPLEMENTATION_CODEX_FAIL",
+  "review_result": "FAIL",
+  "live_gate": "blocked_human_only",
+  "live_symbols": [],
+  "approves_live": false,
+  "approves_canary": false,
+  "approves_legacy_shutdown": false,
+  "approves_redis_trim": false,
+  "exchange_mutation_allowed": false,
+  "legacy_runtime_process_count": 0,
+  "v2_active_service_count": 29,
+  "v2_failed_service_count": 0,
+  "v2_activating_service_count": 1,
+  "v2_full_dynamic_rebuild_go_no_go_after_fix": "V2_FULL_DYNAMIC_REBUILD_IMPLEMENTATION_BLOCKED",
+  "implementation_ready_after_fix": false,
+  "running_component_count": 26,
+  "not_started_component_count": 19,
+  "backtest_has_run": false,
+  "backlog_task_count": 11,
+  "v2_redis_key_count": 257,
+  "old_order_redis_counts": {
+    "orchestrator:*": 0,
+    "live_orders:*": 0,
+    "exchange:order:*": 0
+  },
+  "old_redis_presence_counts": {
+    "prediction:*": 1,
+    "signals:trading:*": 2,
+    "price:*": 31,
+    "ohlcv:list:*": 25,
+    "ta:*": 150,
+    "features:coinank:*": 1564,
+    "kc:*": 150
+  },
+  "safe_fixes_applied": [
+    "downgraded implementation GO/NO-GO from READY to BLOCKED",
+    "fixed copied-component safe_to_start_copy_as_is semantics",
+    "regenerated full dynamic rebuild JSON artifacts",
+    "registered the packet as a blocking Report Center lane"
+  ],
+  "failures": [
+    {
+      "id": "partial_runtime_counted_ready",
+      "classification": "safe_scoped_fix_applied",
+      "mapped_action": "GO/NO-GO downgraded to BLOCKED"
+    },
+    {
+      "id": "backtest_not_run",
+      "classification": "automation_remediation_required",
+      "mapped_action": "run replay/backtest engine in paper/replay mode only"
+    },
+    {
+      "id": "raw_copy_old_redis_safety_wrong",
+      "classification": "safe_scoped_fix_applied",
+      "mapped_action": "raw old-Redis-writing copies now unsafe; wrappers separate"
+    },
+    {
+      "id": "old_redis_presence_not_proven_non_writer",
+      "classification": "operator_preservation_required",
+      "mapped_action": "do not delete; add old-Redis write observer evidence"
+    },
+    {
+      "id": "dynamic_symbol_discovery_zero",
+      "classification": "automation_remediation_required",
+      "mapped_action": "wire fresh dynamic symbol discovery with 25-symbol minimum baseline"
+    },
+    {
+      "id": "feature_ta_partial",
+      "classification": "automation_remediation_required",
+      "mapped_action": "complete feature/TA coverage for all 25 symbols"
+    },
+    {
+      "id": "risk_caps_operator_required",
+      "classification": "operator_required",
+      "mapped_action": "operator sets numeric caps; risk remains fail-closed"
+    }
+  ]
+}

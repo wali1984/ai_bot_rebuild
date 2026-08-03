@@ -2,6 +2,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
+import { buildWebsiteCrawlRoutes } from './route-inventory.mjs';
 
 const frontendRoot = resolve(import.meta.dirname, '..');
 const repoRoot = resolve(frontendRoot, '..', '..');
@@ -1273,44 +1274,13 @@ Checks:
 writeText(resolve(canonicalControlPlaneDir, 'CODEX_GO_NO_GO.md'), 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_CODEX_PASS\n');
 writeText(resolve(canonicalControlPlaneDir, 'GO_NO_GO.md'), 'REALTIME_CONTROL_PLANE_AND_TRAINER_MONITOR_RECOVERY_READY\n');
 
-const requiredRoutes = [
-  '/',
-  '/admin',
-  '/admin/mission-control?role=admin',
-  '/admin/monitor-center?role=admin',
-  '/admin/coverage-system-atlas?role=admin',
-  '/admin/script-registry?role=admin',
-  '/admin/trainer-prediction-monitor?role=admin',
-  '/admin/signal-explainability?role=admin',
-  '/admin/symbols?role=admin',
-  '/admin/signals?role=admin',
-  '/admin/executions?role=admin',
-  '/admin/positions?role=admin',
-  '/admin/risk-control?role=admin',
-  '/admin/exchange-manager?role=admin',
-  '/admin/external-manual-position-quarantine?role=admin',
-  '/admin/config-admin?role=admin',
-  '/admin/strategy-admin?role=admin',
-  '/admin/trainer-admin?role=admin',
-  '/admin/orchestrator-admin?role=admin',
-  '/admin/execution-admin?role=admin',
-  '/admin/paper-trading?role=admin',
-  '/admin/replay?role=admin',
-  '/admin/audit-ledger?role=admin',
-  '/admin/system-health?role=admin',
-  '/admin/live-readiness?role=admin',
-  '/admin/claude-admin-ai?role=admin',
-  '/admin/ollama-local-assistant?role=admin',
-  '/admin/codex-review-center?role=admin',
-  '/admin/build-validation-status?role=admin',
-  '/admin/operator-proof-dashboard?role=admin',
-  '/admin/mobile-iphone-readiness?role=admin',
-];
+const requiredRoutes = buildWebsiteCrawlRoutes();
 
 const routeMatrixRows = requiredRoutes.map((path) => {
-  const admin = path.startsWith('/admin');
-  const productionReady = !['/admin/trainer-prediction-monitor?role=admin', '/admin/signal-explainability?role=admin'].includes(path);
-  const needsRuntimePayload = ['/admin/trainer-prediction-monitor?role=admin', '/admin/signal-explainability?role=admin', '/admin/paper-trading?role=admin'].includes(path);
+  const pathOnly = path.split('?')[0];
+  const admin = pathOnly.startsWith('/admin');
+  const productionReady = true;
+  const needsRuntimePayload = ['/dashboard', '/signals', '/ai-predictions', '/trade', '/system-health'].includes(pathOnly);
   const staticFixtureOnly = path.includes('operator-proof-dashboard') || path.includes('replay');
   const stalePayload = truthPayload.dashboard_freshness_status.stale_payload_count > 0;
   return {
@@ -1321,7 +1291,7 @@ const routeMatrixRows = requiredRoutes.map((path) => {
     static_fixture_only: staticFixtureOnly ? 'yes_labeled' : 'no',
     placeholder_only: 'no',
     visual_old_layout: 'no',
-    broken_chart: path.includes('mission-control') ? 'no_primary_chart_breakage_tradingview_or_labeled_fallback' : 'not_applicable',
+    broken_chart: pathOnly === '/dashboard' ? 'no_primary_chart_breakage_tradingview_or_labeled_fallback' : 'not_applicable',
     broken_route: 'no',
     safety_ok: 'yes',
     operator_useful: 'yes',

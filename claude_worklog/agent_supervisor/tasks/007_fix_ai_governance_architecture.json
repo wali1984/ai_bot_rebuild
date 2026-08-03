@@ -1,16 +1,26 @@
 {
-  "task_id": "007_fix_ai_governance_architecture",
   "agent": "claude",
-  "risk_level": "L1",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/v2_architecture_remediation/"
   ],
+  "completed_at": "2026-06-15T19:54:42Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "Review AI governance remediation and map to architecture file updates.",
+  "normalized_from_artifact": true,
+  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Produce architecture remediation for blocker: L4 mandatory human approval and approval state transitions. Output exactly one BEGIN_FILE block for claude_worklog/v2_architecture_remediation/07_AI_GOVERNANCE_REMEDIATION.md with enforceable governance state machine.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/v2_architecture_remediation/07_AI_GOVERNANCE_REMEDIATION.md"
   ],
-  "prompt": "You are Claude Code in /home/wali/Desktop/AI BOT REBUILD. Do not modify /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Produce architecture remediation for blocker: L4 mandatory human approval and approval state transitions. Output exactly one BEGIN_FILE block for claude_worklog/v2_architecture_remediation/07_AI_GOVERNANCE_REMEDIATION.md with enforceable governance state machine.",
-  "next_recommended_action": "Review AI governance remediation and map to architecture file updates.",
-  "normalized_from_artifact": true
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-06-15T19:54:42Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/007_fix_ai_governance_architecture.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "007_fix_ai_governance_architecture",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

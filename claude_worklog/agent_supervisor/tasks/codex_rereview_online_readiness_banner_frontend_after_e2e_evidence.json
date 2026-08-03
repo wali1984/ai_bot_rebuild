@@ -1,21 +1,30 @@
 {
-  "task_id": "codex_rereview_online_readiness_banner_frontend_after_e2e_evidence",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/online_readiness_frontend_codex_rereview/latest/"
   ],
+  "blocked_by": [],
+  "completed_at": "2026-05-11T07:40:27.517941+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "online_readiness_audit",
+  "mvp_relevance": "Re-review the online-readiness frontend banner after e2e evidence was recorded.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "If PASS, continue online-readiness queue. If FAIL, create focused remediation before unrelated work.",
+  "priority": 2554,
+  "prompt": "You are Codex re-reviewer for the online-readiness Mission Control banner after e2e evidence was added. Do not modify source code. Do not touch /home/wali/Desktop/AI BOT. Do not write/delete/trim Redis. Do not place/cancel/modify exchange orders. Do not change leverage/margin/position mode. Do not enable live trading. Inspect v2/frontend/src/constants/onlineReadinessBanner.ts, v2/frontend/src/components/banners/MissionControlReadinessBanner.tsx, v2/frontend/src/pages/mission-control/index.tsx, v2/frontend/tests/e2e/mission_control_readiness_banner.spec.ts, claude_worklog/final_readiness/online_readiness/latest/BANNER_FRONTEND_WIRE_REPORT.md, and prior failed review under claude_worklog/final_readiness/online_readiness_frontend_codex_review/latest/. Verify the previous e2e-evidence finding is resolved by the report and current test run evidence: npm run typecheck passed, npm run build passed, npm run test:e2e -- tests/e2e/mission_control_readiness_banner.spec.ts passed 4/4. Also re-check GET-only fetch, READY/BLOCKED from all_required_matched, lane_id/status/marker_path rendering, blocked_human_only display, and no live execution imports/mutating fetches. Emit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/online_readiness_frontend_codex_rereview/latest/. CODEX_GO_NO_GO.md must contain exactly one line: CODEX_ONLINE_READINESS_FRONTEND_REREVIEW_PASS or CODEX_ONLINE_READINESS_FRONTEND_REREVIEW_FAIL.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/online_readiness_frontend_codex_rereview/latest/CODEX_ONLINE_READINESS_FRONTEND_REREVIEW.md",
     "claude_worklog/final_readiness/online_readiness_frontend_codex_rereview/latest/CODEX_GO_NO_GO.md"
   ],
-  "priority": 2554,
-  "lane": "online_readiness_audit",
-  "mvp_relevance": "Re-review the online-readiness frontend banner after e2e evidence was recorded.",
-  "blocked_by": [],
-  "prompt": "You are Codex re-reviewer for the online-readiness Mission Control banner after e2e evidence was added. Do not modify source code. Do not touch /home/wali/Desktop/AI BOT. Do not write/delete/trim Redis. Do not place/cancel/modify exchange orders. Do not change leverage/margin/position mode. Do not enable live trading. Inspect v2/frontend/src/constants/onlineReadinessBanner.ts, v2/frontend/src/components/banners/MissionControlReadinessBanner.tsx, v2/frontend/src/pages/mission-control/index.tsx, v2/frontend/tests/e2e/mission_control_readiness_banner.spec.ts, claude_worklog/final_readiness/online_readiness/latest/BANNER_FRONTEND_WIRE_REPORT.md, and prior failed review under claude_worklog/final_readiness/online_readiness_frontend_codex_review/latest/. Verify the previous e2e-evidence finding is resolved by the report and current test run evidence: npm run typecheck passed, npm run build passed, npm run test:e2e -- tests/e2e/mission_control_readiness_banner.spec.ts passed 4/4. Also re-check GET-only fetch, READY/BLOCKED from all_required_matched, lane_id/status/marker_path rendering, blocked_human_only display, and no live execution imports/mutating fetches. Emit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/online_readiness_frontend_codex_rereview/latest/. CODEX_GO_NO_GO.md must contain exactly one line: CODEX_ONLINE_READINESS_FRONTEND_REREVIEW_PASS or CODEX_ONLINE_READINESS_FRONTEND_REREVIEW_FAIL.",
-  "next_recommended_action": "If PASS, continue online-readiness queue. If FAIL, create focused remediation before unrelated work."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-11T07:40:27.517941+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_rereview_online_readiness_banner_frontend_after_e2e_evidence.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_rereview_online_readiness_banner_frontend_after_e2e_evidence",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

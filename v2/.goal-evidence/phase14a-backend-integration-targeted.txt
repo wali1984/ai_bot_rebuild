@@ -1,0 +1,1191 @@
+/home/wali/Desktop/AI BOT REBUILD/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+....FFF....................FFFFFFFF...................F.F.......F..F.... [ 60%]
+................F......F.FF...........FF....F..                          [100%]
+=================================== FAILURES ===================================
+____________ test_authenticated_user_can_update_own_watchlist_only _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_authenticated_user_can_up0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c06415d250>
+
+    def test_authenticated_user_can_update_own_watchlist_only(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+        created = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "watchlist.trader@example.com",
+                "username": "watchlist-trader",
+                "password": "watchlist-password",
+                "role": "trader",
+                "trader_id": "trader-watchlist",
+                "paper_account_id": "paper-watchlist",
+                "reason": "watchlist self-service test user",
+            },
+        )
+        assert created.status_code == 201
+        trader_token = _login(client, "watchlist.trader@example.com", "watchlist-password")
+    
+        response = client.put(
+            "/api/accounts/me/watchlist",
+            headers=_auth(trader_token),
+            json={"symbols": ["btcusdt", "ETHUSDT", "btcusdt", ""]},
+        )
+    
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["watchlist"] == ["BTCUSDT", "ETHUSDT"]
+        assert payload["user"]["watchlist"] == ["BTCUSDT", "ETHUSDT"]
+        assert payload["user"]["email"] == "watchlist.trader@example.com"
+        assert "password_hash" not in json.dumps(payload)
+        assert "credential_ref" not in json.dumps(payload)
+        assert payload["warnings"] == [
+            "Watchlist is scoped to the signed-in user",
+            "No exchange state was read or mutated",
+            "Live trading remains disabled",
+        ]
+    
+        invalid = client.put(
+            "/api/accounts/me/watchlist",
+            headers=_auth(trader_token),
+            json={"symbols": ["BTC/USDT"]},
+        )
+        assert invalid.status_code == 400
+        assert invalid.json()["detail"] == "invalid_watchlist_symbol"
+    
+        unauthenticated = client.put("/api/accounts/me/watchlist", json={"symbols": ["BTCUSDT"]})
+>       assert unauthenticated.status_code == 401
+E       assert 200 == 401
+E        +  where 200 = <Response [200 OK]>.status_code
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:265: AssertionError
+________ test_chart_endpoints_return_structured_source_freshness_states ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_chart_endpoints_return_st0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c064282de0>
+
+    def test_chart_endpoints_return_structured_source_freshness_states(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+    
+        symbols = client.get("/api/v1/chart/symbols")
+>       assert symbols.status_code == 200
+E       assert 404 == 200
+E        +  where 404 = <Response [404 Not Found]>.status_code
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:272: AssertionError
+__________ test_exchange_account_link_requires_trader_and_paper_scope __________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_exchange_account_link_req0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c064370b30>
+
+    def test_exchange_account_link_requires_trader_and_paper_scope(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+        created = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "viewer.scope@example.com",
+                "username": "viewer-scope",
+                "password": "viewer-password",
+                "role": "viewer",
+                "reason": "exchange link fail-closed scope test",
+            },
+        )
+        assert created.status_code == 201
+        viewer_token = _login(client, "viewer.scope@example.com", "viewer-password")
+    
+        response = client.post(
+            "/api/accounts/me/exchange-accounts",
+            headers=_auth(viewer_token),
+            json={"exchange": "binance", "label": "Viewer Binance", "account_type": "usd_m_futures"},
+        )
+    
+        assert response.status_code == 409
+        assert response.json()["detail"] == "trader_account_scope_required"
+    
+        scoped_viewer = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "viewer.with-scope@example.com",
+                "username": "viewer-with-scope",
+                "password": "viewer-password",
+                "role": "viewer",
+                "trader_id": "viewer-trader-scope",
+                "paper_account_id": "viewer-paper-scope",
+                "reason": "exchange link fail-closed role test",
+            },
+        )
+        assert scoped_viewer.status_code == 201
+        scoped_viewer_token = _login(client, "viewer.with-scope@example.com", "viewer-password")
+    
+        scoped_response = client.post(
+            "/api/accounts/me/exchange-accounts",
+            headers=_auth(scoped_viewer_token),
+            json={"exchange": "binance", "label": "Viewer Scoped Binance", "account_type": "usd_m_futures"},
+        )
+    
+        assert scoped_response.status_code == 403
+        assert scoped_response.json()["detail"] == "trader_role_required"
+    
+        viewer_with_exchange = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "viewer.exchange@example.com",
+                "username": "viewer-exchange",
+                "password": "viewer-password",
+                "role": "viewer",
+                "trader_id": "viewer-exchange-scope",
+                "paper_account_id": "viewer-exchange-paper",
+                "exchange_accounts": [
+                    {
+                        "id": "binance-viewer-exchange",
+                        "exchange": "binance",
+                        "label": "Viewer Exchange",
+                        "account_type": "usd_m_futures",
+                        "mode": "read_only",
+                        "read_only": True,
+                        "live_trading_enabled": False,
+                    }
+                ],
+                "reason": "exchange metadata must require trader role",
+            },
+        )
+        assert viewer_with_exchange.status_code == 400
+        assert viewer_with_exchange.json()["detail"] == "exchange_account_role_required"
+    
+        trader = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "exchange.trader@example.com",
+                "username": "exchange-trader",
+                "password": "trader-password",
+                "role": "trader",
+                "trader_id": "trader-account-link",
+                "paper_account_id": "paper-account-link",
+                "reason": "exchange account self-service test",
+            },
+        )
+        assert trader.status_code == 201
+        trader_token = _login(client, "exchange.trader@example.com", "trader-password")
+    
+        extra_field = client.post(
+            "/api/accounts/me/exchange-accounts",
+            headers=_auth(trader_token),
+            json={
+                "exchange": "binance",
+                "label": "Exchange Trader Binance",
+                "account_type": "usd_m_futures",
+                "credential_ref": "ALPHAFORGE_SHOULD_NOT_BE_ACCEPTED",
+            },
+        )
+>       assert extra_field.status_code == 422
+E       assert 201 == 422
+E        +  where 201 = <Response [201 Created]>.status_code
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:401: AssertionError
+_______ test_admin_activation_requires_valid_step_up_code_in_production ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_admin_activation_requires0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c0643de150>
+
+    def test_admin_activation_requires_valid_step_up_code_in_production(tmp_path: Path, monkeypatch) -> None:
+        step_up_secret = "JBSWY3DPEHPK3PXP"
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_SESSION_MINUTES", "30")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_ISSUER", "alphaforge-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_AUDIENCE", "alphaforge-web-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_REVOCATION_STORE", str(tmp_path / "auth_revocations.json"))
+        monkeypatch.setenv("ALPHAFORGE_AUTH_COOKIE_SAMESITE", "lax")
+        monkeypatch.setenv("ALPHAFORGE_BOOTSTRAP_ADMIN_PASSWORD", "Correct-Password-123!")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_STEP_UP_TOTP_SECRET", step_up_secret)
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "Correct-Password-123!")
+    
+        missing = client.post(
+            "/api/admin/users/user-wajidali1984/activation",
+            headers=_auth(admin_token),
+            json={
+                "is_active": True,
+                "temporary_password": "Temporary-Password-123!",
+                "reason": "activate seeded trader",
+            },
+        )
+        assert missing.status_code == 403
+        assert missing.json()["detail"] == "admin_step_up_required"
+    
+        valid = client.post(
+            "/api/admin/users/user-wajidali1984/activation",
+            headers={**_auth(admin_token), "X-AlphaForge-Step-Up-Code": _totp_code(step_up_secret)},
+            json={
+                "is_active": True,
+                "temporary_password": "Temporary-Password-123!",
+                "reason": "activate seeded trader",
+            },
+        )
+        assert valid.status_code == 200
+        payload = valid.json()
+        assert payload["activation"]["is_active"] is True
+        assert payload["activation"]["password_reset"] is True
+>       assert payload["audit"]["recorded"] is True
+E       assert False is True
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:990: AssertionError
+__________ test_admin_activation_writes_secret_free_local_audit_event __________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_admin_activation_writes_s0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c05fd3da00>
+
+    def test_admin_activation_writes_secret_free_local_audit_event(tmp_path: Path, monkeypatch) -> None:
+        audit_path = tmp_path / "admin_audit.jsonl"
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_LOG_STORE", str(audit_path))
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+    
+        response = client.post(
+            "/api/admin/users/user-wajidali1984/activation",
+            headers=_auth(admin_token),
+            json={
+                "is_active": True,
+                "temporary_password": "trader-reset-password",
+                "reason": "operator activation",
+            },
+        )
+    
+        assert response.status_code == 200
+        payload = response.json()
+>       assert payload["audit"]["recorded"] is True
+E       assert False is True
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:1018: AssertionError
+_ test_admin_activation_fails_closed_in_production_when_audit_log_is_unwritable _
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_admin_activation_fails_cl1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c06552aea0>
+
+    def test_admin_activation_fails_closed_in_production_when_audit_log_is_unwritable(
+        tmp_path: Path, monkeypatch
+    ) -> None:
+        step_up_secret = "JBSWY3DPEHPK3PXP"
+        broken_parent = tmp_path / "admin_audit_parent"
+        broken_parent.write_text("not a directory", encoding="utf-8")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_LOG_STORE", str(broken_parent / "admin_audit.jsonl"))
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_SESSION_MINUTES", "30")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_ISSUER", "alphaforge-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_AUDIENCE", "alphaforge-web-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_REVOCATION_STORE", str(tmp_path / "auth_revocations.json"))
+        monkeypatch.setenv("ALPHAFORGE_AUTH_COOKIE_SAMESITE", "lax")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_STEP_UP_TOTP_SECRET", step_up_secret)
+        monkeypatch.setenv("ALPHAFORGE_BOOTSTRAP_ADMIN_PASSWORD", "Correct-Password-123!")
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "Correct-Password-123!")
+    
+        response = client.post(
+            "/api/admin/users/user-wajidali1984/activation",
+            headers={**_auth(admin_token), "X-AlphaForge-Step-Up-Code": _totp_code(step_up_secret)},
+            json={
+                "is_active": True,
+                "temporary_password": "Temporary-Password-123!",
+                "reason": "activate seeded trader",
+            },
+        )
+    
+>       assert response.status_code == 503
+E       assert 200 == 503
+E        +  where 200 = <Response [200 OK]>.status_code
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:1068: AssertionError
+________ test_admin_user_mutations_write_secret_free_local_audit_events ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_admin_user_mutations_writ0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c064388680>
+
+    def test_admin_user_mutations_write_secret_free_local_audit_events(tmp_path: Path, monkeypatch) -> None:
+        audit_path = tmp_path / "admin_user_mutations_audit.jsonl"
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_LOG_STORE", str(audit_path))
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+    
+        created = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "audit.trader@example.com",
+                "username": "audit-trader",
+                "password": "Mutation-Secret-123!",
+                "role": "trader",
+                "trader_id": "trader-audit",
+                "paper_account_id": "paper-audit",
+            },
+        )
+        assert created.status_code == 201
+        created_payload = created.json()
+>       assert created_payload["audit"]["recorded"] is True
+E       assert False is True
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:1097: AssertionError
+_ test_admin_user_create_fails_closed_in_production_when_audit_log_is_unwritable _
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_admin_user_create_fails_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c06430ea80>
+
+    def test_admin_user_create_fails_closed_in_production_when_audit_log_is_unwritable(
+        tmp_path: Path, monkeypatch
+    ) -> None:
+        broken_parent = tmp_path / "admin_user_audit_parent"
+        broken_parent.write_text("not a directory", encoding="utf-8")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_LOG_STORE", str(broken_parent / "admin_audit.jsonl"))
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_SESSION_MINUTES", "30")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_ISSUER", "alphaforge-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_AUDIENCE", "alphaforge-web-test")
+        monkeypatch.setenv("ALPHAFORGE_AUTH_REVOCATION_STORE", str(tmp_path / "auth_revocations.json"))
+        monkeypatch.setenv("ALPHAFORGE_AUTH_COOKIE_SAMESITE", "lax")
+        monkeypatch.setenv("ALPHAFORGE_BOOTSTRAP_ADMIN_PASSWORD", "Correct-Password-123!")
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "Correct-Password-123!")
+    
+        response = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "blocked.audit@example.com",
+                "username": "blocked-audit",
+                "password": "Blocked-Audit-Password-123!",
+                "role": "trader",
+                "trader_id": "trader-blocked-audit",
+                "paper_account_id": "paper-blocked-audit",
+                "reason": "production audit fail closed test",
+            },
+        )
+    
+>       assert response.status_code == 503
+E       assert 201 == 503
+E        +  where 201 = <Response [201 Created]>.status_code
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:1178: AssertionError
+________ test_local_admin_audit_store_access_fails_closed_in_production ________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c064397cb0>
+
+    def test_local_admin_audit_store_access_fails_closed_in_production(monkeypatch) -> None:
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        monkeypatch.delenv("ALPHAFORGE_ALLOW_LOCAL_ADMIN_AUDIT_IN_PRODUCTION", raising=False)
+        monkeypatch.delenv("ALPHAFORGE_ADMIN_AUDIT_STORE_BACKEND", raising=False)
+    
+>       with pytest.raises(HTTPException) as exc:
+E       Failed: DID NOT RAISE <class 'fastapi.exceptions.HTTPException'>
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:1192: Failed
+_____ test_sqlalchemy_admin_audit_requires_retention_policy_in_production ______
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_sqlalchemy_admin_audit_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c064395280>
+
+    def test_sqlalchemy_admin_audit_requires_retention_policy_in_production(tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_STORE_BACKEND", "sqlalchemy")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_DATABASE_URL", f"sqlite:///{tmp_path / 'admin_audit.db'}")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_DB_AUTO_CREATE", "true")
+        monkeypatch.delenv("ALPHAFORGE_ADMIN_AUDIT_RETENTION_DAYS", raising=False)
+    
+>       with pytest.raises(HTTPException) as exc:
+E       Failed: DID NOT RAISE <class 'fastapi.exceptions.HTTPException'>
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:1220: Failed
+________ test_sqlalchemy_admin_audit_store_persists_secret_free_events _________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_sqlalchemy_admin_audit_st0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c0641755e0>
+
+    def test_sqlalchemy_admin_audit_store_persists_secret_free_events(tmp_path: Path, monkeypatch) -> None:
+        database_path = tmp_path / "admin_audit.db"
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_STORE_BACKEND", "sqlalchemy")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_DATABASE_URL", f"sqlite:///{database_path}")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_DB_AUTO_CREATE", "true")
+        monkeypatch.setenv("ALPHAFORGE_ADMIN_AUDIT_RETENTION_DAYS", "365")
+    
+        audit_event = append_admin_audit_event(
+            {
+                "event_type": "admin_user_activation_reset",
+                "actor_user_id": "user-admin",
+                "actor_role": "admin",
+                "target_user_id": "user-wajidali1984",
+                "target_email": "wajidali1984@hotmail.com",
+                "target_trader_id": "trader-wajidali1984",
+                "password_reset": True,
+                "password_returned": False,
+                "password_hash_returned": False,
+            }
+        )
+    
+>       assert audit_event["audit_persisted"] is True
+E       KeyError: 'audit_persisted'
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:1261: KeyError
+________ test_admin_activation_reset_workflow_for_seeded_trader_is_safe ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_admin_activation_reset_wo0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c0643dc3e0>
+
+    def test_admin_activation_reset_workflow_for_seeded_trader_is_safe(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+        users = client.get("/api/admin/users", headers=_auth(admin_token)).json()["users"]
+        trader = next(user for user in users if user["email"] == "wajidali1984@hotmail.com")
+        assert trader["is_active"] is False
+    
+        unauthenticated = client.post(
+            f"/api/admin/users/{trader['id']}/activation",
+            json={"is_active": True, "temporary_password": "trader-reset-password", "reason": "operator activation"},
+        )
+>       assert unauthenticated.status_code == 401
+E       assert 200 == 401
+E        +  where 200 = <Response [200 OK]>.status_code
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:1856: AssertionError
+________________ test_admin_user_creation_requires_trader_scope ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_admin_user_creation_requi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c05fdad5e0>
+
+    def test_admin_user_creation_requires_trader_scope(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+    
+        missing_scope = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "unscoped.trader@example.com",
+                "username": "unscoped-trader",
+                "password": "trader-password",
+                "role": "trader",
+            },
+        )
+        assert missing_scope.status_code == 400
+        assert missing_scope.json()["detail"] == "trader_scope_required"
+    
+        missing_scope_for_exchange = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "exchange.only@example.com",
+                "username": "exchange-only",
+                "password": "viewer-password",
+                "role": "viewer",
+                "exchange_accounts": [{"id": "binance-unscoped", "exchange": "binance"}],
+            },
+        )
+        assert missing_scope_for_exchange.status_code == 400
+>       assert missing_scope_for_exchange.json()["detail"] == "exchange_account_scope_required"
+E       AssertionError: assert 'exchange_acc...role_required' == 'exchange_acc...cope_required'
+E         
+E         - exchange_account_scope_required
+E         ?                  ^^ ^
+E         + exchange_account_role_required
+E         ?                  ^ ^
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:2004: AssertionError
+______ test_admin_credential_status_is_backend_protected_and_secret_free _______
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_admin_credential_status_i0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c0641db2f0>
+
+    def test_admin_credential_status_is_backend_protected_and_secret_free(tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv("ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_KEY", "test-read-only-key")
+        monkeypatch.setenv("ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_SECRET", "test-read-only-secret")
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+        client.cookies.clear()
+        assert client.get("/api/admin/credential-status").status_code == 401
+    
+        created = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "trader3@example.com",
+                "username": "trader3",
+                "password": "trader-password",
+                "role": "trader",
+                "trader_id": "trader-test-3",
+                "paper_account_id": "paper-test-3",
+            },
+        )
+        assert created.status_code == 201
+        trader_token = _login(client, "trader3@example.com", "trader-password")
+        assert client.get("/api/admin/credential-status", headers=_auth(trader_token)).status_code == 403
+    
+        response = client.get("/api/admin/credential-status", headers=_auth(admin_token))
+    
+        assert response.status_code == 200
+        payload = response.json()
+        account = next(
+            row["exchange_account"]
+            for row in payload["accounts"]
+            if row["trader_id"] == "trader-wajidali1984"
+        )
+        assert account["credential_status"]["configured"] is True
+        assert account["credential_status"]["credential_ref"] is None
+        assert account["credential_status"]["raw_credential_value_exposed"] is False
+        assert account["credential_status"]["live_trading_enabled"] is False
+        assert payload["credential_vault_readiness"]["status"] == "partial_backend_only_local_binding"
+        assert payload["credential_vault_readiness"]["backend_only"] is True
+        assert payload["credential_vault_readiness"]["environment_binding_supported"] is True
+        assert payload["credential_vault_readiness"]["durable_production_vault_integrated"] is False
+        assert payload["credential_vault_readiness"]["durable_production_vault_artifact_configured"] is False
+        assert payload["credential_vault_readiness"]["durable_production_vault_artifact_valid"] is False
+        assert payload["credential_vault_readiness"]["durable_production_vault_artifact_status"] == "pending"
+        assert payload["credential_vault_readiness"]["credential_rotation_policy_status"] == "missing"
+        assert payload["credential_vault_readiness"]["permission_probe_status"] == "pending"
+        assert payload["credential_vault_readiness"]["permission_probe_artifact_configured"] is False
+        assert payload["credential_vault_readiness"]["permission_probe_artifact_valid"] is False
+        assert payload["credential_vault_readiness"]["permission_probe_artifact_status"] == "pending"
+        assert payload["credential_vault_readiness"]["signed_read_validation_status"] == "pending"
+        assert payload["credential_vault_readiness"]["signed_read_validation_artifact_configured"] is False
+        assert payload["credential_vault_readiness"]["signed_read_validation_artifact_valid"] is False
+        assert payload["credential_vault_readiness"]["signed_read_validation_artifact_status"] == "pending"
+        assert payload["credential_vault_readiness"]["secret_redaction_smoke_status"] == "pending"
+        assert payload["credential_vault_readiness"]["secret_redaction_smoke_artifact_configured"] is False
+        assert payload["credential_vault_readiness"]["secret_redaction_smoke_artifact_valid"] is False
+        assert payload["credential_vault_readiness"]["secret_redaction_smoke_artifact_status"] == "pending"
+        assert payload["credential_vault_readiness"]["raw_credential_value_exposed"] is False
+        assert payload["credential_vault_readiness"]["live_trading_enabled"] is False
+        assert payload["credential_vault_readiness"]["exchange_mutation_enabled"] is False
+        assert "durable_production_credential_vault" in payload["credential_vault_readiness"]["missing_fields"]
+        assert "durable_credential_vault_artifact" in payload["credential_vault_readiness"]["missing_fields"]
+        assert "durable_credential_vault_current_validation" in payload["credential_vault_readiness"]["missing_fields"]
+>       assert payload["admin_audit_readiness"]["backend"] == "local_file"
+E       KeyError: 'backend'
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:2451: KeyError
+_______________ test_trader_exchange_link_route_is_metadata_only _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_trader_exchange_link_rout0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c064395eb0>
+
+    def test_trader_exchange_link_route_is_metadata_only(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+        admin_token = _login(client, "admin@example.com", "correct-password")
+        created = client.post(
+            "/api/admin/users",
+            headers=_auth(admin_token),
+            json={
+                "email": "metadata.trader@example.com",
+                "username": "metadata-trader",
+                "password": "trader-password",
+                "role": "trader",
+                "trader_id": "trader-metadata",
+                "paper_account_id": "paper-metadata",
+            },
+        )
+        assert created.status_code == 201
+        trader_token = _login(client, "metadata.trader@example.com", "trader-password")
+    
+        response = client.post(
+            "/api/accounts/me/exchange-accounts",
+            headers=_auth(trader_token),
+            json={
+                "exchange": "binance",
+                "label": "Metadata Binance Futures",
+                "account_type": "usd_m_futures",
+                "credential_ref": "ALPHAFORGE_SHOULD_NOT_STORE",
+            },
+        )
+    
+        assert response.status_code == 201
+        payload = response.json()
+        account = payload["user"]["exchange_accounts"][0]
+        assert "credential_ref" not in account
+        assert account["trader_id"] == "trader-metadata"
+        assert account["paper_account_id"] == "paper-metadata"
+>       assert account["status"] == "credential_binding_required"
+E       AssertionError: assert 'credential_reference_missing' == 'credential_binding_required'
+E         
+E         - credential_binding_required
+E         + credential_reference_missing
+
+backend/tests/integration/api/test_auth_rbac_and_status.py:2661: AssertionError
+_____ test_static_portfolio_fallback_withholds_unscoped_or_mismatched_rows _____
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_static_portfolio_fallback0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c0654801a0>
+
+    def test_static_portfolio_fallback_withholds_unscoped_or_mismatched_rows(
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
+        client = _client(tmp_path, monkeypatch)
+        login = client.post(
+            "/api/auth/login",
+            json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
+        )
+        assert login.status_code == 200
+    
+        good_scope = {
+            "trader_id": "trader-wajidali1984",
+            "paper_account_id": "paper-wajidali1984",
+        }
+        wrong_scope = {
+            "trader_id": "trader-other",
+            "paper_account_id": "paper-other",
+        }
+        _write_json(
+            tmp_path,
+            "operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json",
+            {
+                "generated_utc": "2026-06-14T00:00:00Z",
+                "trader_id": "trader-wajidali1984",
+                "paper_account_id": "paper-wajidali1984",
+                "equity": 1000,
+                "realized_pnl_usd": 4,
+                "net_unrealized_pnl": -1,
+                "positions": [
+                    {**good_scope, "symbol": "BTCUSDT", "quantity": 0.1},
+                    {**wrong_scope, "symbol": "ETHUSDT", "quantity": 1},
+                    {"symbol": "SOLUSDT", "quantity": 5},
+                ],
+            },
+        )
+    
+        portfolio = client.get("/api/v2/portfolio").json()
+        _assert_contract(portfolio, "/api/v2/portfolio")
+        _assert_authenticated_account_scope(portfolio, verified=True)
+>       assert [row["symbol"] for row in portfolio["data"]["positions"]] == ["BTCUSDT"]
+E       AssertionError: assert [] == ['BTCUSDT']
+E         
+E         Right contains one more item: 'BTCUSDT'
+E         Use -v to get more diff
+
+backend/tests/integration/api/v2/test_market_contract_routes.py:475: AssertionError
+_ test_local_paper_audit_metadata_accepts_durable_policy_artifact_as_partial_evidence _
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_local_paper_audit_metadat0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c05fe00260>
+
+    def test_local_paper_audit_metadata_accepts_durable_policy_artifact_as_partial_evidence(
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        artifact = tmp_path / "durable_paper_audit_policy.json"
+        artifact.write_text(
+            json.dumps(
+                {
+                    "durable_paper_audit_policy_status": "passed",
+                    "production_durable_store": True,
+                    "retention_enforced": True,
+                    "production_writer_hardened": True,
+                    "audit_verification_passed": True,
+                    "live_transport_enabled": False,
+                    "exchange_mutation_enabled": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("ALPHAFORGE_DURABLE_PAPER_AUDIT_POLICY_ARTIFACT", str(artifact))
+    
+        metadata = local_paper_audit_ledger_metadata(event_count=0, events=[])
+    
+        assert metadata["durable_paper_audit_policy_status"] == "artifact_present_pending_current_validation"
+        assert metadata["durable_paper_audit_policy_artifact_configured"] is True
+        assert metadata["durable_paper_audit_policy_artifact_valid"] is True
+        assert metadata["durable_paper_audit_policy_artifact_status"] == "verified"
+        assert metadata["durable_paper_audit_policy_artifact_production_durable_store"] is True
+        assert metadata["durable_paper_audit_policy_artifact_retention_enforced"] is True
+        assert metadata["durable_paper_audit_policy_artifact_writer_hardened"] is True
+        assert metadata["durable_paper_audit_policy_artifact_audit_verified"] is True
+        assert metadata["production_durable_store"] is False
+        assert "durable_paper_audit_policy_artifact" not in metadata["missing_fields"]
+        assert "durable_paper_audit_policy_current_validation" in metadata["missing_fields"]
+>       assert ledger_path.exists()
+E       NameError: name 'ledger_path' is not defined
+
+backend/tests/integration/api/v2/test_market_contract_routes.py:681: NameError
+_______ test_production_paper_actions_fail_closed_until_verified_service _______
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_production_paper_actions_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c065413140>
+
+    def test_production_paper_actions_fail_closed_until_verified_service(tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
+        _write_json(
+            tmp_path,
+            "operator_runtime/v2_trade_terminal/latest/trade_terminal_payload.json",
+            {"symbol": "BTCUSDT", "generated_at": "2026-06-13T03:00:00Z", "last_price": 100000},
+        )
+        client = _client(tmp_path, monkeypatch)
+        login = client.post(
+            "/api/auth/login",
+            json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
+        )
+        assert login.status_code == 200
+        get_trader_account_repository().upsert_account(
+            trader_id="trader-wajidali1984",
+            paper_account_id="paper-wajidali1984",
+            equity=250000,
+            realized_pnl=0,
+            unrealized_pnl=0,
+            positions=[],
+            orders=[],
+            executions=[],
+            signals=[],
+            source_status="test_paper_repository",
+        )
+    
+        monkeypatch.setenv("ALPHAFORGE_ENV", "production")
+        preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(preview, "/api/v2/orders/preview")
+        assert preview["data"]["allowed"] is False
+        assert preview["data"]["reason"] == "production_paper_actions_disabled"
+        assert preview["data"]["estimated_notional"] == 10000
+        policy = preview["data"]["paper_execution_policy"]
+        assert policy["production_environment"] is True
+        assert policy["production_paper_actions_enabled"] is False
+        assert policy["production_paper_actions_status"] == "disabled_pending_verified_paper_execution_service"
+        assert policy["local_paper_actions_allowed_in_production"] is False
+        assert "production_paper_submit_cancel_validation" in preview["missing_fields"]
+        assert "production_paper_fill_writer" in preview["missing_fields"]
+        assert "verified_paper_execution_service" in preview["missing_fields"]
+    
+        submitted = client.post(
+            "/api/v2/orders/paper",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+>       _assert_contract(submitted, "/api/v2/orders/paper")
+
+backend/tests/integration/api/v2/test_market_contract_routes.py:814: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+response = {'detail': 'auth_secret_required_in_production'}
+endpoint = '/api/v2/orders/paper'
+
+    def _assert_contract(response: dict, endpoint: str) -> None:
+>       assert response["endpoint"] == endpoint
+E       KeyError: 'endpoint'
+
+backend/tests/integration/api/v2/test_market_contract_routes.py:37: KeyError
+_____ test_paper_execution_policy_reports_production_fill_writer_artifact ______
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_paper_execution_policy_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c064175f70>
+
+    def test_paper_execution_policy_reports_production_fill_writer_artifact(
+        tmp_path: Path, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
+        artifact = tmp_path / "production_paper_fill_writer.json"
+        artifact.write_text(
+            json.dumps(
+                {
+                    "production_paper_fill_writer_status": "verified",
+                    "paper_fill_writer_validated": True,
+                    "paper_only_fill_writer": True,
+                    "trader_scope_enforced": True,
+                    "paper_account_scope_enforced": True,
+                    "backend_owned_order_ids": True,
+                    "idempotency_enforced": True,
+                    "durable_repository_verified": True,
+                    "audit_event_linked": True,
+                    "contains_credentials": False,
+                    "live_transport_enabled": False,
+                    "exchange_mutation_enabled": False,
+                    "real_order_submitted": False,
+                    "real_order_cancelled": False,
+                    "leverage_mutation_enabled": False,
+                    "margin_mutation_enabled": False,
+                    "live_gate_mutation_enabled": False,
+                    "missing_fields": [],
+                    "warnings": [],
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("ALPHAFORGE_PRODUCTION_PAPER_FILL_WRITER_ARTIFACT", str(artifact))
+        _write_json(
+            tmp_path,
+            "operator_runtime/v2_trade_terminal/latest/trade_terminal_payload.json",
+            {"symbol": "BTCUSDT", "generated_at": "2026-06-13T03:00:00Z", "last_price": 100000},
+        )
+        client = _client(tmp_path, monkeypatch)
+        login = client.post(
+            "/api/auth/login",
+            json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
+        )
+        assert login.status_code == 200
+        get_trader_account_repository().upsert_account(
+            trader_id="trader-wajidali1984",
+            paper_account_id="paper-wajidali1984",
+            equity=250000,
+            realized_pnl=0,
+            unrealized_pnl=0,
+            positions=[],
+            orders=[],
+            executions=[],
+            signals=[],
+            source_status="test_paper_repository",
+        )
+    
+        preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+    
+        _assert_contract(preview, "/api/v2/orders/preview")
+        policy = preview["data"]["paper_execution_policy"]
+        assert policy["production_paper_fill_writer_status"] == "artifact_present_pending_current_validation"
+        assert policy["production_paper_fill_writer_artifact_configured"] is True
+        assert policy["production_paper_fill_writer_artifact_valid"] is True
+        assert policy["production_paper_fill_writer_artifact_status"] == "verified"
+        assert policy["paper_fill_writer_validated"] is True
+        assert policy["paper_only_fill_writer"] is True
+        assert policy["paper_fill_writer_trader_scope_enforced"] is True
+        assert policy["paper_fill_writer_paper_account_scope_enforced"] is True
+        assert policy["paper_fill_writer_idempotency_enforced"] is True
+        assert "production_paper_fill_writer_artifact" not in policy["missing_fields"]
+        assert "production_paper_fill_writer_current_validation" in policy["missing_fields"]
+        assert policy["production_paper_actions_enabled"] is False
+        assert policy["live_transport_enabled"] is False
+        assert policy["exchange_mutation_enabled"] is False
+        serialized = json.dumps(policy).lower()
+        for text in ("api_key", "api_secret", "access_token", "live_order"):
+>           assert text not in serialized
+E           assert 'live_order' not in '{"status": ...s enabled"]}'
+E             
+E             'live_order' is contained here:
+E               : false, "live_order_cancel_enabled": false, "leverage_mutation_enabled": false, "margin_mode_mutation_enabled": false, "live_gate_mutation_enabled": false, "contains_exchange_credentials": false, "missing_fields": ["production_paper_submit_cancel_validation", "production_paper_fill_writer", "verified_paper_execution_service", "durable_paper_audit_policy", "production_trader_account_repository", "production_paper_fill_writer_current_validation"], "warnings": ["local paper repository policy only", "production paper submit/cancel/fill validation is pendin...
+E             
+E             ...Full output truncated (2 lines hidden), use '-vv' to show
+
+backend/tests/integration/api/v2/test_market_contract_routes.py:910: AssertionError
+_________ test_market_data_websocket_emits_read_only_contract_snapshot _________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_market_data_websocket_emi0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c06433d0d0>
+
+    def test_market_data_websocket_emits_read_only_contract_snapshot(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+    
+>       with client.websocket_connect("/ws/market-data?symbol=BTCUSDT&interval_ms=1000") as websocket:
+
+backend/tests/integration/api/v2/test_market_contract_routes.py:1413: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../.venv/lib/python3.12/site-packages/starlette/testclient.py:112: in __enter__
+    self._raise_on_close(message)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.testclient.WebSocketTestSession object at 0x78c06430d610>
+message = {'code': 1000, 'reason': '', 'type': 'websocket.close'}
+
+    def _raise_on_close(self, message: Message) -> None:
+        if message["type"] == "websocket.close":
+>           raise WebSocketDisconnect(code=message.get("code", 1000), reason=message.get("reason", ""))
+E           starlette.websockets.WebSocketDisconnect
+
+../.venv/lib/python3.12/site-packages/starlette/testclient.py:170: WebSocketDisconnect
+_______ test_market_data_websocket_rejects_invalid_symbol_and_timeframe ________
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_market_data_websocket_rej0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c065592ff0>
+
+    def test_market_data_websocket_rejects_invalid_symbol_and_timeframe(tmp_path: Path, monkeypatch) -> None:
+        client = _client(tmp_path, monkeypatch)
+    
+>       with client.websocket_connect("/ws/market-data?symbol=btcusdt..&timeframe=1m") as websocket:
+
+backend/tests/integration/api/v2/test_market_contract_routes.py:1430: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../.venv/lib/python3.12/site-packages/starlette/testclient.py:112: in __enter__
+    self._raise_on_close(message)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <starlette.testclient.WebSocketTestSession object at 0x78c05ff20320>
+message = {'code': 1000, 'reason': '', 'type': 'websocket.close'}
+
+    def _raise_on_close(self, message: Message) -> None:
+        if message["type"] == "websocket.close":
+>           raise WebSocketDisconnect(code=message.get("code", 1000), reason=message.get("reason", ""))
+E           starlette.websockets.WebSocketDisconnect
+
+../.venv/lib/python3.12/site-packages/starlette/testclient.py:170: WebSocketDisconnect
+_ test_authenticated_trader_can_stage_fill_and_reject_cancel_local_paper_order_only _
+
+tmp_path = PosixPath('/tmp/pytest-of-wali/pytest-610/test_authenticated_trader_can_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x78c05fb3db80>
+
+    def test_authenticated_trader_can_stage_fill_and_reject_cancel_local_paper_order_only(tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "test-password")
+        _write_json(
+            tmp_path,
+            "operator_runtime/v2_trade_terminal/latest/trade_terminal_payload.json",
+            {"symbol": "BTCUSDT", "generated_at": "2026-06-13T03:00:00Z", "last_price": 100000},
+        )
+        client = _client(tmp_path, monkeypatch)
+        login = client.post(
+            "/api/auth/login",
+            json={"email": "wajidali1984@hotmail.com", "password": "test-password"},
+        )
+        assert login.status_code == 200
+        get_trader_account_repository().upsert_account(
+            trader_id="trader-wajidali1984",
+            paper_account_id="paper-wajidali1984",
+            equity=250000,
+            realized_pnl=0,
+            unrealized_pnl=0,
+            positions=[],
+            orders=[],
+            executions=[],
+            signals=[],
+            source_status="test_paper_repository",
+        )
+    
+        preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(preview, "/api/v2/orders/preview")
+        assert preview["source_type"] == "repository"
+        assert "Trader account repository" in preview["source"]
+        assert "/home/" not in preview["source"]
+        assert "trader_accounts.json" not in preview["source"]
+        assert preview["data"]["allowed"] is True
+        assert preview["data"]["reason"] == "paper_preview_ready"
+        assert preview["symbol"] == "BTCUSDT"
+        assert "Reference price was supplied by the paper preview request" in preview["warnings"]
+    
+        invalid_symbol_preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "btcusdt../",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(invalid_symbol_preview, "/api/v2/orders/preview")
+        assert invalid_symbol_preview["data"]["allowed"] is False
+        assert invalid_symbol_preview["data"]["reason"] == "symbol_invalid"
+        assert invalid_symbol_preview["data"]["friendly_reason"] == "Enter a valid market symbol"
+        assert "symbol" in invalid_symbol_preview["missing_fields"]
+        assert invalid_symbol_preview["symbol"] is None
+    
+        mismatched_preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "trader_id": "trader-wajidali1984",
+                "paper_account_id": "paper-other",
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(mismatched_preview, "/api/v2/orders/preview")
+        assert mismatched_preview["data"]["allowed"] is False
+        assert mismatched_preview["data"]["reason"] == "paper_account_scope_mismatch"
+        assert "paper_account_scope" in mismatched_preview["missing_fields"]
+    
+        mismatched_trader_preview = client.post(
+            "/api/v2/orders/preview",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "trader_id": "trader-other",
+                "paper_account_id": "paper-wajidali1984",
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(mismatched_trader_preview, "/api/v2/orders/preview")
+        assert mismatched_trader_preview["data"]["allowed"] is False
+        assert mismatched_trader_preview["data"]["reason"] == "trader_scope_mismatch"
+        assert "trader_scope" in mismatched_trader_preview["missing_fields"]
+    
+        missing_scope_submit = client.post(
+            "/api/v2/orders/paper",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(missing_scope_submit, "/api/v2/orders/paper")
+        assert missing_scope_submit["data"]["accepted"] is False
+        assert missing_scope_submit["data"]["reason"] == "paper_action_scope_required"
+        assert missing_scope_submit["data"]["friendly_reason"] == "Paper action requires a signed-in trader and matching paper account"
+        assert "request_trader_id" in missing_scope_submit["missing_fields"]
+        assert "request_paper_account_id" in missing_scope_submit["missing_fields"]
+    
+        submitted = client.post(
+            "/api/v2/orders/paper",
+            json={
+                "symbol": "BTCUSDT",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "trader_id": "trader-wajidali1984",
+                "paper_account_id": "paper-wajidali1984",
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(submitted, "/api/v2/orders/paper")
+        assert submitted["data"]["accepted"] is True
+        assert submitted["data"]["order"]["status"] == "open"
+        assert submitted["data"]["order"]["audit_event"] == "paper_order_staged_local"
+        assert submitted["symbol"] == "BTCUSDT"
+        assert submitted["data"]["order"]["symbol"] == "BTCUSDT"
+        assert submitted["data"]["order"]["trader_id"] == "trader-wajidali1984"
+        assert submitted["data"]["order"]["paper_account_id"] == "paper-wajidali1984"
+    
+        staged_orders = client.get("/api/v2/execution/orders").json()
+        _assert_contract(staged_orders, "/api/v2/execution/orders")
+        _assert_authenticated_account_scope(staged_orders, verified=True)
+        assert staged_orders["data"]["orders"][0]["order_id"] == submitted["data"]["order"]["order_id"]
+        assert staged_orders["data"]["orders"][0]["trader_id"] == "trader-wajidali1984"
+        assert staged_orders["data"]["orders"][0]["paper_account_id"] == "paper-wajidali1984"
+    
+        invalid_symbol_submit = client.post(
+            "/api/v2/orders/paper",
+            json={
+                "symbol": "btcusdt../",
+                "side": "buy",
+                "order_type": "limit",
+                "quantity": 0.1,
+                "price": 100000,
+                "trader_id": "trader-wajidali1984",
+                "paper_account_id": "paper-wajidali1984",
+                "mode": "paper",
+            },
+        ).json()
+        _assert_contract(invalid_symbol_submit, "/api/v2/orders/paper")
+        assert invalid_symbol_submit["data"]["accepted"] is False
+        assert invalid_symbol_submit["data"]["reason"] == "symbol_invalid"
+        assert invalid_symbol_submit["data"]["friendly_reason"] == "Enter a valid market symbol"
+        assert "symbol" in invalid_symbol_submit["missing_fields"]
+        assert invalid_symbol_submit["symbol"] is None
+        assert submitted["data"]["order"]["id"].startswith("paper-")
+        assert submitted["data"]["order"]["order_id"].startswith("paper-")
+        assert submitted["data"]["order"]["live_transport_enabled"] is False
+        assert submitted["data"]["order"]["exchange_mutation_enabled"] is False
+        _assert_paper_execution_policy(submitted["data"]["paper_execution_policy"])
+        order_id = submitted["data"]["order"]["order_id"]
+    
+        filled = client.post(
+            f"/api/v2/orders/paper/{order_id}/fill",
+            json={"price": 100000, "reason": "test local paper fill"},
+        ).json()
+        _assert_contract(filled, f"/api/v2/orders/paper/{order_id}/fill")
+        assert filled["data"]["accepted"] is True
+        assert filled["data"]["order"]["status"] == "filled"
+        assert filled["data"]["execution"]["order_id"] == order_id
+        assert filled["data"]["execution"]["audit_event"] == "paper_order_filled_local"
+        assert filled["data"]["execution"]["live_transport_enabled"] is False
+        assert filled["data"]["execution"]["exchange_mutation_enabled"] is False
+        _assert_paper_execution_policy(filled["data"]["paper_execution_policy"])
+    
+        positions = client.get("/api/v2/account/positions").json()
+        _assert_contract(positions, "/api/v2/account/positions")
+        _assert_authenticated_account_scope(positions, verified=True)
+        assert positions["data"]["positions"][0]["symbol"] == "BTCUSDT"
+        assert positions["data"]["positions"][0]["trader_id"] == "trader-wajidali1984"
+        assert positions["data"]["positions"][0]["paper_account_id"] == "paper-wajidali1984"
+        assert positions["data"]["positions"][0]["side"] == "Long"
+    
+        executions = client.get("/api/v2/execution/executions").json()
+        _assert_contract(executions, "/api/v2/execution/executions")
+        _assert_authenticated_account_scope(executions, verified=True)
+        assert executions["data"]["executions"][0]["order_id"] == order_id
+    
+        canceled = client.post(f"/api/v2/orders/paper/{order_id}/cancel").json()
+        _assert_contract(canceled, f"/api/v2/orders/paper/{order_id}/cancel")
+        assert canceled["data"]["accepted"] is False
+        assert canceled["data"]["reason"] == "paper_cancel_rejected"
+        _assert_paper_execution_policy(canceled["data"]["paper_execution_policy"])
+        account = get_trader_account_repository().get_account(
+            trader_id="trader-wajidali1984",
+            paper_account_id="paper-wajidali1984",
+        )
+        assert account is not None
+        audit_events = account.get("audit_events", [])
+        audit_names = [event.get("audit_event") for event in audit_events]
+        assert "paper_order_staged_local" in audit_names
+        assert "paper_order_filled_local" in audit_names
+        assert all(event.get("exchange_mutation_enabled") is False for event in audit_events)
+        assert all(event.get("live_transport_enabled") is False for event in audit_events)
+>       assert all(event.get("tamper_evident") is True for event in audit_events)
+E       assert False
+E        +  where False = all(<generator object test_authenticated_trader_can_stage_fill_and_reject_cancel_local_paper_order_only.<locals>.<genexpr> at 0x78c05fdf12f0>)
+
+backend/tests/integration/api/v2/test_market_contract_routes.py:1890: AssertionError
+=========================== short test summary info ============================
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_authenticated_user_can_update_own_watchlist_only
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_chart_endpoints_return_structured_source_freshness_states
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_exchange_account_link_requires_trader_and_paper_scope
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_activation_requires_valid_step_up_code_in_production
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_activation_writes_secret_free_local_audit_event
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_activation_fails_closed_in_production_when_audit_log_is_unwritable
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_user_mutations_write_secret_free_local_audit_events
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_user_create_fails_closed_in_production_when_audit_log_is_unwritable
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_local_admin_audit_store_access_fails_closed_in_production
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_sqlalchemy_admin_audit_requires_retention_policy_in_production
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_sqlalchemy_admin_audit_store_persists_secret_free_events
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_activation_reset_workflow_for_seeded_trader_is_safe
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_user_creation_requires_trader_scope
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_admin_credential_status_is_backend_protected_and_secret_free
+FAILED backend/tests/integration/api/test_auth_rbac_and_status.py::test_trader_exchange_link_route_is_metadata_only
+FAILED backend/tests/integration/api/v2/test_market_contract_routes.py::test_static_portfolio_fallback_withholds_unscoped_or_mismatched_rows
+FAILED backend/tests/integration/api/v2/test_market_contract_routes.py::test_local_paper_audit_metadata_accepts_durable_policy_artifact_as_partial_evidence
+FAILED backend/tests/integration/api/v2/test_market_contract_routes.py::test_production_paper_actions_fail_closed_until_verified_service
+FAILED backend/tests/integration/api/v2/test_market_contract_routes.py::test_paper_execution_policy_reports_production_fill_writer_artifact
+FAILED backend/tests/integration/api/v2/test_market_contract_routes.py::test_market_data_websocket_emits_read_only_contract_snapshot
+FAILED backend/tests/integration/api/v2/test_market_contract_routes.py::test_market_data_websocket_rejects_invalid_symbol_and_timeframe
+FAILED backend/tests/integration/api/v2/test_market_contract_routes.py::test_authenticated_trader_can_stage_fill_and_reject_cancel_local_paper_order_only
+22 failed, 97 passed in 55.67s

@@ -1,0 +1,40 @@
+{
+  "generated_utc": "2026-07-01T22:56:31Z",
+  "evidence_source": "v2:live_gate:state",
+  "live_trader_currently_down_or_blocked": true,
+  "places_real_order": false,
+  "places_test_order": false,
+  "can_change_leverage": false,
+  "can_change_margin_mode": false,
+  "live_gate": "blocked_human_only",
+  "live_trading_enabled": false,
+  "live_blocked": true,
+  "order_transport_submit_enabled": false,
+  "order_transport_write_guard_enabled": true,
+  "kill_switch_active": false,
+  "kill_switch_enabled": true,
+  "operator_approved": false,
+  "operator_approval_required": true,
+  "max_leverage": 1.0,
+  "leverage_mutation_allowed": false,
+  "margin_mutation_allowed": false,
+  "exchange_action_taken": false,
+  "live_gate_state_age_seconds": 1645176,
+  "live_gate_state_intentionally_stale": true,
+  "current_live_blocker": ["LIVE_GATE_NOT_ENABLED", "TRADER_EXECUTION_ENABLED_NOT_TRUE", "LIVE_SYMBOL_SETS_DO_NOT_MATCH_ACCEPTED_SYMBOLS", "ORDER_TRANSPORT_SUBMIT_NOT_ENABLED", "LIVE_GATE_RUNTIME_STATE_STALE"],
+  "live_canary_status": "DRY_RUN_FAKE_ADAPTER_ONLY",
+  "operator_required_actions": [
+    "Do NOT enable live trading",
+    "Investigate trainer feedback quarantine (741/741 rows quarantined)",
+    "Repair paper feedback loop",
+    "Paper trading performance must show positive expectancy",
+    "Only then consider operator live gate enable sequence"
+  ],
+  "remaining_engineering_blockers": [
+    "Live gate state refresh required",
+    "order_transport_submit_enabled must be set to true",
+    "Live symbols list must be configured",
+    "Trainer feedback loop must be repaired",
+    "Paper trading must demonstrate positive edge"
+  ]
+}

@@ -1,0 +1,23 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI BOT V2 trade management paper loop (paper-only, no exchange mutation)
+After=ai-bot-v2-orchestrator-arbitration-loop.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+Environment="V2_ADAPTIVE_HARD_VALIDATOR_SEED_PATH=%d/adaptive_hard_validator_seed"
+Environment="V2_ADAPTIVE_FEATURE_ARCHIVE_ROOT=/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive"
+LoadCredential=adaptive_hard_validator_seed:%h/.config/ai-bot-v2/credentials/adaptive-hard-validator/seed.cred
+ReadOnlyPaths="/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/durable_feature_snapshot_archive"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_trade_management_paper_loop --loop --interval-seconds 60'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_trade_management_paper_loop.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_trade_management_paper_loop.err
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,38 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "auto_seeded_claude_tasks": [],
+  "auto_seeded_task_count": 0,
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "COPIED_SCRIPT_V2_ADAPTER_GATE_READY",
+  "live_symbols": [],
+  "old_to_v2_mapping": {
+    "coinank:*": "v2:market:coinank:*",
+    "cursor:liq_bridge:*": "v2:liquidation:cursor:*",
+    "liq_levels:*": "v2:market:liquidation_levels:{symbol}",
+    "liquidations:events": "v2:liquidation:events:*",
+    "microfeat:*": "v2:market:microstructure:{symbol}:{tf}",
+    "ohlcv:list:*": "v2:market:ohlcv:{provider}:{symbol}:{tf}",
+    "orderbook:*": "v2:market:orderbook:{symbol}",
+    "prediction:*": "v2:prediction:{symbol}:{tf}",
+    "price:*": "v2:market:prices:{symbol}",
+    "signals:*": "v2:orchestrator:* / v2:signals:*",
+    "ta:*": "v2:technical_analysis:{symbol}:{tf}",
+    "unified_features:*": "v2:features:latest:{symbol}:{tf}"
+  },
+  "raw_old_redis_writer_count": 0,
+  "raw_old_redis_writers_present": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "rules_enforced": [
+    "If script writes old Redis directly and no V2 wrapper exists, do not start.",
+    "If V2 wrapper exists, V2 wrapper is the persistent surface (not the raw copy).",
+    "If not adapted yet, an immediate Claude implementation task is auto-seeded.",
+    "Raw old-Redis-writing scripts are NEVER started by Claude/Codex/Spark.",
+    "Old Redis current truth is NEVER used as V2 primary."
+  ],
+  "ts_est": "20260526T014445EST",
+  "ts_iso_est": "2026-05-26T01:50:04-0400",
+  "writes_exchange_orders": false
+}

@@ -1,0 +1,51 @@
+{
+  "ATR_stop_loss_total": 0.0,
+  "PF": 0.7401799269430068,
+  "active_accepted_fill_state_detected": true,
+  "active_lifecycle_state_detected": true,
+  "active_redis_ledger_detected": true,
+  "archive_dir": "raw_evidence/paper_session_archives/pre_recovery_reset_20260702T031938Z",
+  "archive_json_decodable_count": 247,
+  "archive_key_count": 247,
+  "archive_validated": true,
+  "bad_timeframes": [
+    {
+      "notional_weighted_expectancy_bps": -24.636585720977116,
+      "profit_factor": 0.5271731365281493,
+      "timeframe": "15m",
+      "trade_count": 16
+    },
+    {
+      "notional_weighted_expectancy_bps": -47.454541022341154,
+      "profit_factor": 0.34000331957923563,
+      "timeframe": "5m",
+      "trade_count": 26
+    }
+  ],
+  "closed_trades_count": 84,
+  "closed_trades_count_by_source": {
+    "file:paper_lifecycle_state.json": 42,
+    "redis:v2:paper:closed_trades": 42,
+    "redis:v2:paper:ledger": 42
+  },
+  "equity": 10000.71265672,
+  "generated_utc": "2026-07-02T03:19:43.772436Z",
+  "goal_id": "V2_OPERATOR_AUTHORIZED_PAPER_SESSION_RECOVERY_RESET_AND_CLEAN_RESTART",
+  "guardian_status": "A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED",
+  "hash_check_command": "cd raw_evidence/paper_session_archives/pre_recovery_reset_20260702T031938Z && sha256sum -c pre_recovery_reset_key_hashes.sha256",
+  "hash_check_passed": true,
+  "historical_outcome_counts_preserved": true,
+  "notional_weighted_expectancy": -9.945838504454715,
+  "open_positions_count": 0,
+  "open_positions_count_by_source": {
+    "file:paper_lifecycle_state.json": 0,
+    "redis:v2:paper:ledger": 0,
+    "redis:v2:paper:open_positions": 0
+  },
+  "paper_only": true,
+  "places_real_order": false,
+  "realized_pnl": -0.55909962,
+  "routes_to_live": false,
+  "schema_version": "pre_recovery_reset_summary_v2",
+  "unrealized_pnl": 1.27175635
+}

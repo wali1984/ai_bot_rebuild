@@ -1,0 +1,22 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "caps": {
+    "fail_closed_until_set": true,
+    "max_daily_loss_pct": "OPERATOR_REQUIRED",
+    "max_drawdown_pct": "OPERATOR_REQUIRED",
+    "max_position_notional_usd": "OPERATOR_REQUIRED",
+    "max_symbol_exposure_usd": "OPERATOR_REQUIRED",
+    "max_total_exposure_usd": "OPERATOR_REQUIRED",
+    "min_expected_edge_after_cost_bps": "OPERATOR_REQUIRED"
+  },
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_RISK_CAPS_STATUS_READY",
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "writes_exchange_orders": false
+}

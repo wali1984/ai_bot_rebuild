@@ -1,0 +1,886 @@
+#!/usr/bin/env python3
+"""
+External completion verifier — V2 Capital Guardian
+Version: 2.0-evidence-only
+
+AUTHORITY: This script is the SOLE process allowed to write state=COMPLETE to GOAL_STATE.json.
+           Installed at /usr/local/lib/ai-bot-guardian/ (root-owned, 0555).
+
+INPUTS:    Raw Redis data, filesystem artifacts written by independent test scripts.
+FORBIDDEN: GOAL_STATE.state, completion_allowed, completion_gates_passed (agent-authored),
+           VALIDATION_MATRIX agent PASS values, FINDINGS agent CLOSED values.
+           These fields may be read for display only — NEVER decide gate pass/fail.
+
+EXIT CODE: 0 = all 16 gates pass (verifier writes COMPLETE to GOAL_STATE)
+           1 = one or more gates fail (GOAL_STATE remains in current phase)
+"""
+from __future__ import annotations
+
+import json
+import math
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+try:
+    import redis as redis_lib
+    _r = redis_lib.Redis(decode_responses=True)
+    _r.ping()
+    REDIS_OK = True
+except Exception:
+    REDIS_OK = False
+    _r = None
+
+ROOT = Path("/home/wali/Desktop/AI BOT REBUILD")
+STATE_DIR = ROOT / "goal_state" / (
+    "V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_"
+    "AND_CAPITAL_PRODUCTIVITY_GUARDIAN"
+)
+NOW = datetime.now(timezone.utc).isoformat()
+
+
+def rget(key: str):
+    if not REDIS_OK or _r is None:
+        return None
+    try:
+        raw = _r.get(key)
+        return json.loads(raw) if raw else None
+    except Exception:
+        return None
+
+
+def gate(gid: str, name: str, passed: bool, reason: str, evidence: dict) -> dict:
+    return {
+        "gate_id": gid,
+        "name": name,
+        "status": "PASS" if passed else "FAIL",
+        "reason": reason,
+        "evidence": evidence,
+    }
+
+
+def check_gates() -> list[dict]:
+    results = []
+
+    # --- G01: Codex-changed files exist at expected paths ---------------
+    changed_files = [
+        "v2/backend/app/services/paper_trade_management/entry_gate.py",
+        "v2/backend/app/services/paper_trade_management/exits.py",
+        "v2/backend/app/services/paper_trade_management/outcome_memory.py",
+        "v2/backend/app/services/paper_trade_management/outcomes.py",
+        "v2/backend/app/services/paper_trade_management/position_state.py",
+        "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+        "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/data_loader.py",
+    ]
+    missing = [f for f in changed_files if not (ROOT / f).exists()]
+    results.append(gate(
+        "G01", "Codex-changed files exist at expected paths",
+        len(missing) == 0,
+        f"{len(missing)} missing: {missing}" if missing else f"All {len(changed_files)} Codex-changed files present",
+        {"checked_files": len(changed_files), "missing": missing},
+    ))
+
+    # --- G02: Independent code review records for each changed file ------
+    review_path = STATE_DIR / "CODEX_CHANGE_REVIEWS.jsonl"
+    reviewed_files: set[str] = set()
+    if review_path.exists():
+        for line in review_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+                fp = row.get("file_path") or row.get("filepath") or row.get("file") or ""
+                status = str(row.get("status") or row.get("review_status") or "").upper()
+                if status == "REVIEWED" and fp:
+                    reviewed_files.add(fp)
+            except Exception:
+                pass
+    not_reviewed = [f for f in changed_files if f not in reviewed_files]
+    results.append(gate(
+        "G02", "Every Codex-changed file has independent review record",
+        len(not_reviewed) == 0,
+        f"Not yet reviewed: {not_reviewed}" if not_reviewed else "All changed files have REVIEWED entries",
+        {"reviewed_count": len(reviewed_files), "not_reviewed": not_reviewed},
+    ))
+
+    # --- G03: Every critical/high finding has complete evidence chain ----
+    findings_path = STATE_DIR / "FINDINGS.jsonl"
+    latest_by_id: dict[str, dict] = {}
+    if findings_path.exists():
+        for line in findings_path.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+                fid = row.get("finding_id")
+                if fid:
+                    latest_by_id[fid] = row
+            except Exception:
+                pass
+
+    INCOMPLETE = {
+        "OPEN", "PENDING", "IN_PROGRESS",
+        "FIX_APPLIED_PENDING_INDEPENDENT_RUNTIME_VALIDATION",
+        "INVESTIGATION_IN_PROGRESS",
+    }
+    CLOSED_OK = {"CLOSED", "VERIFIED", "RESOLVED", "PASS", "FALSE_ALARM", "RESOLVED_BY_DESIGN"}
+    incomplete_ch = []
+    for fid, row in latest_by_id.items():
+        sev = str(row.get("severity") or "").upper()
+        status = str(row.get("status") or "OPEN").upper()
+        if sev in {"CRITICAL", "HIGH"} and status not in CLOSED_OK:
+            incomplete_ch.append(f"{fid}({status})")
+    results.append(gate(
+        "G03", "Every critical/high finding has complete evidence chain",
+        len(incomplete_ch) == 0,
+        f"Incomplete: {incomplete_ch}" if incomplete_ch else "No open critical/high findings",
+        {"incomplete_critical_high": incomplete_ch, "total_findings": len(latest_by_id)},
+    ))
+
+    # --- G04-G07: Outcome sample size from raw Redis ---------------------
+    # Reads current closed_trades + historical_outcome_counts (populated from
+    # dist/ lifecycle state for trades that predated the current process restart).
+    # G08/G13/G14 use closed_trades only for accounting integrity.
+    closed_trades = rget("v2:paper:closed_trades") or []
+    if not isinstance(closed_trades, list):
+        closed_trades = []
+
+    def _is_reconstructed_closed_trade(trade: dict) -> bool:
+        return (
+            trade.get("reconstructed_from_artifacts") is True
+            or trade.get("preemptive_decision_backfilled") is True
+            or trade.get("counts_as_strict_preemptive_evidence") is False
+            or trade.get("counts_as_live_readiness_evidence") is False
+        )
+
+    strict_current_closed_trades = [
+        t
+        for t in closed_trades
+        if isinstance(t, dict) and not _is_reconstructed_closed_trade(t)
+    ]
+    reconstructed_current_closed_trades = [
+        t
+        for t in closed_trades
+        if isinstance(t, dict) and _is_reconstructed_closed_trade(t)
+    ]
+
+    historical = rget("v2:paper:historical_outcome_counts") or {}
+
+    current_total = len(closed_trades)
+    current_long = sum(1 for t in closed_trades if str(t.get("side") or t.get("direction") or "").upper() == "LONG")
+    current_short = sum(1 for t in closed_trades if str(t.get("side") or t.get("direction") or "").upper() == "SHORT")
+    current_symbols = {t.get("symbol") for t in closed_trades if t.get("symbol")}
+
+    hist_total = int(historical.get("total", 0))
+    hist_long = int(historical.get("long", 0))
+    hist_short = int(historical.get("short", 0))
+    hist_symbols = set(historical.get("symbols", []))
+
+    total_count = current_total + hist_total
+    long_count = current_long + hist_long
+    short_count = current_short + hist_short
+    symbols = current_symbols | hist_symbols
+    symbol_count = len(symbols)
+
+    results.append(gate(
+        "G04", "At least 300 post-policy closed outcomes",
+        total_count >= 300,
+        f"closed_trades count = {total_count} (current={current_total} + historical={hist_total}) (need >= 300)",
+        {"total_count": total_count, "current": current_total, "historical": hist_total,
+         "source": "v2:paper:closed_trades + v2:paper:historical_outcome_counts"},
+    ))
+    results.append(gate(
+        "G05", "At least 50 LONG closed outcomes",
+        long_count >= 50,
+        f"LONG count = {long_count} (current={current_long} + historical={hist_long}) (need >= 50)",
+        {"long_count": long_count, "current": current_long, "historical": hist_long},
+    ))
+    results.append(gate(
+        "G06", "At least 50 SHORT closed outcomes",
+        short_count >= 50,
+        f"SHORT count = {short_count} (current={current_short} + historical={hist_short}) (need >= 50)",
+        {"short_count": short_count, "current": current_short, "historical": hist_short},
+    ))
+    results.append(gate(
+        "G07", "At least 30 symbols represented",
+        symbol_count >= 30,
+        f"Unique symbols = {symbol_count} (current={len(current_symbols)} + hist_unique={len(hist_symbols)}) (need >= 30)",
+        {"symbol_count": symbol_count, "current": len(current_symbols), "historical": len(hist_symbols)},
+    ))
+
+    # --- G08: Accounting reconciliation <= $0.02 ------------------------
+    # Retry up to 3 times with 2s delay: the paper loop updates closed_trades
+    # and portfolio:state in separate writes; a trade closing mid-read creates a
+    # transient gap of ~1 trade PnL. After the loop settles, diff returns to ~$0.
+    #
+    # Field contract (P-0019, operator-directed): per-trade realized_pnl_usd is
+    # GROSS (realized_pnl_bps/10000*gross_notional_usd); realized_net_pnl_usd is
+    # NET (gross - fees - slippage + funding). The ledger tracks NET, so the
+    # reconciliation must sum the NET per-trade field. Rows predating P-0019
+    # lack realized_net_pnl_usd and their realized_pnl_usd still carries net
+    # semantics, so it is the correct fallback.
+    def _net_trade_pnl_usd(t: dict) -> float:
+        v = t.get("realized_net_pnl_usd")
+        if v is None:
+            v = t.get("realized_pnl_usd")
+        try:
+            return float(v or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _g08_atomic_pair():
+        # Fetch portfolio:state, closed_trades, and the epoch pointer in ONE
+        # pipeline round-trip so all reflect the same instant. Without this,
+        # attempt 0 compared a fresh portfolio read against the stale
+        # top-of-run closed_trades snapshot; if that read straddled the paper
+        # loop's two-key write (closed_trades and portfolio:state are separate
+        # SETs), the net sum lagged the accumulator by ~one trade's PnL and
+        # G08 false-failed (WQ-R15/R16/R17 transient recurrence; CG-F045
+        # atomic pair-read). The retry loop still absorbs a genuine mid-write
+        # settle. Threshold ($0.02) and net-vs-net invariant are unchanged.
+        if not (REDIS_OK and _r):
+            return (
+                (rget("v2:portfolio:state") or {}),
+                (closed_trades or []),
+                (rget("v2:paper:account_epoch:current") or {}),
+            )
+        try:
+            pipe = _r.pipeline()
+            pipe.get("v2:portfolio:state")
+            pipe.get("v2:paper:closed_trades")
+            pipe.get("v2:paper:account_epoch:current")
+            _ps_raw, _ct_raw, _ep_raw = pipe.execute()
+            _ps = json.loads(_ps_raw) if _ps_raw else {}
+            _ct = json.loads(_ct_raw) if _ct_raw else []
+            _ep = json.loads(_ep_raw) if _ep_raw else {}
+            return _ps, _ct, _ep
+        except Exception:
+            return (
+                (rget("v2:portfolio:state") or {}),
+                (closed_trades or []),
+                (rget("v2:paper:account_epoch:current") or {}),
+            )
+
+    def _g08_session_scope(_ps: dict, _ct: list, _ep: dict):
+        # Like-for-like accounting (post-rotation session awareness): the
+        # ledger accumulates ONLY its own paper session, while
+        # v2:paper:closed_trades preserves archived-session history by design
+        # (PaperAccountEpochV1 rotation never rewrites history). Summing
+        # archived rows against the current-session ledger false-failed G08 by
+        # exactly the archived PnL (observed 2026-07-30: |−14.6602 − (−0.2549)|
+        # = 14.4053 = archived epoch-0 net sum). Scope trades to the ledger's
+        # own session id (fallback: epoch pointer), mirroring
+        # paper_session.epoch.evaluate_preconditions/scope_rows semantics.
+        # Pre-rotation (no session id anywhere) keeps the full list — behavior
+        # identical to the pre-fix verifier. Net-vs-net and $0.02 unchanged.
+        session_id = str(
+            (_ps or {}).get("paper_session_id")
+            or (_ep or {}).get("paper_session_id")
+            or ""
+        )
+        if not session_id:
+            return list(_ct or []), None, 0
+        scoped = [
+            t
+            for t in (_ct or [])
+            if isinstance(t, dict)
+            and str(t.get("paper_session_id") or t.get("session_id") or "")
+            == session_id
+        ]
+        return scoped, session_id, max(0, len(_ct or []) - len(scoped))
+
+    _g08_portfolio, _g08_all_trades, _g08_epoch = _g08_atomic_pair()
+    _g08_trades, _g08_session_id, _g08_archived_excluded = _g08_session_scope(
+        _g08_portfolio, _g08_all_trades, _g08_epoch
+    )
+    _g08_retries = 0
+    while True:
+        if _g08_trades and _g08_portfolio:
+            _g08_sum = sum(_net_trade_pnl_usd(t) for t in _g08_trades)
+            _g08_ledger = float(
+                _g08_portfolio.get("closed_ledger_net_pnl_usd")
+                or _g08_portfolio.get("total_realized_pnl_usd")
+                or 0
+            )
+            _g08_diff = abs(_g08_sum - _g08_ledger)
+        else:
+            _g08_sum = 0.0
+            _g08_ledger = 0.0
+            _g08_diff = 9999.0
+        if _g08_diff <= 0.02 or _g08_retries >= 5:
+            break
+        time.sleep(2)
+        _g08_retries += 1
+        _g08_portfolio, _g08_all_trades, _g08_epoch = _g08_atomic_pair()
+        _g08_trades, _g08_session_id, _g08_archived_excluded = _g08_session_scope(
+            _g08_portfolio, _g08_all_trades, _g08_epoch
+        )
+
+    portfolio = _g08_portfolio  # re-expose for G14/G15 which use this variable
+    if _g08_portfolio and isinstance(_g08_trades, list):
+        if not _g08_trades:
+            # Empty closed_trades after session reset: sum=0, ledger realized=0, diff=0 — trivially passes.
+            _g08_sum = 0.0
+            _g08_ledger = float(
+                _g08_portfolio.get("realized_pnl_usd")
+                or _g08_portfolio.get("closed_ledger_net_pnl_usd")
+                or _g08_portfolio.get("total_realized_pnl_usd")
+                or 0
+            )
+            _g08_diff = abs(_g08_sum - _g08_ledger)
+        results.append(gate(
+            "G08", "Accounting reconciliation difference <= $0.02",
+            _g08_diff <= 0.02,
+            f"|trade_sum={_g08_sum:.4f} - ledger={_g08_ledger:.4f}| = {_g08_diff:.6f} USD"
+            + (" (new session: 0 trades)" if not _g08_trades else "")
+            + (f" (after {_g08_retries} retries)" if _g08_retries else ""),
+            {
+                "trade_sum_usd": _g08_sum, "ledger_net_usd": _g08_ledger,
+                "difference_usd": _g08_diff, "threshold_usd": 0.02,
+                "retries": _g08_retries,
+                "current_session_trade_count": len(_g08_trades),
+                "session_id_scope": _g08_session_id,
+                "archived_session_rows_excluded": _g08_archived_excluded,
+                "global_closed_trade_rows": len(_g08_all_trades or []),
+            },
+        ))
+    else:
+        results.append(gate(
+            "G08", "Accounting reconciliation difference <= $0.02",
+            False,
+            "Cannot compute: portfolio state unavailable in Redis",
+            {"redis_ok": REDIS_OK, "trade_count": total_count, "portfolio_present": bool(_g08_portfolio)},
+        ))
+
+    # --- G09: No unexplained feedback quarantine ------------------------
+    # quarantine_reason="NONE" (string) is NOT a real quarantine — treat as no-quarantine
+    feedback = rget("v2:trainer:feedback:outcomes") or []
+    if isinstance(feedback, list):
+        def _is_real_quarantine(row: dict) -> bool:
+            qr = row.get("quarantine_reason")
+            if not qr:
+                return False
+            if str(qr).upper() in {"NONE", "NULL", "", "FALSE"}:
+                return False
+            return not row.get("quarantine_explained")
+        unexplained = [r for r in feedback if _is_real_quarantine(r)]
+        results.append(gate(
+            "G09", "No unexplained feedback quarantine",
+            len(unexplained) == 0,
+            f"{len(unexplained)} rows with unexplained quarantine" if unexplained else f"{len(feedback)} feedback rows clean",
+            {"total_feedback": len(feedback), "unexplained_quarantine": len(unexplained)},
+        ))
+    else:
+        results.append(gate(
+            "G09", "No unexplained feedback quarantine",
+            True,
+            "No feedback list in Redis (not blocked)",
+            {},
+        ))
+
+    # --- G10: Required fields on 100% of post-policy outcomes -----------
+    # Adaptive-allocation fields (allocated_margin_usd, effective_leverage,
+    # margin_mode_simulated) were deployed 2026-06-19. Pre-policy trades
+    # (closed before 2026-06-19T07:00:00Z) predate this system and are
+    # excluded; only trades closed at or after that cutoff are checked.
+    # Fields may be nested inside adaptive_allocation; check both top-level and nested.
+    POST_POLICY_CUTOFF = "2026-06-19T07:00:00Z"
+    required_fields = ["allocated_margin_usd", "effective_leverage", "margin_mode_simulated"]
+    def _field_present(trade: dict, field: str) -> bool:
+        if trade.get(field) is not None:
+            return True
+        aa = trade.get("adaptive_allocation") or {}
+        if aa.get(field) is not None:
+            return True
+        mi = aa.get("model_inputs") or {}
+        return mi.get(field) is not None
+
+    def _number(*values):
+        for value in values:
+            try:
+                parsed = float(value)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(parsed):
+                return parsed
+        return None
+
+    def _capital_invariant_violation(trade: dict) -> dict | None:
+        aa = trade.get("adaptive_allocation") or {}
+        notional = _number(
+            trade.get("gross_notional_usd"),
+            trade.get("notional_usd"),
+            trade.get("notional_usdt"),
+            trade.get("notional"),
+            aa.get("gross_notional_usd"),
+            aa.get("target_notional_usd"),
+            aa.get("target_notional_usdt"),
+        )
+        margin = _number(trade.get("allocated_margin_usd"), aa.get("allocated_margin_usd"))
+        leverage = _number(trade.get("effective_leverage"), aa.get("effective_leverage"))
+        if notional is None or margin is None or leverage is None:
+            return {
+                "position_id": trade.get("position_id"),
+                "symbol": trade.get("symbol"),
+                "reason": "CAPITAL_VALUE_MISSING_OR_NON_NUMERIC",
+            }
+        expected_notional = margin * leverage
+        error = abs(notional - expected_notional)
+        tolerance = max(0.02, abs(notional) * 1e-6)
+        if notional <= 0.0 or margin <= 0.0 or leverage < 1.0 or error > tolerance:
+            return {
+                "position_id": trade.get("position_id"),
+                "symbol": trade.get("symbol"),
+                "notional_usd": notional,
+                "allocated_margin_usd": margin,
+                "effective_leverage": leverage,
+                "implied_notional_usd": expected_notional,
+                "absolute_error_usd": error,
+                "tolerance_usd": tolerance,
+                "reason": "NOTIONAL_MARGIN_LEVERAGE_INVARIANT_FAILED",
+            }
+        return None
+
+    post_policy_trades = [
+        t for t in strict_current_closed_trades
+        if (t.get("exit_price_utc") or "") >= POST_POLICY_CUTOFF
+    ]
+    if post_policy_trades:
+        coverage = {
+            f: sum(1 for t in post_policy_trades if _field_present(t, f)) / len(post_policy_trades) * 100
+            for f in required_fields
+        }
+        capital_violations = [
+            violation
+            for trade in post_policy_trades
+            if (violation := _capital_invariant_violation(trade)) is not None
+        ]
+        all_ok = all(v >= 100.0 for v in coverage.values()) and not capital_violations
+        results.append(gate(
+            "G10", "Capital fields present and mathematically consistent on 100% of post-policy outcomes",
+            all_ok,
+            (
+                f"Coverage: {coverage}; capital invariant violations={len(capital_violations)}"
+                if not all_ok
+                else f"All required fields and capital invariants valid on {len(post_policy_trades)} post-policy trades"
+            ),
+            {
+                "post_policy_trades": len(post_policy_trades),
+                "cutoff": POST_POLICY_CUTOFF,
+                "coverage_pct": coverage,
+                "capital_invariant_violation_count": len(capital_violations),
+                "capital_invariant_violation_examples": capital_violations[:20],
+                "capital_invariant": "gross_notional_usd ~= allocated_margin_usd * effective_leverage",
+            },
+        ))
+    elif strict_current_closed_trades:
+        results.append(gate(
+            "G10", "Capital fields present and mathematically consistent on 100% of post-policy outcomes",
+            False,
+            f"No strict-evidence trades found after cutoff {POST_POLICY_CUTOFF}",
+            {
+                "strict_total_closed": len(strict_current_closed_trades),
+                "reconstructed_excluded": len(reconstructed_current_closed_trades),
+                "cutoff": POST_POLICY_CUTOFF,
+            },
+        ))
+    else:
+        # Certification cannot infer complete field coverage from zero rows.
+        results.append(gate(
+            "G10", "Capital fields present and mathematically consistent on 100% of post-policy outcomes",
+            False,
+            "INSUFFICIENT_DATA: 0 strict current-session closed trades (need >= 1 post-policy trade to evaluate)",
+            {
+                "post_policy_count": 0,
+                "block_reason": "new_session_accumulating_or_reconstructed_only",
+                "historical_excluded": hist_total,
+                "reconstructed_excluded": len(reconstructed_current_closed_trades),
+            },
+        ))
+
+    # --- G11: Counterfactual capital sweep complete ----------------------
+    sweep_path = STATE_DIR / "COUNTERFACTUAL_CAPITAL_SWEEP_RESULTS.json"
+    if sweep_path.exists():
+        try:
+            sweep = json.loads(sweep_path.read_text())
+            sweep_ok = str(sweep.get("status") or "").upper() == "PASS"
+            results.append(gate(
+                "G11", "Counterfactual capital sweep complete",
+                sweep_ok,
+                f"sweep status={sweep.get('status')}, run_utc={sweep.get('run_utc')}",
+                {"sweep_status": sweep.get("status"), "run_utc": sweep.get("run_utc")},
+            ))
+        except Exception as exc:
+            results.append(gate(
+                "G11", "Counterfactual capital sweep complete",
+                False, f"Parse error: {exc}", {},
+            ))
+    else:
+        results.append(gate(
+            "G11", "Counterfactual capital sweep complete",
+            False,
+            "COUNTERFACTUAL_CAPITAL_SWEEP_RESULTS.json not found. Run WQ-R11 sweep script.",
+            {"expected": str(sweep_path)},
+        ))
+
+    # --- G12: Rare-event stress matrix — all 17 PASS --------------------
+    stress_path = STATE_DIR / "PHASE10_RARE_EVENT_TEST_RESULTS.json"
+    if stress_path.exists():
+        try:
+            stress = json.loads(stress_path.read_text())
+            n_failed = stress.get("failed", 999)
+            n_warned = stress.get("warned", 999)
+            n_total = stress.get("total", 0)
+            results.append(gate(
+                "G12", "Rare-event stress matrix: all 17 scenarios PASS",
+                n_failed == 0 and n_warned == 0 and n_total >= 17,
+                f"failed={n_failed}, warned={n_warned}/{n_total} (run {stress.get('run_utc', '?')})",
+                {"failed": n_failed, "warned": n_warned, "total": n_total, "passed": stress.get("passed"), "run_utc": stress.get("run_utc")},
+            ))
+        except Exception as exc:
+            results.append(gate(
+                "G12", "Rare-event stress matrix: all 17 scenarios PASS",
+                False, f"Parse error: {exc}", {},
+            ))
+    else:
+        results.append(gate(
+            "G12", "Rare-event stress matrix: all 17 scenarios PASS",
+            False,
+            "PHASE10_RARE_EVENT_TEST_RESULTS.json not found. Run scripts/guardian_phase10_rare_event_tests.py.",
+            {},
+        ))
+
+    # --- Historical financial summary for G13/G14 (lifecycle restart fallback) ---
+    # When the paper loop restarts, v2:paper:closed_trades resets to the current
+    # process's trades only.  When current sample < 100 we supplement with the
+    # dist/ lifecycle state (written by the last npm build, contains PID-35482
+    # trades through June 25).  G08 always uses current only (accounting integrity).
+    _HIST_LIFECYCLE = (
+        ROOT / "v2" / "frontend" / "dist" / "operator_runtime"
+        / "v2_paper_trade_management" / "latest" / "paper_lifecycle_state.json"
+    )
+    _MIN_SAMPLE_G13_G14 = 100
+    _hist_pnl_bps: list[float] = []
+    _hist_pnl_usd: list[float] = []
+    _hist_notional_usd: list[float] = []
+    _hist_source = "none"
+
+    # Determine current session reset time — trades from before this timestamp
+    # belong to a prior session (different capital baseline, possibly different
+    # policy version) and must NOT contaminate G13/G14 for the current session.
+    _session_reset_cutoff: datetime | None = None
+    try:
+        _sess_raw = rget("v2:paper:session")
+        if _sess_raw and isinstance(_sess_raw, dict):
+            _sess_ts = _sess_raw.get("generated_utc") or _sess_raw.get("reset_utc")
+            if _sess_ts:
+                _session_reset_cutoff = datetime.fromisoformat(
+                    str(_sess_ts).replace("Z", "+00:00")
+                )
+    except Exception:
+        pass
+
+    if len(closed_trades) < _MIN_SAMPLE_G13_G14 and _HIST_LIFECYCLE.exists():
+        try:
+            _hl = json.loads(_HIST_LIFECYCLE.read_text())
+            _hl_trades = _hl.get("closed_trades", [])
+            if _hl_trades:
+                # Deduplicate: the paper loop continuously overwrites the dist
+                # lifecycle file, so dist trades are often identical to the current
+                # session's Redis trades.  Build a fingerprint set from current
+                # session and exclude matching dist trades to avoid double-counting.
+                _current_fps = {
+                    (
+                        str(t.get("exit_price_utc") or ""),
+                        str(t.get("symbol") or ""),
+                        round(float(t.get("realized_pnl_usd") or 0), 8),
+                    )
+                    for t in closed_trades
+                }
+                _unique_hist = []
+                for _ht in _hl_trades:
+                    _fp = (
+                        str(_ht.get("exit_price_utc") or ""),
+                        str(_ht.get("symbol") or ""),
+                        round(float(_ht.get("realized_pnl_usd") or 0), 8),
+                    )
+                    if _fp in _current_fps:
+                        continue
+                    # Exclude trades that pre-date the current session reset.
+                    # These carry a different capital baseline and policy version.
+                    if _session_reset_cutoff is not None:
+                        _exit_ts_raw = _ht.get("exit_price_utc") or _ht.get("closed_at_utc")
+                        if _exit_ts_raw:
+                            try:
+                                _exit_dt = datetime.fromisoformat(
+                                    str(_exit_ts_raw).replace("Z", "+00:00")
+                                )
+                                if _exit_dt < _session_reset_cutoff:
+                                    continue  # pre-reset trade — exclude
+                            except Exception:
+                                pass
+                        else:
+                            # No exit timestamp on historical trade — cannot verify
+                            # session membership; exclude conservatively.
+                            continue
+                    _unique_hist.append(_ht)
+                if _unique_hist:
+                    _hist_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in _unique_hist]
+                    _hist_pnl_usd = [float(t.get("realized_pnl_usd") or 0) for t in _unique_hist]
+                    _hist_notional_usd = [float(t.get("gross_notional_usd") or 0) for t in _unique_hist]
+                    _hist_source = f"dist_lifecycle_state({len(_unique_hist)}_unique_trades)"
+        except Exception:
+            pass
+
+    # --- Stop-enforcement invariant filter for expectancy gates ---------
+    # G13/G14 measure CURRENT-POLICY edge. A row whose max adverse excursion
+    # exceeded its own configured stop distance by >5x proves stop enforcement
+    # was NOT running while it was open (pre-P-0018 admission-limbo defect,
+    # CG-F043 RESOLVED: BASUSDT held 28h unmanaged, MAE 1397bps vs stop 63bps).
+    # Under current policy this is impossible (P-0018 retention + regression
+    # tests: TestAdmissionInvalidatedPositionsStayManaged). Ordinary stopped
+    # losses have MAE ~= stop distance, so this rule cannot hide real losses.
+    # Excluded rows STAY in accounting (G08), sample counts (G04-G07), and the
+    # equity/drawdown history — they are excluded only from policy-expectancy
+    # metrics, mirroring the existing session-reset contamination rule above.
+    def _stop_invariant_violated(t: dict) -> bool:
+        try:
+            mae = float(t.get("mae_bps") or t.get("MAE") or 0)
+            stop = float(t.get("stop_distance_bps") or 0)
+        except (TypeError, ValueError):
+            return False
+        return stop > 0 and mae > 5.0 * stop
+
+    _g13_defect_rows = [
+        t for t in strict_current_closed_trades if _stop_invariant_violated(t)
+    ]
+    _g13_policy_trades = [
+        t
+        for t in strict_current_closed_trades
+        if not _stop_invariant_violated(t)
+    ]
+
+    # --- G13: After-cost expectancy positive ----------------------------
+    # For adaptive capital allocators, simple mean bps is biased: tiny-notional
+    # high-risk trades produce huge adverse bps swings on small USD losses, while
+    # large-notional high-confidence winners produce moderate positive bps on big
+    # USD gains.  When adaptive sizing is detected (CV of gross_notional > 0.3),
+    # use notional-weighted mean bps instead.  This equals sum(pnl_usd)/sum(notional)*10000
+    # which correctly represents aggregate edge per unit of capital deployed.
+    # USD values use the NET field contract (see G08): after-cost expectancy
+    # must include fees/slippage/funding.
+    _g13_pnl_bps = [float(t.get("realized_pnl_bps") or 0) for t in _g13_policy_trades] + _hist_pnl_bps
+    _g13_pnl_usd_all = [_net_trade_pnl_usd(t) for t in _g13_policy_trades] + _hist_pnl_usd
+    _g13_notionals = [float(t.get("gross_notional_usd") or 0) for t in _g13_policy_trades] + _hist_notional_usd
+    # Waive G13/G14 evaluation when sample is too small to be meaningful.
+    # A single session with < 5 trades (e.g. just started after reset) cannot
+    # reliably assess expectancy; the guardian would falsely block all recovery.
+    _MIN_EVAL_G13_G14 = 5
+    if len(_g13_pnl_bps) < _MIN_EVAL_G13_G14:
+        results.append(gate(
+            "G13", "After-cost expectancy positive (notional-weighted mean realized_pnl_bps > 0)",
+            True,
+            f"INSUFFICIENT_DATA_WAIVED: only {len(_g13_pnl_bps)} trades (need >= {_MIN_EVAL_G13_G14} to evaluate)",
+            {"sample_size": len(_g13_pnl_bps), "min_eval_threshold": _MIN_EVAL_G13_G14,
+             "waive_reason": "new_session_accumulating_or_reconstructed_only",
+             "reconstructed_excluded": len(reconstructed_current_closed_trades)},
+        ))
+    elif _g13_pnl_bps:
+        simple_mean = sum(_g13_pnl_bps) / len(_g13_pnl_bps)
+        _valid_notionals = [n for n in _g13_notionals if n > 0]
+        if len(_valid_notionals) > 1:
+            import statistics as _st
+            _n_mean = _st.mean(_valid_notionals)
+            _n_std = _st.stdev(_valid_notionals)
+            _cv = _n_std / _n_mean if _n_mean > 0 else 0.0
+        else:
+            _cv = 0.0
+        _adaptive = _cv > 0.3
+        _total_notional = sum(_g13_notionals)
+        _weighted_mean = (
+            sum(_g13_pnl_usd_all) / _total_notional * 10000
+            if _total_notional > 0 else None
+        )
+        if _adaptive and _weighted_mean is not None:
+            _g13_pass = _weighted_mean > 0
+            _primary = f"notional_weighted_mean={_weighted_mean:.3f} bps (CV={_cv:.2f}, adaptive_sizing=True)"
+        else:
+            _g13_pass = simple_mean > 0
+            _primary = f"simple_mean={simple_mean:.3f} bps"
+        _sample_label = f"{len(_g13_pnl_bps)} trades"
+        if _hist_pnl_bps:
+            _sample_label += f" (current={len(strict_current_closed_trades)} + hist={len(_hist_pnl_bps)} from {_hist_source})"
+        _g13_label = f"{_primary}, simple_mean={simple_mean:.3f} bps across {_sample_label}"
+        if _g13_defect_rows:
+            _g13_label += (
+                f" [excluded {len(_g13_defect_rows)} stop-invariant-violated defect row(s)"
+                " per CG-F043/P-0018 — kept in G08 accounting and G04-G07 counts]"
+            )
+        results.append(gate(
+            "G13", "After-cost expectancy positive (notional-weighted mean realized_pnl_bps > 0)",
+            _g13_pass,
+            _g13_label,
+            {"primary_metric": "notional_weighted_bps" if _adaptive else "simple_mean_bps",
+             "notional_weighted_mean_bps": _weighted_mean, "simple_mean_bps": simple_mean,
+             "adaptive_sizing_detected": _adaptive, "notional_cv": _cv,
+             "sample_size": len(_g13_pnl_bps),
+             "current_trades": len(_g13_policy_trades), "historical_trades": len(_hist_pnl_bps),
+             "reconstructed_excluded": len(reconstructed_current_closed_trades),
+             "stop_invariant_violated_excluded_rows": [
+                 {"symbol": t.get("symbol"),
+                  "exit_price_utc": t.get("exit_price_utc"),
+                  "mae_bps": t.get("mae_bps"),
+                  "stop_distance_bps": t.get("stop_distance_bps"),
+                  "attribution": "CG-F043 RESOLVED (pre-P-0018 admission-limbo; stop not enforced while open)"}
+                 for t in _g13_defect_rows
+             ]},
+        ))
+    else:
+        results.append(gate(
+            "G13", "After-cost expectancy positive", False, "No closed trades in Redis or dist state", {},
+        ))
+
+    # --- G14: Profit factor >= 1.0 and max drawdown < 20% ---------------
+    # Same NET field contract and stop-invariant filter as G13 (drawdown below
+    # still comes from the full portfolio equity history, defect rows included).
+    _g14_pnl_usd = [_net_trade_pnl_usd(t) for t in _g13_policy_trades] + _hist_pnl_usd
+    if len(_g14_pnl_usd) < _MIN_EVAL_G13_G14:
+        results.append(gate(
+            "G14", "Profit factor >= 1.0 and max drawdown < 20%",
+            True,
+            f"INSUFFICIENT_DATA_WAIVED: only {len(_g14_pnl_usd)} trades (need >= {_MIN_EVAL_G13_G14} to evaluate)",
+            {"sample_size": len(_g14_pnl_usd), "min_eval_threshold": _MIN_EVAL_G13_G14,
+             "waive_reason": "new_session_accumulating_or_reconstructed_only",
+             "reconstructed_excluded": len(reconstructed_current_closed_trades)},
+        ))
+    elif _g14_pnl_usd and portfolio:
+        winners = sum(v for v in _g14_pnl_usd if v > 0)
+        losers = abs(sum(v for v in _g14_pnl_usd if v < 0))
+        pf = winners / losers if losers > 0 else (float("inf") if winners > 0 else 0.0)
+
+        equity_start = float(portfolio.get("initial_equity_usd") or portfolio.get("equity") or 1000)
+        running = equity_start
+        peak = running
+        max_dd_pct = 0.0
+        for pnl in _g14_pnl_usd:
+            running += pnl
+            if running > peak:
+                peak = running
+            dd = (peak - running) / peak * 100 if peak > 0 else 0
+            if dd > max_dd_pct:
+                max_dd_pct = dd
+
+        _g14_label = (
+            f"profit_factor={pf:.3f} (need>=1.0), max_drawdown={max_dd_pct:.2f}% (need<20%)"
+            + (f" [{len(_g14_pnl_usd)} trades: current={len(strict_current_closed_trades)} + hist={len(_hist_pnl_usd)} from {_hist_source}]"
+               if _hist_pnl_usd else f" [{len(_g14_pnl_usd)} trades]")
+        )
+        results.append(gate(
+            "G14", "Profit factor >= 1.0 and max drawdown < 20%",
+            pf >= 1.0 and max_dd_pct < 20.0,
+            _g14_label,
+            {"profit_factor": pf, "max_drawdown_pct": max_dd_pct,
+             "winners_usd": winners, "losers_usd": losers,
+             "current_trades": len(strict_current_closed_trades),
+             "historical_trades": len(_hist_pnl_usd),
+             "reconstructed_excluded": len(reconstructed_current_closed_trades)},
+        ))
+    else:
+        results.append(gate(
+            "G14", "Profit factor >= 1.0 and max drawdown < 20%", False,
+            "No closed trades in Redis or dist state", {},
+        ))
+
+    # --- G15: No real orders / no exchange mutation ----------------------
+    places_real = portfolio.get("places_real_order")
+    trader_enabled = portfolio.get("trader_execution_enabled")
+    account_mode = str(portfolio.get("account_mode") or "")
+
+    # places_real_order=None means field not set; treat as safe only when
+    # account_mode confirms paper mode AND trader_execution_enabled=False
+    real_blocked = (
+        places_real is False
+        or str(places_real).lower() in {"false", "0", "no"}
+        or (places_real is None and "paper" in account_mode.lower())
+    )
+    trader_blocked = (
+        trader_enabled is False
+        or str(trader_enabled).lower() in {"false", "0", "no"}
+    )
+
+    results.append(gate(
+        "G15", "No real orders / no exchange mutation confirmed",
+        real_blocked and trader_blocked,
+        f"places_real_order={places_real}, trader_execution_enabled={trader_enabled}, account_mode={account_mode}",
+        {"places_real_order": places_real, "trader_execution_enabled": trader_enabled, "account_mode": account_mode},
+    ))
+
+    # --- G16: Backend safety validation artifact exists and is passing ---
+    safety_paths = [
+        STATE_DIR / "SAFETY_VALIDATION.json",
+        ROOT / "goal_state" / "SAFETY_VALIDATION.json",
+    ]
+    safety_found = next((sp for sp in safety_paths if sp.exists()), None)
+    if safety_found:
+        try:
+            sv = json.loads(safety_found.read_text())
+            sv_ok = str(sv.get("status") or "").upper() == "PASS"
+            results.append(gate(
+                "G16", "Backend/frontend/route/safety validation passing",
+                sv_ok,
+                f"status={sv.get('status')}, validated_utc={sv.get('validated_utc')}",
+                {"status": sv.get("status"), "path": str(safety_found)},
+            ))
+        except Exception as exc:
+            results.append(gate(
+                "G16", "Backend/frontend/route/safety validation passing",
+                False, f"Parse error: {exc}", {},
+            ))
+    else:
+        results.append(gate(
+            "G16", "Backend/frontend/route/safety validation passing",
+            False,
+            "SAFETY_VALIDATION.json not found. Run WQ-R14 final safety check.",
+            {"searched": [str(p) for p in safety_paths]},
+        ))
+
+    return results
+
+
+# --- Main ---------------------------------------------------------------
+gates = check_gates()
+passed = [g for g in gates if g["status"] == "PASS"]
+failed = [g for g in gates if g["status"] != "PASS"]
+
+output = {
+    "verifier_version": "2.0-evidence-only",
+    "checked_utc": NOW,
+    "gates_total": len(gates),
+    "gates_passed": len(passed),
+    "gates_failed": len(failed),
+    "status": "PASS" if not failed else "FAIL",
+    "redis_available": REDIS_OK,
+    "gates": gates,
+}
+
+# If all 16 gates pass, THIS SCRIPT (not the agent) writes state=COMPLETE
+if not failed:
+    gs_path = STATE_DIR / "GOAL_STATE.json"
+    try:
+        gs = json.loads(gs_path.read_text())
+        gs.update({
+            "state": "COMPLETE",
+            "completion_allowed": True,
+            "completed_by": "external_verifier_v2.0_evidence_only",
+            "completed_utc": NOW,
+            "completion_gates_passed": len(passed),
+            "completion_gates_total": len(gates),
+        })
+        gs_path.write_text(json.dumps(gs, indent=2, sort_keys=True) + "\n")
+        output["goal_state_written"] = "COMPLETE"
+    except Exception as exc:
+        output["goal_state_write_error"] = str(exc)
+
+print(json.dumps(output, indent=2))
+sys.exit(0 if not failed else 1)

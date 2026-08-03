@@ -1,0 +1,58 @@
+diff --git a/v2/backend/app/cli/v2_trade_management_paper_loop.py b/v2/backend/app/cli/v2_trade_management_paper_loop.py
+index 9fb680d958..5db9f495c5 100644
+--- a/v2/backend/app/cli/v2_trade_management_paper_loop.py
++++ b/v2/backend/app/cli/v2_trade_management_paper_loop.py
+@@ -27666,6 +27666,15 @@ def _paper_signal_integrity_gate(signal: dict) -> dict:
+ 
+ 
+ def run_once() -> dict:
++    import os
++    debug_file = "/tmp/paper_loop_trace.txt"
++    def dlog(msg):
++        try:
++            with open(debug_file, "a") as f:
++                f.write(f"{_utc_iso()} {msg}\n")
++        except:
++            pass
++
+     from v2.backend.app.services.trade_management_paper.service import (
+         TradeManagementPaperService, evaluate_fee_ratio_gate, churn_veto,
+     )
+@@ -28020,6 +28029,7 @@ def run_once() -> dict:
+             s.get("entry_feature_snapshot_id"),
+         )
+         market_state_envelope = _build_market_state_envelope(signal=s, prediction=prediction)
++        dlog(f"s{idx}_before_feature_snapshot")
+         strategy_feature_snapshot = _read_v2_feature_snapshot_for_signal(
+             r,
+             paper_feature_snapshot_id,
+@@ -28027,16 +28037,19 @@ def run_once() -> dict:
+             symbol=symbol,
+             timeframe=paper_thesis_timeframe,
+         )
++        dlog(f"s{idx}_after_feature_snapshot")
+         _attach_strategy_router_feature_snapshot_context(
+             market_state_envelope,
+             strategy_feature_snapshot,
+         )
++        dlog(f"s{idx}_before_microstructure")
+         strategy_microstructure_trust = _read_v2_microstructure_trust(
+             r,
+             symbol,
+             decision_time=market_state_envelope.get("decision_time"),
+             timeframe=paper_thesis_timeframe,
+         )
++        dlog(f"s{idx}_after_microstructure")
+         _attach_strategy_router_microstructure_context(
+             market_state_envelope,
+             strategy_microstructure_trust,
+@@ -28053,7 +28066,9 @@ def run_once() -> dict:
+             f"v2:microstructure:cascade_context:{symbol}:"
+             f"{market_state_envelope.get('timeframe') or '1m'}"
+         )
++        dlog(f"s{idx}_before_cascade")
+         _cascade_ctx = _read_json_key(r, _cascade_ctx_key)
++        dlog(f"s{idx}_after_cascade")
+         if _cascade_ctx:
+             market_state_envelope["cascade_context"] = _cascade_ctx
+         market_state_envelope["paper_loss_quarantine_status"] = (

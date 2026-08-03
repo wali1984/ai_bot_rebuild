@@ -1,0 +1,167 @@
+# NERVYX ONE native Apple validation lane.
+#
+# This workflow is intentionally simulator/read-only. It does not modify
+# signing, Apple accounts, entitlements, App Store Connect, or TestFlight state.
+# Archive/upload remains a separate operator-approved lane.
+
+name: NERVYX iOS macOS Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/nervyx-ios-macos-validation.yml"
+      - "v2/mobile/**"
+      - "v2/scripts/check_ios_app_store_build_number.py"
+      - "v2/.github/workflows/nervyx-ios-macos-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  native-apple:
+    name: iOS/watchOS simulator build evidence
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      IOS_PROJECT: v2/mobile/AIBotV2.xcodeproj
+      IOS_SCHEME: AIBotV2
+      WATCH_XCODEGEN_SCHEME: AIBotV2Watch
+      IOS_COMPACT_DESTINATION: generic/platform=iOS Simulator
+      IOS_LARGE_DESTINATION: generic/platform=iOS Simulator
+      WATCH_SWIFTPM_SCHEME: AIBotV2WatchApp
+      IOS_SWIFTPM_SCHEME: AIBotV2App
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain evidence
+        run: |
+          set -euo pipefail
+          sw_vers
+          xcodebuild -version
+          xcode-select -p
+          swift --version
+          xcrun simctl list devicetypes | sed -n '1,120p'
+
+      - name: Install XcodeGen
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Static TestFlight/build-number guard
+        working-directory: v2
+        run: |
+          set -euo pipefail
+          python3 scripts/check_ios_app_store_build_number.py
+
+      - name: Swift package build and tests
+        working-directory: v2/mobile
+        env:
+          # Drop the iOS/watchOS app targets from the SwiftPM graph on the
+          # macOS host: they need Apple SDKs (WatchKit is watchOS-only,
+          # @Observable needs macOS 14) and `swift test` rebuilds the whole
+          # package, so their presence fails this lane. The app targets are
+          # validated separately by the xcodebuild steps below with correct
+          # simulator destinations (which leave this variable unset).
+          AIBOT_SPM_EXCLUDE_APP_TARGETS: "1"
+        run: |
+          set -euo pipefail
+          swift build
+          swift test
+
+      # SwiftPM app-product simulator builds run BEFORE xcodegen so the
+      # generated AIBotV2.xcodeproj (same directory) does not shadow the
+      # Swift package — otherwise `xcodebuild -scheme AIBotV2App` resolves
+      # against the project (schemes AIBotV2/AIBotV2Watch) and errors with
+      # "does not contain a scheme named AIBotV2App".
+      - name: Build iOS SwiftPM app product for simulator
+        working-directory: v2/mobile
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -scheme "$IOS_SWIFTPM_SCHEME" \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath "$RUNNER_TEMP/nervyx-spm-ios" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee "$RUNNER_TEMP/nervyx-spm-ios-build.log"
+
+      - name: Build watchOS SwiftPM product for simulator
+        working-directory: v2/mobile
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -scheme "$WATCH_SWIFTPM_SCHEME" \
+            -destination "generic/platform=watchOS Simulator" \
+            -derivedDataPath "$RUNNER_TEMP/nervyx-spm-watch" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee "$RUNNER_TEMP/nervyx-spm-watch-build.log"
+
+      - name: Generate Xcode project from committed project.yml
+        working-directory: v2/mobile
+        run: |
+          set -euo pipefail
+          xcodegen generate --spec project.yml
+          xcodebuild -list -project AIBotV2.xcodeproj
+
+      - name: Build iPhone app target for compact simulator class
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "$IOS_PROJECT" \
+            -scheme "$IOS_SCHEME" \
+            -destination "$IOS_COMPACT_DESTINATION" \
+            -derivedDataPath "$RUNNER_TEMP/nervyx-derived-compact" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee "$RUNNER_TEMP/nervyx-ios-compact-build.log"
+
+      - name: Build iPhone app target for large simulator class
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "$IOS_PROJECT" \
+            -scheme "$IOS_SCHEME" \
+            -destination "$IOS_LARGE_DESTINATION" \
+            -derivedDataPath "$RUNNER_TEMP/nervyx-derived-large" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee "$RUNNER_TEMP/nervyx-ios-large-build.log"
+
+      - name: Build watchOS XcodeGen target for simulator
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "$IOS_PROJECT" \
+            -scheme "$WATCH_XCODEGEN_SCHEME" \
+            -destination "generic/platform=watchOS Simulator" \
+            -derivedDataPath "$RUNNER_TEMP/nervyx-derived-watch" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee "$RUNNER_TEMP/nervyx-watch-xcodegen-build.log"
+
+      - name: Record blocked native gates
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/nervyx-native-validation-status.md" <<'EOF'
+          # NERVYX Native Validation Status
+
+          Simulator build evidence was produced by this workflow.
+
+          Still not claimed here:
+          - App Store Connect upload or TestFlight processing
+          - signing team changes
+          - entitlement changes
+          - real device install
+          - simulator launch/UI tests/accessibility checks unless dedicated test targets are later added
+          - watchOS complication validation unless complication targets/assets are later added
+          EOF
+
+      - name: Upload native validation artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nervyx-native-apple-validation
+          path: |
+            ${{ runner.temp }}/nervyx-*.log
+            ${{ runner.temp }}/nervyx-native-validation-status.md
+            v2/mobile/AIBotV2.xcodeproj

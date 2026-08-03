@@ -1,0 +1,53 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "note": "Compares legacy AI BOT behaviors against V2 paper system behaviors. Legacy code not mutated per CLAUDE.md.",
+  "parity_checks": [
+    {
+      "behavior": "Action selection",
+      "legacy": "Unknown \u2014 not audited in this session",
+      "v2": "100% SHORT via PPO model (action_probabilities[2] dominates)",
+      "parity": "UNKNOWN",
+      "risk": "If legacy did both LONG and SHORT, V2 is missing 50% of signal space"
+    },
+    {
+      "behavior": "Trailing stop",
+      "legacy": "Unknown parameters",
+      "v2": "Tier-2 trailing stop, estimated ~60 bps \u2014 WR=10.1%",
+      "parity": "UNKNOWN",
+      "risk": "V2 trailing stop may be significantly tighter than legacy"
+    },
+    {
+      "behavior": "Stop loss (hard floor)",
+      "legacy": "Unknown",
+      "v2": "TIER_1_STOP_LOSS: 94 exits, all losses, avg -$0.69",
+      "parity": "UNKNOWN"
+    },
+    {
+      "behavior": "Reward function",
+      "legacy": "Unknown \u2014 requires trainer atlas review",
+      "v2": "PPO with reward shaped to prefer SHORT in bearish regime \u2014 inferred from output",
+      "parity": "UNKNOWN",
+      "risk": "HIGH \u2014 if reward function only reinforced SHORT trades, entire model is biased"
+    },
+    {
+      "behavior": "Paper/live gate",
+      "legacy": "live trading (live bot)",
+      "v2": "paper_only=True, places_real_order=False, live_gate=blocked_human_only",
+      "parity": "BY_DESIGN \u2014 V2 never places real orders"
+    },
+    {
+      "behavior": "Feature ingestion",
+      "legacy": "Unknown \u2014 trainer atlas incomplete",
+      "v2": "squeeze_score null, spread hardcoded, drawdown zero",
+      "parity": "DEGRADED \u2014 V2 has fewer active features than intended"
+    },
+    {
+      "behavior": "Risk gateway",
+      "legacy": "Unknown",
+      "v2": "risk_gateway/service.py present; shared_risk_gate.py, kill_switch.py implemented",
+      "parity": "UNKNOWN \u2014 not compared at code level this session"
+    }
+  ],
+  "disclaimer": "Full legacy vs V2 parity requires reading legacy_reference/ code. This audit read only V2 code. Legacy code reading would require a separate audit task.",
+  "confidence": "LOW \u2014 legacy not audited this session"
+}

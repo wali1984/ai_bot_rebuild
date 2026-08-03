@@ -8,6 +8,7 @@
     "069A_decision_lineage_source_scan"
   ],
   "commit_message": "Codex takeover outputs for 069B_decision_lineage_evidence_packet_builder",
+  "completed_at": "2026-05-10T22:46:16.129582+00:00",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "description": "Codex acting-governor takeover for 069B_decision_lineage_evidence_packet_builder while Claude is rate-limited.",
   "emit_files": true,
@@ -22,6 +23,7 @@
     "zero-output headless automation failure"
   ],
   "mvp_relevance": "Decision explainability lineage inventory split from stale/no-output task 069.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "next_gate": "069B_GO_NO_GO.md",
   "next_recommended_action": "Run in order; do not start unrelated work while this split sequence is pending.",
   "predecessor_task_ids": [
@@ -29,11 +31,18 @@
   ],
   "priority": 991,
   "prompt": "You are Codex acting-governor because Claude Code is rate-limited. Complete the safe non-live source task 069B_decision_lineage_evidence_packet_builder through the supervisor. Respect the source task output contract exactly. Do not modify legacy. Do not write Redis. Do not restart services. Do not place/cancel exchange orders. Do not change leverage or margin. Do not enable live trading. Do not expose secrets. Human input is required only for final live/capital gate.\n\nStrict BEGIN_FILE emit-only mode. Documentation only. Do not mutate the legacy bot directory. Do not mutate live data stores. Do not restart services. Do not place/cancel orders. Do not turn on live mode. Do not modify v2/. Do not commit or push. Output only the required Markdown files under the allowed prefix.\n\nBuild the lineage evidence packet mapping raw source data through feature snapshot, trainer prediction, signal, orchestrator, risk gateway, execution intent, and paper/shadow action. GO file exactly PHASE2HA0_069B_EVIDENCE_PACKET_READY or PHASE2HA0_069B_EVIDENCE_PACKET_BLOCKED.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/phase2_core_rebuild/decision_explainability/069B_LINEAGE_EVIDENCE_PACKET.md",
     "claude_worklog/phase2_core_rebuild/decision_explainability/069B_GO_NO_GO.md"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L1",
-  "status": "pending",
-  "task_id": "codex_takeover_069B_decision_lineage_evidence_packet_builder"
+  "source_truth_completed_at": "2026-05-10T22:46:16.129582+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_takeover_069B_decision_lineage_evidence_packet_builder.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_takeover_069B_decision_lineage_evidence_packet_builder",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

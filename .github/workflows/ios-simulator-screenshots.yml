@@ -1,0 +1,79 @@
+name: iOS Simulator Screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "Read-only API base URL used by the simulator app."
+        required: false
+        default: "https://dashboard.wajidali.us"
+      require_all_screens:
+        description: "Fail when the authenticated screenshot harness has not captured every required screen."
+        required: false
+        type: boolean
+        default: false
+  # Runs on-demand only. This lane boots a simulator and drives the app
+  # against a live staging API to capture authenticated screenshots — it
+  # cannot run reliably on every PR push, and the mobile SwiftPM contract
+  # tests are already gated on PRs by the NERVYX iOS macOS Validation
+  # workflow. Dispatch it manually when screenshot evidence is needed.
+
+permissions:
+  contents: read
+
+jobs:
+  ios-screenshots:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      GOAL_ID: V2_ENTERPRISE_WEB_IOS_REALTIME_TRADING_CONTROL_CENTER_AND_DATA_TRUTH_COMPLETION
+      IOS_SCREENSHOT_API_BASE_URL: ${{ github.event.inputs.api_base_url || 'https://dashboard.wajidali.us' }}
+      IOS_SCREENSHOT_ALLOW_PARTIAL: ${{ github.event.inputs.require_all_screens == 'true' && '0' || '1' }}
+      IOS_SCREENSHOT_API_SOURCE_MODE: staging_api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select and list Xcode
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app || true
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer || true
+          sw_vers
+          xcodebuild -version
+          xcode-select -p
+          swift --version
+          xcrun simctl list runtimes available
+          xcrun simctl list devicetypes | sed -n '1,160p'
+
+      - name: Install XcodeGen
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Swift package contract tests
+        env:
+          # Drop the iOS/watchOS app targets from the SwiftPM graph: `swift
+          # test` rebuilds the whole package and they need Apple SDKs
+          # (WatchKit is watchOS-only; @Observable needs macOS 14). The app
+          # is built for the simulator in the capture step below.
+          AIBOT_SPM_EXCLUDE_APP_TARGETS: "1"
+        run: |
+          set -euo pipefail
+          swift test --package-path v2/mobile
+
+      - name: Capture simulator screenshots
+        run: |
+          set -euo pipefail
+          tools/ios_capture_screenshots_macos.sh
+
+      - name: Upload screenshot status and PNGs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-simulator-screenshots
+          path: |
+            goal_state/V2_ENTERPRISE_WEB_IOS_REALTIME_TRADING_CONTROL_CENTER_AND_DATA_TRUTH_COMPLETION/ios_simulator_screenshots/**

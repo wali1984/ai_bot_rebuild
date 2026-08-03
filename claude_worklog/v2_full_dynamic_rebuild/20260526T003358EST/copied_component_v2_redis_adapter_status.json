@@ -1,0 +1,514 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "adapter_status_per_old_namespace": [
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/realtime_price_provider.py",
+          "old_prefix": "price:realtime"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/realtime_price_provider.py",
+          "old_prefix": "orderbook:top"
+        }
+      ],
+      "old_namespaces": [
+        "price:realtime:*",
+        "price:last:*",
+        "orderbook:top:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/paper_online_runtime.py",
+      "v2_target": [
+        "(not mapped)",
+        "(not mapped)",
+        "(not mapped)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_binance.py",
+          "old_prefix": "ohlcv:list:binance"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_binance.py",
+          "old_prefix": "latest:binance:ohlcv"
+        }
+      ],
+      "old_namespaces": [
+        "ohlcv:list:binance:*",
+        "latest:binance:ohlcv:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_market_ingestor.py",
+      "v2_target": [
+        "(not mapped)",
+        "v2:market:ohlcv:binance:{symbol}:{tf}"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_binance.py",
+          "old_prefix": "latest:binance:mark_price"
+        }
+      ],
+      "old_namespaces": [
+        "latest:binance:mark_price:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "v2_target": [
+        "v2:market:mark_price:{symbol}"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_binance.py",
+          "old_prefix": "latest:binance:funding"
+        }
+      ],
+      "old_namespaces": [
+        "latest:binance:funding:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "v2_target": [
+        "(not mapped)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": null,
+      "copied_paths_with_old_writes": [],
+      "old_namespaces": [
+        "latest:binance:open_interest:*"
+      ],
+      "safe_to_start_copy_as_is": true,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "v2_target": [
+        "(not mapped)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/realtime_price_provider.py",
+          "old_prefix": "orderbook:top"
+        }
+      ],
+      "old_namespaces": [
+        "orderbook:top:*",
+        "orderbook:depth:*",
+        "orderbook:bids:*",
+        "orderbook:asks:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_binance_public_metadata_ingestor.py",
+      "v2_target": [
+        "(not mapped)",
+        "(not mapped)",
+        "(not mapped)",
+        "(not mapped)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_binance_liquidations.py",
+          "old_prefix": "binance:force"
+        }
+      ],
+      "old_namespaces": [
+        "binance:force"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_liquidation_wss_loop.py",
+      "v2_target": [
+        "v2:liquidation:wss:binance:{symbol}"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/liquidation_bridge.py",
+          "old_prefix": "cursor:liq_bridge"
+        }
+      ],
+      "old_namespaces": [
+        "cursor:liq_bridge:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+      "v2_target": [
+        "v2:liquidation:aggregator:cursor:*"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_coinank.py",
+          "old_prefix": "coinank"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_coinank.py",
+          "old_prefix": "features:coinank"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_coinank.py",
+          "old_prefix": "raw:coinank"
+        },
+        {
+          "copied_path": "v2/legacy_preserved/ingestors/live_coinank.py",
+          "old_prefix": "coinank"
+        },
+        {
+          "copied_path": "v2/legacy_preserved/ingestors/live_coinank.py",
+          "old_prefix": "features:coinank"
+        },
+        {
+          "copied_path": "v2/legacy_preserved/ingestors/live_coinank.py",
+          "old_prefix": "raw:coinank"
+        }
+      ],
+      "old_namespaces": [
+        "coinank:*",
+        "features:coinank:*",
+        "raw:coinank:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+      "v2_target": [
+        "v2:market:coinank:*",
+        "v2:market:coinank:{symbol}",
+        "(not mapped)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_coinank_global_aggregator.py",
+          "old_prefix": "features:global_coinank"
+        }
+      ],
+      "old_namespaces": [
+        "features:global_coinank:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_coinank_and_liquidation_bridge.py",
+      "v2_target": [
+        "v2:market:coinank:global"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_kucoin.py",
+          "old_prefix": "kc:kline"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_kucoin.py",
+          "old_prefix": "kc:orderbook20"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_kucoin.py",
+          "old_prefix": "features:kucoin"
+        }
+      ],
+      "old_namespaces": [
+        "kc:kline:*",
+        "kc:orderbook20:*",
+        "features:kucoin:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_kucoin_ingestor_worker.py",
+      "v2_target": [
+        "(not mapped)",
+        "(not mapped)",
+        "v2:market:kucoin:{symbol}"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_coinapi_v1.py",
+          "old_prefix": "ohlcv:list:coinapi"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_coinapi_v1.py",
+          "old_prefix": "latest:coinapi:ohlcv"
+        }
+      ],
+      "old_namespaces": [
+        "ohlcv:list:coinapi:*",
+        "latest:coinapi:ohlcv:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": false,
+      "v2_native_replacement_path": null,
+      "v2_target": [
+        "(not mapped)",
+        "(not mapped)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_coinapi_wsds.py",
+          "old_prefix": "microfeat"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_coinapi_wsds.py",
+          "old_prefix": "msnap:coinapi_wsds"
+        }
+      ],
+      "old_namespaces": [
+        "microfeat:*",
+        "msnap:coinapi_wsds:*",
+        "normalized:ohlcv:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": false,
+      "v2_native_replacement_path": null,
+      "v2_target": [
+        "v2:market:microstructure:{symbol}:{tf}",
+        "v2:market:microstructure:{symbol}:{tf}",
+        "v2:market:ohlcv:{provider}:{symbol}:{tf}"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/realtime_price_provider.py",
+          "old_prefix": "price"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/realtime_price_provider.py",
+          "old_prefix": "orderbook"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/realtime_price_provider.py",
+          "old_prefix": "metrics:price_provider"
+        }
+      ],
+      "old_namespaces": [
+        "price:*",
+        "orderbook:*",
+        "metrics:price_provider:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/paper_online_runtime.py",
+      "v2_target": [
+        "v2:market:prices:{symbol}",
+        "v2:market:orderbook:{symbol}",
+        "(not mapped)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": null,
+      "copied_paths_with_old_writes": [],
+      "old_namespaces": [
+        "ta:*",
+        "latest:ta:*",
+        "regime:structural:*"
+      ],
+      "safe_to_start_copy_as_is": true,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_feature_pipeline_and_ta_worker.py",
+      "v2_target": [
+        "v2:technical_analysis:{symbol}:{tf}",
+        "v2:technical_analysis:{symbol}:{tf}",
+        "v2:features:regime:{symbol}:{tf}"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/feature_pipeline.py",
+          "old_prefix": "unified_features"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/feature_pipeline.py",
+          "old_prefix": "features:fast_lane"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/feature_pipeline.py",
+          "old_prefix": "features:slow_lane"
+        }
+      ],
+      "old_namespaces": [
+        "unified_features:*",
+        "features:fast_lane",
+        "features:slow_lane"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_feature_pipeline_native_loop.py",
+      "v2_target": [
+        "v2:features:latest:{symbol}:{tf}",
+        "v2:features:latest:{symbol}:{tf}",
+        "v2:features:latest:{symbol}:{tf}"
+      ]
+    },
+    {
+      "blocker_if_unsafe": null,
+      "copied_paths_with_old_writes": [],
+      "old_namespaces": [
+        "tm:universe",
+        "tokenmetrics:universe"
+      ],
+      "safe_to_start_copy_as_is": true,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/symbol_universe_public_payload.py",
+      "v2_target": [
+        "(not mapped)",
+        "(not mapped)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": null,
+      "copied_paths_with_old_writes": [],
+      "old_namespaces": [
+        "alphavantage:*"
+      ],
+      "safe_to_start_copy_as_is": true,
+      "safe_to_start_v2_wrapper": false,
+      "v2_native_replacement_path": null,
+      "v2_target": [
+        "v2:alt_data:alphavantage:* (future lane)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/ingest/live_ccxt.py",
+          "old_prefix": "ccxt"
+        }
+      ],
+      "old_namespaces": [
+        "ccxt:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": false,
+      "v2_native_replacement_path": null,
+      "v2_target": [
+        "(operator-required; multi-exchange aggregation)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "old_prefix": "prediction"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+          "old_prefix": "rl:metrics"
+        }
+      ],
+      "old_namespaces": [
+        "prediction:*",
+        "trainer:intent:*",
+        "rl:metrics:*"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_native_trainer_prediction_publisher.py",
+      "v2_target": [
+        "v2:prediction:{symbol}:{tf}",
+        "v2:prediction:{symbol}:{tf}",
+        "v2:rl:metrics:*"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/trading/opportunity_tracker.py",
+          "old_prefix": "opportunity:latest"
+        }
+      ],
+      "old_namespaces": [
+        "opportunity:latest",
+        "signals:overlay:intents"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": false,
+      "v2_native_replacement_path": null,
+      "v2_target": [
+        "(not mapped)",
+        "(not mapped)"
+      ]
+    },
+    {
+      "blocker_if_unsafe": "copied component still writes old Redis; running the copy raw would bypass v2:* contract \u2014 use V2 wrapper",
+      "copied_paths_with_old_writes": [
+        {
+          "copied_path": "v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "old_prefix": "orchestrator:leader_lock"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "old_prefix": "signals:trading:primary"
+        },
+        {
+          "copied_path": "v2/legacy_owned_runtime/rl/orchestrator_worker.py",
+          "old_prefix": "wma:proposals"
+        }
+      ],
+      "old_namespaces": [
+        "orchestrator:leader_lock",
+        "signals:trading:primary",
+        "wma:proposals"
+      ],
+      "safe_to_start_copy_as_is": false,
+      "safe_to_start_v2_wrapper": true,
+      "v2_native_replacement_path": "v2/backend/app/cli/v2_orchestrator_arbitration_loop.py",
+      "v2_target": [
+        "(not mapped)",
+        "v2:orchestrator:decisions",
+        "v2:orchestrator:proposals"
+      ]
+    }
+  ],
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "COPIED_COMPONENT_V2_REDIS_ADAPTER_STATUS_READY",
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "rule": "Any copied legacy file that writes an old Redis namespace must go through a V2 wrapper (v2/backend/app/cli/...) before being started. Raw legacy scripts are NEVER started by Claude/Codex/Spark.",
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:13-0400",
+  "writes_exchange_orders": false
+}

@@ -1,0 +1,37 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "active_systemd_units": [
+    "ai-bot-v2-feature-pipeline-native-loop.service",
+    "ai-bot-v2-feature-snapshot-builder.service"
+  ],
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "feature_inputs": [
+    "market_prices",
+    "ohlcv",
+    "orderbook",
+    "funding",
+    "open_interest",
+    "liquidations",
+    "coinank",
+    "kucoin",
+    "coinapi_microstructure",
+    "ta",
+    "volatility",
+    "regime",
+    "alt_data",
+    "risk_context",
+    "paper_replay_labels"
+  ],
+  "go_no_go": "V2_FULL_FEATURE_PIPELINE_STATUS_READY",
+  "live_symbols": [],
+  "missing_source_labelled_explicitly": true,
+  "no_zero_fill_for_unknowns": true,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "stale_source_labelled_explicitly": true,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "writes_exchange_orders": false
+}

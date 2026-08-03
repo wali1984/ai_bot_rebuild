@@ -1,8 +1,12 @@
-import { Panel, Metric } from './cockpitComponents';
+import { Panel, Metric, publicRuntimeText } from './cockpitComponents';
 import type { CoinankMarketIntelligencePayload, OperatorTruthPayload, OperatorTruthStatusRow, PaperOnlineRuntimePayload } from './operatorTruthData';
 import { statusClass, valueText } from './cockpitData';
 
 const MISSING = 'Evidence missing — cannot explain without guessing.';
+
+function truthText(value: unknown): string {
+  return publicRuntimeText(value);
+}
 
 function boolStatus(value: boolean): string {
   return value ? 'yes' : 'no';
@@ -46,6 +50,13 @@ function controlPlaneValue(payload: OperatorTruthPayload): string {
     ?? (payload.supervisor_status.stale_or_conflicting ? 'SUPERVISOR_STATUS_STALE_OR_CONFLICTING' : 'CURRENT_RUNTIME_SNAPSHOT');
 }
 
+function isoAgeSeconds(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  if (Number.isNaN(ms)) return null;
+  return Math.max(0, Math.round((Date.now() - ms) / 1000));
+}
+
 function formatAge(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined) return 'unknown age';
   if (seconds < 60) return `${seconds}s`;
@@ -58,10 +69,10 @@ function TruthStateCard({ label, value, detail, source }: { label: string; value
   const tone = truthTone(value);
   return (
     <div className={`truth-state-card truth-state-card--${tone}`}>
-      <span className="truth-state-card__label">{label}</span>
-      <strong className={statusClass(value)}>{valueText(value)}</strong>
-      <small>{detail}</small>
-      <span className="truth-source-chip">{source}</span>
+      <span className="truth-state-card__label">{truthText(label)}</span>
+      <strong className={statusClass(value)}>{truthText(value)}</strong>
+      <small>{truthText(detail)}</small>
+      <span className="truth-source-chip">{truthText(source)}</span>
     </div>
   );
 }
@@ -106,19 +117,19 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
       <div className="operator-command-deck__header">
         <div>
           <p className="eyebrow">Realtime operator truth / no guessing</p>
-          <h1>Mission Control Truth Deck</h1>
+          <h1>NERVYX OBSERVE Truth Deck</h1>
           <p>
             This surface separates runtime evidence, static proof fixtures, stale payloads, and missing evidence. It does not promote any proof marker to live truth.
           </p>
         </div>
         <div className="operator-command-deck__status">
-          <span className="chip solid-block">LIVE TRADING: {payload.live_gate_status}</span>
-          <span className={`chip ${truthTone(supervisorState) === 'good' ? 'solid-ok' : 'solid-warn'}`}>{supervisorState}</span>
-          <span className={`chip ${hasCurrentTrainer ? 'solid-ok' : 'solid-warn'}`}>{trainer.status}</span>
-          {legacyRestartStatus ? <span className={`chip ${truthTone(legacyRestartStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Legacy trainer: {legacyRestartStatus}</span> : null}
-          {liveObserverStatus ? <span className={`chip ${truthTone(liveObserverStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Observer: {liveObserverStatus}</span> : null}
-          {payload.canonical_truth_bridge ? <span className="chip solid-ok">{payload.canonical_truth_bridge.status}</span> : null}
-          <span className="chip solid-paper">Redis trim: {payload.redis_trim_status}</span>
+          <span className="chip solid-block">EXECUTION ROUTING: {truthText(payload.live_gate_status)}</span>
+          <span className={`chip ${truthTone(supervisorState) === 'good' ? 'solid-ok' : 'solid-warn'}`}>{truthText(supervisorState)}</span>
+          <span className={`chip ${hasCurrentTrainer ? 'solid-ok' : 'solid-warn'}`}>{truthText(trainer.status)}</span>
+          {legacyRestartStatus ? <span className={`chip ${truthTone(legacyRestartStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Legacy trainer: {truthText(legacyRestartStatus)}</span> : null}
+          {liveObserverStatus ? <span className={`chip ${truthTone(liveObserverStatus) === 'good' ? 'solid-ok' : 'solid-warn'}`}>Observer: {truthText(liveObserverStatus)}</span> : null}
+          {payload.canonical_truth_bridge ? <span className="chip solid-ok">{truthText(payload.canonical_truth_bridge.status)}</span> : null}
+          <span className="chip solid-paper">Redis trim: {truthText(payload.redis_trim_status)}</span>
         </div>
       </div>
       <div className="truth-command-grid">
@@ -126,7 +137,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           label="Supervisor heartbeat"
           value={supervisorState}
           detail={`${plannerState}; ${governorState}; active workers ${supervisor.supervisor_processes.length}; snapshot ${supervisor.canonical_snapshot_fresh ? 'fresh' : 'status-file based'}`}
-          source={payload.canonical_truth_bridge ? 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'}
+          source={payload.canonical_truth_bridge ? 'V2_TRADE_MANAGEMENT_PAPER_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'}
         />
         <TruthStateCard
           label="Current task"
@@ -144,19 +155,19 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           label="Legacy orchestrator"
           value={runtime.orchestrator_status}
           detail={`observed rows ${runtime.orchestrator_processes.length}; trader ${runtime.trader_status}`}
-          source="READONLY_PROCESS_LIST"
+          source="RUNTIME_PROCESS_LIST"
         />
         <TruthStateCard
           label="Market ingest"
           value={runtime.market_ingestor_status ?? 'MISSING_EVIDENCE'}
-          detail={`observed rows ${runtime.market_ingestor_processes?.length ?? 0}; read-only process observation`}
-          source="READONLY_PROCESS_LIST"
+          detail={`observed rows ${runtime.market_ingestor_processes?.length ?? 0}; runtime process observation`}
+          source="RUNTIME_PROCESS_LIST"
         />
         <TruthStateCard
           label="Feature pipeline"
           value={runtime.feature_pipeline_status ?? 'MISSING_EVIDENCE'}
           detail={`observed rows ${runtime.feature_pipeline_processes?.length ?? 0}; no service mutation`}
-          source="READONLY_PROCESS_LIST"
+          source="RUNTIME_PROCESS_LIST"
         />
         <TruthStateCard
           label="Signal lineage"
@@ -168,7 +179,7 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
           label="Legacy observer twin"
           value={nestedText(liveObserver, ['legacy_shadow_twin', 'risk_decision', 'risk_result'], liveObserverStatus || 'MISSING_EVIDENCE')}
           detail={`source ${nestedText(liveObserver, ['legacy_shadow_twin', 'legacy_source', 'stream'], 'missing')}; paper ${nestedText(liveObserver, ['legacy_shadow_twin', 'paper_ledger_entry', 'paper_result'], 'missing')}`}
-          source="LEGACY_READONLY_BRIDGE / V2_SHADOW_TWIN"
+          source="LEGACY_RUNTIME_BRIDGE / V2_SHADOW_TWIN"
         />
         <TruthStateCard
           label="Payload freshness"
@@ -190,8 +201,8 @@ export function OperatorTruthCommandDeck({ payload }: { payload: OperatorTruthPa
         />
       </div>
       <div className="truth-classification-rail" aria-label="Data truth classification legend">
-        {['REALTIME_RUNTIME_EVIDENCE', 'READONLY_MARKET_FEED', 'READONLY_ACCOUNT_FEED', 'RUNTIME_MONITOR_PAYLOAD', 'V2_PROOF_ARTIFACT', 'ARCHIVE_ONLY_FIXTURE', 'STALE_PAYLOAD', 'MISSING_EVIDENCE'].map((label) => (
-          <span key={label} className={`truth-source-chip truth-source-chip--${truthTone(label)}`}>{label}</span>
+        {['REALTIME_RUNTIME_EVIDENCE', 'LIVE_MARKET_FEED', 'ACCOUNT_FEED', 'RUNTIME_MONITOR_PAYLOAD', 'V2_PROOF_ARTIFACT', 'ARCHIVE_ONLY_FIXTURE', 'STALE_PAYLOAD', 'MISSING_EVIDENCE'].map((label) => (
+          <span key={label} className={`truth-source-chip truth-source-chip--${truthTone(label)}`}>{truthText(label)}</span>
         ))}
       </div>
     </section>
@@ -203,18 +214,18 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
   const paperOnline = payload.runtime_monitor_status.paper_online_runtime_status;
   const rows = [
     ['Canonical truth source', payload.canonical_truth_bridge?.status ?? 'OPERATOR_TRUTH_PAYLOAD', payload.canonical_truth_bridge?.source ?? 'operator_truth/latest/operator_truth_payload.json'],
-    ['Control plane', controlPlaneValue(payload), payload.supervisor_status.canonical_snapshot_fresh ? 'fresh process/runtime bridge snapshot' : 'agent_supervisor/status/current_status.json'],
+    ['System status', controlPlaneValue(payload), payload.supervisor_status.canonical_snapshot_fresh ? 'fresh process/runtime bridge snapshot' : 'agent_supervisor/status/current_status.json'],
     ['Current task', payload.supervisor_status.current_running_task ?? 'NO_ACTIVE_SUPERVISOR_TASK', `last completed: ${payload.supervisor_status.last_completed_task ?? 'none'}`],
     ['Master planner', payload.supervisor_status.master_planner_running ? 'RUNNING' : 'NOT_RUNNING', 'process list + status payload'],
     ['Autonomous governor', payload.supervisor_status.autonomous_governor_active ? 'ACTIVE' : 'NOT_OBSERVED', 'process list + status payload'],
     ['Market ingestors', payload.runtime_monitor_status.market_ingestor_status ?? 'MISSING_EVIDENCE', `${payload.runtime_monitor_status.market_ingestor_processes?.length ?? 0} process rows`],
     ['Feature pipeline', payload.runtime_monitor_status.feature_pipeline_status ?? 'MISSING_EVIDENCE', `${payload.runtime_monitor_status.feature_pipeline_processes?.length ?? 0} process rows`],
-    ['Trainer process', payload.runtime_monitor_status.trainer_status, 'read-only process scan / V2 paper wrapper'],
+    ['Trainer process', payload.runtime_monitor_status.trainer_status, 'runtime process scan / V2 execution wrapper'],
     ['Trainer prediction stream', payload.trainer_monitor_status.status, 'trainer monitor payload'],
     ['Signal explainability', payload.signal_lineage_status.status, 'signal lineage payload'],
-    ['V2 paper online', paperOnline?.status ?? 'MISSING_EVIDENCE', paperOnline?.path ?? 'operator_runtime/paper_online/latest'],
+    ['V2 execution runtime', paperOnline?.status ?? 'MISSING_EVIDENCE', paperOnline?.path ?? 'operator_runtime/execution/latest'],
     ['Legacy observer twin', payload.runtime_monitor_status.live_observer_runtime_status?.status ?? nestedText(payload.live_observer_shadow_twin, ['status'], 'MISSING_EVIDENCE'), 'operator_runtime/live_observer/latest'],
-    ['Redis memory pressure', redis?.status ?? 'MISSING_EVIDENCE', redis?.path ?? 'Redis read-only state / payload audit'],
+    ['Redis memory pressure', redis?.status ?? 'MISSING_EVIDENCE', redis?.path ?? 'Redis runtime state / payload audit'],
     ['Static fixture count', String(payload.dashboard_freshness_status.static_fixture_count), 'public payload audit'],
     ['Stale payload count', String(payload.dashboard_freshness_status.stale_payload_count), 'public payload audit'],
     ['Live gate', payload.live_gate_status, 'safety policy'],
@@ -223,17 +234,27 @@ export function RuntimeTruthMatrix({ payload }: { payload: OperatorTruthPayload 
     <section className="runtime-truth-matrix" data-testid="runtime-truth-matrix" aria-label="Runtime truth matrix">
       {rows.map(([label, value, source]) => (
         <div className={`runtime-truth-cell runtime-truth-cell--${truthTone(value)}`} key={label}>
-          <span>{label}</span>
-          <strong className={statusClass(value)}>{valueText(value)}</strong>
-          <small>{source}</small>
+          <span>{truthText(label)}</span>
+          <strong className={statusClass(value)}>{truthText(value)}</strong>
+          <small>{truthText(source)}</small>
         </div>
       ))}
     </section>
   );
 }
 
+const OBSERVER_REALTIME_MAX_AGE_SECONDS = 600;
+
 export function LiveObserverShadowTwinPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
   const observer = payload.live_observer_shadow_twin;
+  const observerGeneratedAt = typeof observer?.generated_at === 'string' ? observer.generated_at : null;
+  const observerAgeSeconds = isoAgeSeconds(observerGeneratedAt);
+  const observerIsCurrent = observerAgeSeconds !== null && observerAgeSeconds <= OBSERVER_REALTIME_MAX_AGE_SECONDS;
+  const observerChipLabel = !observer
+    ? 'MISSING_EVIDENCE'
+    : observerIsCurrent
+      ? 'REALTIME_RUNTIME_EVIDENCE'
+      : `STALE_OBSERVER_EVIDENCE · ${observerAgeSeconds === null ? 'unknown age' : `${formatAge(observerAgeSeconds)} old`}`;
   const riskResult = nestedText(observer, ['legacy_shadow_twin', 'risk_decision', 'risk_result']);
   const riskReason = nestedText(observer, ['legacy_shadow_twin', 'risk_decision', 'risk_reason_code']);
   const paperResult = nestedText(observer, ['legacy_shadow_twin', 'paper_ledger_entry', 'paper_result']);
@@ -245,22 +266,28 @@ export function LiveObserverShadowTwinPanel({ payload }: { payload: OperatorTrut
     <Panel
       id="live-observer-shadow-twin"
       title="Legacy Live Observer / V2 Shadow Twin"
-      right={<span className={observer ? 'chip solid-ok' : 'chip solid-warn'}>{observer ? 'REALTIME_RUNTIME_EVIDENCE' : 'MISSING_EVIDENCE'}</span>}
+      right={<span className={observer && observerIsCurrent ? 'chip solid-ok' : 'chip solid-warn'}>{observerChipLabel}</span>}
     >
       <div className="cockpit-lineage-grid">
+        <div><span>evidence generated</span><strong className={observerIsCurrent ? undefined : statusClass('stale')}>{observerGeneratedAt ? `${observerGeneratedAt} (${observerAgeSeconds === null ? 'unknown age' : `${formatAge(observerAgeSeconds)} old`})` : 'MISSING_EVIDENCE'}</strong></div>
         <div><span>bridge status</span><strong>{nestedText(observer, ['legacy_read_only_bridge', 'status'])}</strong></div>
         <div><span>source stream</span><strong>{sourceStream}</strong></div>
         <div><span>legacy signal_id</span><strong>{nestedText(observer, ['legacy_shadow_twin', 'normalized_signal', 'signal_id'])}</strong></div>
         <div><span>legacy symbol/action</span><strong>{nestedText(observer, ['legacy_shadow_twin', 'normalized_signal', 'symbol'])} / {nestedText(observer, ['legacy_shadow_twin', 'normalized_signal', 'action'])}</strong></div>
         <div><span>Risk Gateway result</span><strong className={statusClass(riskResult)}>{riskResult}</strong></div>
         <div><span>risk reason</span><strong>{riskReason}</strong></div>
-        <div><span>paper result</span><strong>{paperResult}</strong></div>
+        <div><span>execution result</span><strong>{paperResult}</strong></div>
         <div><span>audit ledger</span><strong>{nestedText(observer, ['audit_ledger', 'status'])}</strong></div>
         <div><span>V2 Redis namespace</span><strong>{nestedText(observer, ['v2_bounded_redis_namespace', 'status'])}</strong></div>
         <div><span>trainer parity</span><strong>{nestedText(observer, ['trainer_bridge_parity', 'parity_status'])}</strong></div>
       </div>
+      {observer && !observerIsCurrent ? (
+        <p className="cockpit-evidence-gap">
+          Observer snapshot is not current — the values above are a historical snapshot from {observerGeneratedAt ?? 'an unknown time'}{observerAgeSeconds !== null ? ` (${formatAge(observerAgeSeconds)} old)` : ''}, not live runtime state.
+        </p>
+      ) : null}
       <p className="cockpit-evidence-note">
-        This bridge observes legacy read-only evidence and mirrors it into V2 paper/shadow records. It does not write old Redis, does not command the legacy trader, and Risk Gateway remains final authority.
+        This bridge observes legacy account-access evidence and mirrors it into V2 execution/shadow records. It does not write old Redis, does not command the legacy trader, and Risk Gateway remains final authority.
       </p>
       {visibleRecords ? (
         <div className="truth-working-grid">
@@ -287,7 +314,7 @@ export function LiveObserverShadowTwinPanel({ payload }: { payload: OperatorTrut
 }
 
 export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlineRuntimePayload | null }): JSX.Element {
-  const state = payload?.runtime_state ?? 'PAPER_ONLINE_RUNTIME_MISSING';
+  const state = payload?.runtime_state ?? 'V2_TRADE_MANAGEMENT_PAPER_RUNTIME_MISSING';
   const market = payload?.market_feed;
   const lineage = payload?.current_signal_lineage as Record<string, unknown> | undefined;
   const lineageIds = lineage?.lineage_ids as Record<string, unknown> | undefined;
@@ -298,16 +325,16 @@ export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlin
   const latestPaperEvent = payload?.last_paper_event as Record<string, unknown> | undefined;
   return (
     <Panel
-      id="v2-paper-online-runtime"
-      title="V2 Paper Online Runtime"
+      id="v2-execution-runtime"
+      title="V2 Execution Runtime"
       right={<span className={payload ? 'chip solid-ok' : 'chip solid-warn'}>{payload ? 'REALTIME_RUNTIME_EVIDENCE' : 'MISSING_EVIDENCE'}</span>}
     >
       <div className="cockpit-analytics-grid">
         <Metric label="Runtime state" value={state} />
         <Metric label="Loop available" value={String(payload?.continuous_loop_available ?? false)} />
         <Metric label="Last tick" value={payload?.paper_loop?.last_tick_at ?? 'MISSING_EVIDENCE'} />
-        <Metric label="Paper events" value={payload?.paper_loop?.paper_event_count ?? 'MISSING_EVIDENCE'} />
-        <Metric label="Paper action" value={payload?.last_paper_event?.paper_action ?? 'MISSING_EVIDENCE'} />
+        <Metric label="Execution events" value={payload?.paper_loop?.paper_event_count ?? 'MISSING_EVIDENCE'} />
+        <Metric label="Execution action" value={payload?.last_paper_event?.paper_action ?? 'MISSING_EVIDENCE'} />
         <Metric label="Risk result" value={payload?.last_paper_event?.risk_gateway_result ?? 'MISSING_EVIDENCE'} />
         <Metric label="Observed price" value={market?.price ?? 'MISSING_EVIDENCE'} />
         <Metric label="Market source" value={market?.source_type ?? 'MISSING_EVIDENCE'} />
@@ -324,12 +351,12 @@ export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlin
         <div><span>signal_id</span><strong>{valueText(lineageIds?.signal_id ?? signal?.signal_id ?? 'MISSING_EVIDENCE')}</strong></div>
         <div><span>risk_decision_id</span><strong>{valueText(lineageIds?.risk_decision_id ?? riskDecision?.risk_decision_id ?? 'MISSING_EVIDENCE')}</strong></div>
         <div><span>execution_intent_id</span><strong>{valueText(lineageIds?.execution_intent_id ?? executionIntent?.execution_intent_id ?? 'MISSING_EVIDENCE')}</strong></div>
-        <div><span>paper ledger event</span><strong>{valueText(latestPaperEvent?.paper_ledger_entry_id ?? latestPaperEvent?.paper_event_id ?? 'MISSING_EVIDENCE')}</strong></div>
+        <div><span>execution ledger event</span><strong>{valueText(latestPaperEvent?.paper_ledger_entry_id ?? latestPaperEvent?.paper_event_id ?? 'MISSING_EVIDENCE')}</strong></div>
       </div>
       <p className="cockpit-evidence-note">
         {payload
-          ? 'Continuous V2 paper runtime is online and fail-closed. It writes local V2 runtime payloads only; every paper event remains non-live and exchange orders stay blocked.'
-          : 'Evidence missing — cannot explain without guessing. Start the non-live paper runtime with npm run build:paper-online or npm run run:paper-online.'}
+          ? 'Continuous V2 execution runtime is online and operator-gated. It writes local V2 runtime payloads only; exchange orders stay gated.'
+          : 'Evidence missing - cannot explain without guessing. Start the operator-gated execution runtime service.'}
       </p>
       {payload?.blockers?.length ? (
         <div className="missing-evidence-board">
@@ -345,43 +372,68 @@ export function PaperOnlineRuntimeStatusPanel({ payload }: { payload: PaperOnlin
   );
 }
 
+const COINANK_FRESH_MAX_AGE_SECONDS = 600;
+
 export function CoinankMarketIntelligencePanel({ payload, error, context = 'Market Intelligence' }: { payload: CoinankMarketIntelligencePayload | null; error?: string | null; context?: string }): JSX.Element {
-  const source = payload?.source ?? 'MISSING_EVIDENCE';
-  const availability = payload?.availability ?? {};
-  const endpointCounts = payload?.endpoint_key_counts ?? {};
-  const missing = payload?.missing_evidence ?? [];
-  const activeSymbols = Array.isArray(payload?.active_symbols) ? payload.active_symbols : [];
-  const hotSymbols = Array.isArray(payload?.hot_symbols) ? payload.hot_symbols : [];
-  const requiredTfs = Array.isArray(payload?.required_tfs) ? payload.required_tfs : [];
-  const requiredTfStatus = payload?.required_tfs_status ?? {};
-  const forbiddenSourceChecks = payload?.forbidden_source_checks ?? {};
+  // Current live schema: coinank_direct_runtime_status_v1 (classification /
+  // current_call_log_health / direct_key_counts / generated_utc). Legacy plan-3
+  // keys are used only as fallbacks for old payload snapshots.
+  const generatedIso = payload?.generated_utc ?? payload?.generated_at ?? null;
+  const payloadAge = isoAgeSeconds(generatedIso);
+  const payloadIsFresh = payloadAge !== null && payloadAge <= COINANK_FRESH_MAX_AGE_SECONDS;
+  const classification = payload?.classification ?? payload?.source ?? 'MISSING_EVIDENCE';
+  const chipLabel = !payload
+    ? 'MISSING_EVIDENCE'
+    : payloadIsFresh
+      ? classification
+      : `STALE_COINANK_EVIDENCE · ${payloadAge === null ? 'unknown age' : `${formatAge(payloadAge)} old`}`;
+  const callLog = payload?.current_call_log_health;
+  const keyCounts = payload?.direct_key_counts;
+  const missing = Array.isArray(payload?.missing_api_blockers) && payload.missing_api_blockers.length
+    ? payload.missing_api_blockers
+    : payload?.missing_evidence ?? [];
+  const disabledEndpoints = payload?.intentionally_disabled_endpoints ? Object.keys(payload.intentionally_disabled_endpoints) : [];
+  const neverSuccessful = Array.isArray(payload?.never_successful_active_endpoints) ? payload.never_successful_active_endpoints : [];
+  const featureInput = payload?.v2_redis_feature_input as Record<string, unknown> | undefined;
   return (
     <Panel
       id={`coinank-market-intelligence-${context.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-      title={`${context} - CoinAnk Plan-3 Read-Only Bridge`}
-      right={<span className={payload ? 'chip solid-ok' : 'chip solid-warn'}>{source}</span>}
+      title={`${context} - CoinAnk Direct Read-Only Runtime`}
+      right={sourceChip(chipLabel)}
     >
       {payload ? (
         <>
           <div className="cockpit-analytics-grid">
-            <Metric label="Payload generated" value={payload.generated_at} />
-            <Metric label="Live gate" value={payload.live_gate_status} />
-            <Metric label="Endpoint manifest" value={payload.endpoint_manifest_version} />
-            <Metric label="Active symbols" value={activeSymbols.length} />
-            <Metric label="Global 11 contract" value={payload.global_11_key_contract_status} />
-            <Metric label="CVD keys" value={endpointCounts.agg_cvd ?? 0} />
-            <Metric label="SMC keys" value={endpointCounts.indicator_smc ?? 0} />
-            <Metric label="Weighted funding keys" value={endpointCounts.weighted_funding ?? 0} />
+            <Metric label="Payload generated" value={generatedIso ?? 'MISSING_EVIDENCE'} detail={payloadAge === null ? undefined : `${formatAge(payloadAge)} old`} />
+            <Metric label="Classification" value={classification} />
+            <Metric label="Endpoints tracked" value={payload.endpoints_count ?? 'MISSING_EVIDENCE'} />
+            <Metric
+              label="Recent calls OK"
+              value={callLog?.recent_success_count != null && callLog?.recent_sample_size != null ? `${callLog.recent_success_count}/${callLog.recent_sample_size}` : 'MISSING_EVIDENCE'}
+              detail={callLog?.recent_window_seconds != null ? `last ${Math.round(callLog.recent_window_seconds / 60)}m window` : undefined}
+            />
+            <Metric label="Recent errors" value={callLog?.recent_error_count ?? 'MISSING_EVIDENCE'} />
+            <Metric label="Recent empty" value={callLog?.recent_empty_count ?? 'MISSING_EVIDENCE'} detail={callLog?.recent_empty_endpoints?.length ? callLog.recent_empty_endpoints.slice(0, 3).join(', ') : undefined} />
+            <Metric label="Feature keys (features:coinank)" value={keyCounts?.features_coinank ?? 'MISSING_EVIDENCE'} />
+            <Metric label="Global feature keys" value={keyCounts?.features_global_coinank ?? 'MISSING_EVIDENCE'} />
+            <Metric label="Latest keys" value={keyCounts?.latest_coinank ?? 'MISSING_EVIDENCE'} />
           </div>
           <div className="cockpit-lineage-grid">
-            <div><span>Required TFs</span><strong>{requiredTfs.length ? requiredTfs.map((tf) => `${tf}:${requiredTfStatus[tf] ? 'yes' : 'missing'}`).join(' / ') : 'MISSING_EVIDENCE'}</strong></div>
-            <div><span>Hot symbols</span><strong>{hotSymbols.length ? hotSymbols.slice(0, 8).join(', ') : 'MISSING_EVIDENCE'}</strong></div>
-            <div><span>Liquidation orders</span><strong>{String(availability.liquidation_orders ?? false)}</strong></div>
-            <div><span>Long/short</span><strong>{String(availability.long_short ?? false)}</strong></div>
-            <div><span>Forbidden last-price/KLine source</span><strong>{String(forbiddenSourceChecks.kline_endpoint_keys_observed ?? false)}</strong></div>
-            <div><span>Forbidden orderbook source</span><strong>{String(forbiddenSourceChecks.orderbook_endpoint_keys_observed ?? false)}</strong></div>
+            <div><span>Runtime mode</span><strong>{payload.runtime_mode ?? 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Ingestor service</span><strong>{payload.direct_ingestor_service ?? 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Global aggregator</span><strong>{payload.direct_global_aggregator_service ?? 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Heartbeat</span><strong>{payload.heartbeat_present == null ? 'MISSING_EVIDENCE' : payload.heartbeat_present ? `present${payload.heartbeat_ttl_seconds != null ? ` (TTL ${payload.heartbeat_ttl_seconds}s)` : ''}` : 'absent'}</strong></div>
+            <div><span>Global aggregate</span><strong>{nestedText(payload.global_aggregate_result, ['classification'])}</strong></div>
+            <div><span>V2 feature input</span><strong>{featureInput ? `${featureInput.enabled ? 'enabled' : 'disabled'} · ${valueText(featureInput.read_key_count ?? 'MISSING_EVIDENCE')} keys read` : 'MISSING_EVIDENCE'}</strong></div>
+            <div><span>Disabled endpoints (by design)</span><strong>{disabledEndpoints.length ? disabledEndpoints.join(', ') : 'none'}</strong></div>
+            <div><span>Never-successful active endpoints</span><strong>{neverSuccessful.length ? neverSuccessful.slice(0, 6).join(', ') : 'none'}</strong></div>
           </div>
-          <p className="cockpit-evidence-note">{payload.data_truth_rule}</p>
+          {!payloadIsFresh ? (
+            <p className="cockpit-evidence-gap">
+              CoinAnk status payload is not current — values above are a historical snapshot from {generatedIso ?? 'an unknown time'}{payloadAge !== null ? ` (${formatAge(payloadAge)} old)` : ''}.
+            </p>
+          ) : null}
+          <p className="cockpit-evidence-note">{payload.data_truth_rule ?? 'Read-only CoinAnk direct-runtime status evidence; absent fields stay MISSING_EVIDENCE and are never guessed.'}</p>
           {missing.length ? (
             <details className="mission-evidence-details">
               <summary>
@@ -414,12 +466,12 @@ function RuntimeProcessGroup({ label, status, rows, note }: { label: string; sta
   return (
     <div className={`runtime-process-group runtime-process-group--${truthTone(status)}`}>
       <div className="runtime-process-group__head">
-        <span>{label}</span>
-        <strong className={statusClass(status)}>{status}</strong>
+        <span>{truthText(label)}</span>
+        <strong className={statusClass(status)}>{truthText(status)}</strong>
       </div>
-      <p>{note}</p>
+      <p>{truthText(note)}</p>
       <details className="truth-details">
-        <summary>{rows.length} read-only observed process row{rows.length === 1 ? '' : 's'}</summary>
+        <summary>{rows.length} runtime observed process row{rows.length === 1 ? '' : 's'}</summary>
         <div className="truth-raw-list">
           {rows.length ? rows.map((line) => (
             <code key={`${label}-${line}`}>{line}</code>
@@ -435,7 +487,7 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
   const supervisor = payload.supervisor_status;
   const groups = [
     {
-      label: 'Control plane',
+      label: 'System status',
       status: controlPlaneValue(payload),
       rows: supervisor.supervisor_processes,
       note: `Current task: ${supervisor.current_running_task ?? 'none'}; last completed: ${supervisor.last_completed_task ?? 'none'}; next: ${payload.current_next_task ?? 'missing'}.`,
@@ -450,7 +502,7 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
       label: 'Feature pipeline',
       status: runtime.feature_pipeline_status ?? 'MISSING_EVIDENCE',
       rows: runtime.feature_pipeline_processes ?? [],
-      note: 'Feature pipeline process evidence is read-only observation; feature freshness still requires payload evidence.',
+      note: 'Feature pipeline process evidence is runtime observation; feature freshness still requires payload evidence.',
     },
     {
       label: 'Orchestrator',
@@ -462,7 +514,7 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
       label: 'Trader',
       status: runtime.trader_status,
       rows: runtime.trader_processes,
-      note: 'Process observation only. No order, cancel, leverage, margin, or live action was performed by this dashboard.',
+      note: 'Process observation only. No order, cancel, leverage, margin, or exchange action was performed by this dashboard.',
     },
     {
       label: 'Trainer runtime',
@@ -471,8 +523,8 @@ export function ActualRuntimeNowPanel({ payload }: { payload: OperatorTruthPaylo
       note: payload.trainer_monitor_status.status === 'TRAINER_RUNTIME_EVIDENCE_MISSING'
         ? 'Trainer runtime evidence is missing. Fixture predictions are separated from current trainer state.'
         : payload.trainer_monitor_status.status === 'V2_PAPER_TRAINER_WRAPPER_CURRENT'
-          ? 'Current V2 paper-only trainer wrapper evidence is present; legacy trainer process parity is still a separate live-readiness blocker.'
-          : 'Trainer process evidence is present in the read-only process snapshot.',
+        ? 'Current V2 runtime trainer wrapper evidence is present; legacy trainer process parity is still a separate readiness blocker.'
+          : 'Trainer process evidence is present in the runtime process snapshot.',
     },
   ];
   return (
@@ -496,7 +548,7 @@ export function RouteTruthSummary({ payload, title }: { payload: OperatorTruthPa
         <h2>Current evidence state</h2>
       </div>
       <div className="route-truth-summary__grid">
-        <TruthStateCard label="Control plane" value={controlPlaneValue(payload)} detail="Dashboard must disclose missing control-plane daemons and stale historical status files separately." source={payload.canonical_truth_bridge ? 'PAPER_ONLINE_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'} />
+        <TruthStateCard label="System status" value={controlPlaneValue(payload)} detail="Dashboard must disclose missing system-status daemons and stale historical status files separately." source={payload.canonical_truth_bridge ? 'V2_TRADE_MANAGEMENT_PAPER_CANONICAL_TRUTH_BRIDGE' : 'RUNTIME_MONITOR_PAYLOAD'} />
         <TruthStateCard label="Trainer" value={payload.trainer_monitor_status.status} detail="No prediction can be explained unless runtime evidence exists." source="REALTIME_RUNTIME_EVIDENCE" />
         <TruthStateCard label="Signal lineage" value={payload.signal_lineage_status.status} detail="Static proof lineage is not current runtime truth." source={payload.signal_lineage_status.status} />
         <TruthStateCard label="Payloads" value={`${payload.dashboard_freshness_status.stale_payload_count} stale`} detail={`${payload.dashboard_freshness_status.static_fixture_count} static fixtures; ${payload.dashboard_freshness_status.missing_evidence_count} missing.`} source="PUBLIC_PAYLOAD_AUDIT" />
@@ -601,7 +653,7 @@ export function TrainerPredictionTruthPanel({ payload }: { payload: OperatorTrut
             <div><span>parity</span><strong>{nestedText(restartRuntime, ['parity', 'status'])}</strong></div>
           </div>
           <p className="cockpit-evidence-gap">
-            Legacy restart evidence is shown separately from V2 paper wrapper evidence. Full parity is not claimed unless the parity status explicitly says so.
+            Legacy restart evidence is shown separately from V2 runtime wrapper evidence. Full parity is not claimed unless the parity status explicitly says so.
           </p>
         </>
       ) : null}
@@ -653,12 +705,12 @@ export function SignalLineageTruthPanel({ payload }: { payload: OperatorTruthPay
 export function WhatIsWorkingPanel({ payload }: { payload: OperatorTruthPayload }): JSX.Element {
   const rows = [
     ['control-plane truth bridge', controlPlaneValue(payload)],
-    ['read-only market feed', payload.proof_artifact_statuses.find((row) => row.label.includes('readonly market'))?.status ?? 'MISSING_EVIDENCE'],
+    ['live market feed', payload.proof_artifact_statuses.find((row) => row.label.includes('readonly market'))?.status ?? 'MISSING_EVIDENCE'],
     ['trainer predictions', payload.trainer_monitor_status.status],
     ['signal lineage', payload.signal_lineage_status.status],
     ['risk gateway', payload.source_files.some((path) => path.includes('risk_gateway')) ? 'V2_PROOF_ARTIFACT' : 'MISSING_EVIDENCE'],
-    ['paper online', payload.runtime_monitor_status.paper_online_runtime_status?.status ?? 'MISSING_EVIDENCE'],
-    ['paper/shadow proof', payload.proof_artifact_statuses.find((row) => row.label.includes('paper'))?.status ?? 'MISSING_EVIDENCE'],
+    ['execution online', payload.runtime_monitor_status.paper_online_runtime_status?.status ?? 'MISSING_EVIDENCE'],
+    ['execution/shadow proof', payload.proof_artifact_statuses.find((row) => row.label.includes('paper'))?.status ?? 'MISSING_EVIDENCE'],
     ['website payload freshness', payload.dashboard_freshness_status.stale_payload_count ? 'STALE_PAYLOADS_PRESENT' : 'CURRENT_SNAPSHOT'],
   ];
   return (

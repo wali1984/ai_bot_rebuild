@@ -1,0 +1,148 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "blocked_components": [
+    {
+      "name": "ingest.live_kucoin",
+      "reason": "KUCOIN_API_KEY / KUCOIN_API_SECRET absent by name"
+    },
+    {
+      "name": "ingest.liquidation_bridge",
+      "reason": "raw script writes `liquidations:events` + `cursor:liq_bridge:*` to OLD Redis; V2 wrapper (v2_coinank_and_liquidation_bridge) covers the v2:liquidation:* surface via the existing durable GNOME loop"
+    },
+    {
+      "name": "ingest.liquidation_levels_engine",
+      "reason": "raw script writes `unified_features:*` to OLD Redis; V2 wrapper (v2_liquidation_observation_aggregator_status) covers the v2:* per-symbol liquidation aggregator surface via the existing durable GNOME loop"
+    },
+    {
+      "name": "ingest.live_coinapi_wsds",
+      "reason": "raw script writes `microfeat:*`, `msnap:coinapi_wsds:*`, `normalized:ohlcv:*` to OLD Redis; no V2 wrapper exists yet"
+    },
+    {
+      "name": "ingest.live_coinapi_v1",
+      "reason": "raw script writes `ohlcv:list:coinapi:*`, `latest:coinapi:*` to OLD Redis; no V2 wrapper exists yet"
+    },
+    {
+      "name": "trading.opportunity_tracker",
+      "reason": "raw script writes `opportunity:latest`, `signals:overlay:intents` to OLD Redis; no V2 wrapper exists yet"
+    }
+  ],
+  "blocked_via_adapter_gate_count": 6,
+  "credentials_values_exposed": false,
+  "every_terminal_shows_est_timestamps": true,
+  "every_terminal_shows_safety_footer": true,
+  "go_no_go": "COPIED_RUNTIME_GNOME_START_READY",
+  "launcher_script": "claude_worklog/tools/start_full_copied_v2_runtime_gnome.sh",
+  "live_symbols": [],
+  "no_blank_terminals": true,
+  "operator_excluded_components": [
+    {
+      "name": "ingest.live_binance_liquidations__EXPLICITLY_EXCLUDED",
+      "reason": "operator directive: do NOT start ingest/live_binance_liquidations.py in this lane"
+    }
+  ],
+  "operator_excluded_count": 1,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "started_via_durable_gnome_panel": [
+    {
+      "name": "scripts.memory_monitor",
+      "title": "V2 Memory/GPU Monitor"
+    },
+    {
+      "name": "scripts.monitor_trainer_predictions",
+      "title": "V2 Predictions Monitor"
+    },
+    {
+      "name": "ingest.live_coinank",
+      "title": "V2 CoinAnk Bridge (dynamic+baseline)"
+    },
+    {
+      "name": "ingest.live_coinank_global_aggregator",
+      "title": "V2 CoinAnk Bridge (dynamic+baseline)"
+    },
+    {
+      "name": "ingest.live_technical_analysis",
+      "title": "V2 TA Worker (dynamic-first symbol)"
+    },
+    {
+      "name": "monitor.redis",
+      "title": "V2 Redis Key Monitor"
+    },
+    {
+      "name": "monitor.memory_gpu",
+      "title": "V2 Memory/GPU Monitor"
+    },
+    {
+      "name": "monitor.error_alert",
+      "title": "V2 Error/Alert Monitor"
+    }
+  ],
+  "started_via_durable_gnome_panel_count": 8,
+  "started_via_systemd_unit": [
+    {
+      "name": "ingest.live_binance",
+      "unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "name": "ingest.realtime_price_provider",
+      "unit": "ai-bot-v2-paper-online-runtime.service"
+    },
+    {
+      "name": "feature_pipeline",
+      "unit": "ai-bot-v2-feature-pipeline-native-loop.service"
+    },
+    {
+      "name": "rl.hybrid_trainer",
+      "unit": "ai-bot-v2-trainer-bridge.service"
+    },
+    {
+      "name": "rl.orchestrator_worker",
+      "unit": "ai-bot-v2-orchestrator-arbitration-loop.service"
+    }
+  ],
+  "started_via_systemd_unit_count": 5,
+  "ts_est": "20260526T014445EST",
+  "ts_iso_est": "2026-05-26T01:50:04-0400",
+  "visible_terminal_count_now": 36,
+  "visible_terminal_titles_now": [
+    "V2 Automation Liveness Watchdog",
+    "V2 Automation/Spark Monitor",
+    "V2 Binance Public Metadata (mark/funding/OI/orderbook)",
+    "V2 Claude Closed-Loop Workers (1-3)",
+    "V2 Codex Closed-Loop Workers (1-3)",
+    "V2 CoinAnk Bridge (dynamic+baseline)",
+    "V2 Error/Alert Monitor",
+    "V2 Exchange Read-Only Monitor",
+    "V2 Executive Command Center",
+    "V2 Feature Snapshot Builder",
+    "V2 Final-Operator-Decision Event Watcher",
+    "V2 Liquidation Aggregator (dynamic+baseline)",
+    "V2 Liquidation WSS (paper-shadow)",
+    "V2 Market Data Monitor",
+    "V2 Memory/GPU Monitor",
+    "V2 No-Manual Next-Task Policy",
+    "V2 Orchestrator Arbitration Loop",
+    "V2 Paper Online Runtime",
+    "V2 Paper Shadow Observation",
+    "V2 Paper Trade Management",
+    "V2 Paper Trading Monitor",
+    "V2 Position History Tracker",
+    "V2 Predictions Monitor",
+    "V2 Production-Equivalence Comparator",
+    "V2 Redis Key Monitor",
+    "V2 Redis Status Panel",
+    "V2 Replay Outcome Miner",
+    "V2 Report Center Indexer",
+    "V2 Risk Gateway (periodic rerun)",
+    "V2 Risk/Orchestrator Monitor",
+    "V2 Service Monitor",
+    "V2 Spark Worker Pool",
+    "V2 Symbol Universe Publisher",
+    "V2 TA Worker (dynamic-first symbol)",
+    "V2 TA Worker (periodic rerun)",
+    "V2 Trainer Bridge / Prediction Publisher"
+  ],
+  "writes_exchange_orders": false
+}

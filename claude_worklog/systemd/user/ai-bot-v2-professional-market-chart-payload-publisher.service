@@ -1,0 +1,19 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI BOT V2 professional OHLCV/TA/signal chart payload publisher (read-only, no exchange calls)
+After=ai-bot-v2-binance-kline-wss-loop.service ai-bot-v2-market-chart-payload-publisher.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI BOT REBUILD/v2/backend"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_professional_market_chart_payload_publisher --symbols auto --timeframes 1m,5m,15m,1h,4h --loop --interval-seconds 15 --max-candles 100'
+Restart=always
+RestartSec=30
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_professional_market_chart_payload_publisher.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_professional_market_chart_payload_publisher.err
+
+[Install]
+WantedBy=default.target

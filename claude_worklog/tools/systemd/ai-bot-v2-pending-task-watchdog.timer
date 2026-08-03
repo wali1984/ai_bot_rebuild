@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 Pending-Task Watchdog (every 2 minutes)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+AccuracySec=15s
+Persistent=true
+Unit=ai-bot-v2-pending-task-watchdog.service
+
+[Install]
+WantedBy=timers.target

@@ -1,15 +1,25 @@
 {
-  "task_id": "012co_summarize_feature_explainability_context",
   "agent": "ollama",
-  "risk_level": "L1",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/agent_supervisor/ollama_context/"
   ],
+  "completed_at": "2026-05-01T03:38:52.913291+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "model": "qwen2.5-coder:7b",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "prompt": "You are local Ollama operating in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Create a concise pre-brief for task 012c_feature_explainability_completeness. Inputs: claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md, claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md, claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md, claude_worklog/post_monitor/06_FEATURE_DATA_FLOW_GAPS.md, claude_worklog/agent_supervisor/ollama_context/011o_codex_blockers_summary.md. Output exactly one BEGIN_FILE block at claude_worklog/agent_supervisor/ollama_context/012c_feature_explainability_context.md. Keep under 120 lines. Include: completeness rules, contributor cardinality minimums, stale/missing/unused flag requirements, and rejection criteria checklist. If any file is missing, list it under Missing Inputs.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/agent_supervisor/ollama_context/012c_feature_explainability_context.md"
   ],
-  "prompt": "You are local Ollama operating in /home/wali/Desktop/AI BOT REBUILD. Do not touch /home/wali/Desktop/AI BOT. Do not write Redis. Do not restart services. Do not build V2 code. Create a concise pre-brief for task 012c_feature_explainability_completeness. Inputs: claude_worklog/v2_architecture/11_FEATURE_ATTRIBUTION_AND_SIGNAL_EXPLAINABILITY_ARCHITECTURE.md, claude_worklog/v2_requirements/02_FEATURE_SNAPSHOT_SCHEMA.md, claude_worklog/v2_requirements/04_CONFIDENCE_EXPLAINABILITY_SCHEMA.md, claude_worklog/post_monitor/06_FEATURE_DATA_FLOW_GAPS.md, claude_worklog/agent_supervisor/ollama_context/011o_codex_blockers_summary.md. Output exactly one BEGIN_FILE block at claude_worklog/agent_supervisor/ollama_context/012c_feature_explainability_context.md. Keep under 120 lines. Include: completeness rules, contributor cardinality minimums, stale/missing/unused flag requirements, and rejection criteria checklist. If any file is missing, list it under Missing Inputs.",
-  "model": "qwen2.5-coder:7b"
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-01T03:38:52.913291+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/012co_summarize_feature_explainability_context.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "012co_summarize_feature_explainability_context",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

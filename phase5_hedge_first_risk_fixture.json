@@ -1,0 +1,34 @@
+{
+  "marker": "PHASE5_HEDGE_FIRST_RISK_FIXTURE",
+  "generated_utc": "2026-07-11T17:50:00Z",
+  "paper_only": true,
+  "routes_to_live": false,
+  "places_real_order": false,
+  "fixtures": {
+    "positive_hedge_ev_selects_protective_hedge": {
+      "hedge_action": "PROTECTIVE_HEDGE",
+      "hedge_required": true,
+      "hedge_side": "short",
+      "places_real_order": false
+    },
+    "hedge_cost_too_high_reduces_instead": {
+      "hedge_action": "REDUCE_POSITION",
+      "hedge_required": false,
+      "reason_contains": "HEDGE_COST_EXCEEDS_EXPECTED_RISK_REDUCTION"
+    },
+    "same_direction_averaging_down_blocked": true,
+    "exit_dominates_when_no_edge": {
+      "hedge_action": "REDUCE_POSITION",
+      "hedge_reason": "no_positive_edge_reduce_before_hedge"
+    },
+    "hedge_does_not_rescue_bad_primary_entry": true
+  },
+  "tests": [
+    "test_hedge_first_positive_hedge_ev_selects_protective_hedge",
+    "test_hedge_first_high_cost_reduces_instead_of_hedging",
+    "test_hedge_first_same_direction_averaging_down_is_rejected",
+    "test_hedge_first_exit_dominates_when_no_edge",
+    "test_hedge_plan_cannot_rescue_rejected_primary_candidate"
+  ],
+  "status": "PASSED"
+}

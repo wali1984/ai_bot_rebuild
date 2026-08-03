@@ -1,0 +1,73 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "failed_stops": [],
+  "go_no_go": "PARTIAL_V2_BRIDGE_RUNTIME_STOP_READY",
+  "live_symbols": [],
+  "notes": "No active V2 systemd service was stopped this lane. The previously-running 'periodic rerun' panel is superseded by the dynamic-first panel; both write only v2:*. The operator can close the deprecated panel manually.",
+  "preserved_data": [
+    "v2:* Redis namespace",
+    "claude_worklog/**",
+    "v2/frontend/public/**",
+    "report center indexer payload",
+    "Spark worker pool state (worker_pool_status.json)",
+    "Claude / Codex closed-loop worker history",
+    "paper ledger / position history"
+  ],
+  "preserved_services": [
+    "ai-bot-v2-agent-supervisor.service",
+    "ai-bot-v2-closed-loop-claude-worker@1.service",
+    "ai-bot-v2-closed-loop-claude-worker@2.service",
+    "ai-bot-v2-closed-loop-claude-worker@3.service",
+    "ai-bot-v2-closed-loop-codex-worker@1.service",
+    "ai-bot-v2-closed-loop-codex-worker@2.service",
+    "ai-bot-v2-closed-loop-codex-worker@3.service",
+    "ai-bot-v2-codex-shutdown-readiness-takeover.service",
+    "ai-bot-v2-codex-watchdog.service",
+    "ai-bot-v2-continuous-legacy-log-remediation.service",
+    "ai-bot-v2-feature-pipeline-native-loop.service",
+    "ai-bot-v2-feature-snapshot-builder.service",
+    "ai-bot-v2-legacy-log-intelligence-observer.service",
+    "ai-bot-v2-legacy-v2-production-comparator.service",
+    "ai-bot-v2-liquidation-wss-paper-shadow.service",
+    "ai-bot-v2-native-ingestors-live-loop.service",
+    "ai-bot-v2-orchestrator-arbitration-loop.service",
+    "ai-bot-v2-paper-online-runtime.service",
+    "ai-bot-v2-paper-shadow-observation.service",
+    "ai-bot-v2-parallel-scheduler.service",
+    "ai-bot-v2-parallel-spark-automation.service",
+    "ai-bot-v2-position-history-persistent-tracker.service",
+    "ai-bot-v2-production-replacement-runtime-guard.service",
+    "ai-bot-v2-public-website-backend.service",
+    "ai-bot-v2-readonly-decision-observatory.service",
+    "ai-bot-v2-rl-core-inference-loop.service",
+    "ai-bot-v2-symbol-universe-publisher.service",
+    "ai-bot-v2-trade-management-paper-loop.service",
+    "ai-bot-v2-trainer-bridge.service",
+    "ai-bot-v2-worker-porting-orchestrator.service"
+  ],
+  "preserved_services_count": 30,
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "scaffolds_already_removed_in_prior_lanes": [
+    "BTC-only / 3-symbol defaults (patched in 4 CLIs by dynamic resolver)",
+    "smoke-test 3-set is now opt-in only"
+  ],
+  "stop_actions_taken": [
+    {
+      "auto_close_attempted": false,
+      "auto_close_skipped_reason": "xkill killing gnome-terminal-server would close ALL V2 windows; safer to let the operator close this single panel manually",
+      "duplicate_present": true,
+      "kind": "panel_marked_deprecated_for_operator_closure",
+      "rationale": "duplicate of dynamic-first TA panel; safe to close manually",
+      "superseded_by": "V2 TA Worker (dynamic-first symbol)",
+      "title": "V2 TA Worker (periodic rerun)"
+    }
+  ],
+  "stopped_services_this_lane": [],
+  "ts_est": "20260526T014445EST",
+  "ts_iso_est": "2026-05-26T01:50:04-0400",
+  "writes_exchange_orders": false
+}

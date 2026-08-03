@@ -1,0 +1,68 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_RAW_COPIED_COMPONENT_BLOCK_STATUS_READY",
+  "items": [
+    {
+      "approval_required_from": "operator (and Codex 5.5 review)",
+      "blocked": true,
+      "component": "coinapi_rest",
+      "copied_path": "v2/legacy_owned_runtime/ingest/live_coinapi_rest.py",
+      "copied_path_exists": true,
+      "old_redis_namespaces": [
+        "ohlcv:list:coinapi:*",
+        "latest:coinapi:*"
+      ],
+      "reason": "raw copied legacy script writes old Redis namespaces; must be wrapped by a V2 module that emits v2:* before it may be started",
+      "running": false
+    },
+    {
+      "approval_required_from": "operator (and Codex 5.5 review)",
+      "blocked": true,
+      "component": "coinapi_wsds",
+      "copied_path": "v2/legacy_owned_runtime/ingest/live_coinapi_wsds.py",
+      "copied_path_exists": true,
+      "old_redis_namespaces": [
+        "microfeat:*",
+        "msnap:coinapi_wsds:*",
+        "normalized:ohlcv:*"
+      ],
+      "reason": "raw copied legacy script writes old Redis namespaces; must be wrapped by a V2 module that emits v2:* before it may be started",
+      "running": false
+    },
+    {
+      "approval_required_from": "operator (and Codex 5.5 review)",
+      "blocked": true,
+      "component": "ccxt_aggregator",
+      "copied_path": "v2/legacy_owned_runtime/ingest/live_ccxt.py",
+      "copied_path_exists": true,
+      "old_redis_namespaces": [
+        "ccxt:*"
+      ],
+      "reason": "raw copied legacy script writes old Redis namespaces; must be wrapped by a V2 module that emits v2:* before it may be started",
+      "running": false
+    },
+    {
+      "approval_required_from": "operator (and Codex 5.5 review)",
+      "blocked": true,
+      "component": "strategy_engine_legacy_opportunity_tracker",
+      "copied_path": "v2/legacy_owned_runtime/trading/opportunity_tracker.py",
+      "copied_path_exists": true,
+      "old_redis_namespaces": [
+        "opportunity:latest",
+        "signals:overlay:intents"
+      ],
+      "reason": "raw copied legacy script writes old Redis namespaces; must be wrapped by a V2 module that emits v2:* before it may be started",
+      "running": false
+    }
+  ],
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "rule": "raw copied legacy that writes old Redis is NEVER started by Claude / Codex / Spark. Wrap in a V2 module first.",
+  "ts_est": "20260526T005752EST",
+  "ts_iso_est": "2026-05-26T01:03:25-0400",
+  "writes_exchange_orders": false
+}

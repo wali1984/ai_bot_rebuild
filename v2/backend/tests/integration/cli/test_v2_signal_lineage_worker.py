@@ -117,6 +117,9 @@ def _fresh_bundle(
         "feature_snapshot": {
             "feature_snapshot_id": "fs_paper_tick_1",
             "generated_at": "2026-05-14T05:00:00Z",
+            "available_at": "2026-05-14T04:59:58Z",
+            "feature_cutoff": "2026-05-14T04:59:58Z",
+            "timeframe": "1m",
             "freshness_state": "CURRENT",
             "market_age_seconds": 4,
             "features": {
@@ -137,6 +140,14 @@ def _fresh_bundle(
             "model_checkpoint": "v2_paper_readonly_momentum_wrapper_v1",
             "confidence_raw": 0.66,
             "confidence_calibrated": 0.64,
+            "timeframe": "1m",
+            "expected_move_bps": 18.0,
+            "expected_move_after_cost_bps": 11.5,
+            "available_at": "2026-05-14T04:59:59Z",
+            "decision_time": "2026-05-14T05:00:00Z",
+            "feature_cutoff": "2026-05-14T04:59:58Z",
+            "price_target": 60108.5009,
+            "price_target_after_cost": 60069.500575,
             "raw_output": {"side": "long", "momentum_score": 0.05},
             "freshness_state": "CURRENT",
             "market_age_seconds": 4,
@@ -241,6 +252,17 @@ def test_full_chain_capture_all_seven_stages(
     assert sig["service_id"] == SIGNAL_SERVICE_ID
     assert sig["prediction_id"] == "pred_paper_tick_1"
     assert sig["feature_snapshot_id"] == "fs_paper_tick_1"
+    assert sig["timeframe"] == "1m"
+    assert sig["expected_move_bps"] == 18.0
+    assert sig["expected_move_after_cost_bps"] == 11.5
+    assert sig["expected_net_edge_bps"] == 11.5
+    assert sig["available_at"] == "2026-05-14T04:59:59Z"
+    assert sig["decision_time"] == "2026-05-14T05:00:00Z"
+    assert sig["feature_cutoff"] == "2026-05-14T04:59:58Z"
+    assert sig["price_target_after_cost"] == 60069.500575
+    assert sig["source_lineage"]["expected_move_after_cost_bps_source_field"] == (
+        "trainer_prediction.expected_move_after_cost_bps"
+    )
     assert sig["actionable"] is True
     assert sig["explanation"] != EVIDENCE_MISSING_LABEL
 
@@ -494,6 +516,54 @@ def test_signal_publisher_build_signal_record_uses_evidence_missing_label() -> N
     )
     assert record["explanation"] == EVIDENCE_MISSING_LABEL
     assert record["actionable"] is False
+
+
+def test_signal_publisher_build_signal_record_preserves_optional_edge_and_pit_fields() -> None:
+    record = build_signal_record(
+        prediction={
+            "prediction_id": "pred_edge_1",
+            "symbol": "BTCUSDT",
+            "timeframe": "5m",
+            "raw_output": {"side": "short"},
+            "confidence_calibrated": 0.72,
+            "expected_move_bps": -22.0,
+            "expected_move_after_cost_bps": -15.5,
+            "available_at": "2026-05-14T04:59:59Z",
+            "decision_time": "2026-05-14T05:00:00Z",
+            "feature_cutoff": "2026-05-14T04:59:58Z",
+            "price_target_after_cost": 59907.0,
+        },
+        feature_snapshot={
+            "feature_snapshot_id": "fs_edge_1",
+            "symbol": "BTCUSDT",
+            "timeframe": "5m",
+            "missing_mask": {"open": False, "close": False},
+            "stale_mask": {"funding_rate": True},
+            "source_availability": {"ohlcv": True, "funding": False},
+        },
+        market_freshness_state="CURRENT",
+        market_age_seconds=2,
+        run_ts="2026-05-14T05:00:01Z",
+    )
+
+    assert record["timeframe"] == "5m"
+    assert record["expected_move_bps"] == -22.0
+    assert record["expected_move_after_cost_bps"] == -15.5
+    assert record["expected_net_edge_bps"] == -15.5
+    assert record["available_at"] == "2026-05-14T04:59:59Z"
+    assert record["decision_time"] == "2026-05-14T05:00:00Z"
+    assert record["feature_cutoff"] == "2026-05-14T04:59:58Z"
+    assert record["price_target_after_cost"] == 59907.0
+    assert record["missing_feature_count"] == 0
+    assert record["missing_mask"] == {"open": False, "close": False}
+    assert record["stale_feature_names"] == ["funding_rate"]
+    assert record["source_availability"] == {"ohlcv": True, "funding": False}
+    assert record["explanation"] != EVIDENCE_MISSING_LABEL
+    citation_by_field = {
+        citation["field_name"]: citation
+        for citation in record["evidence_citations"]
+    }
+    assert citation_by_field["expected_move_after_cost_bps"]["present"] is True
 
 
 # ----------------------------------------------------------------------

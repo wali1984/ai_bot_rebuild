@@ -1,0 +1,30 @@
+[Unit]
+Description=AI Bot V2 natural paper lifecycle restart acceptance controller
+After=ai-bot-v2-canonical-prediction-serving.service ai-bot-v2-trade-management-paper-loop.service
+Requires=ai-bot-v2-canonical-prediction-serving.service ai-bot-v2-trade-management-paper-loop.service
+ConditionFileIsExecutable=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="PYTHONDONTWRITEBYTECODE=1"
+Environment="REDIS_URL=redis://127.0.0.1:6379/0"
+Environment="LIVE_GATE=blocked_human_only"
+RuntimeDirectory=ai-bot-v2-first-paper-lifecycle-acceptance
+RuntimeDirectoryMode=0700
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -P -B tools/first_paper_lifecycle_acceptance.py watch --state-root /home/wali/ai_bot_local_data/permanent_system_recovery/first_lifecycle --evidence-root "/home/wali/Desktop/AI BOT REBUILD/goal_state/PERMANENT_SYSTEM_RECOVERY/natural_lifecycles" --lock-path /run/user/1000/ai-bot-v2-first-paper-lifecycle-acceptance/writer.lock
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/wali/ai_bot_local_data/permanent_system_recovery/first_lifecycle
+ReadWritePaths="/home/wali/Desktop/AI BOT REBUILD/goal_state/PERMANENT_SYSTEM_RECOVERY/natural_lifecycles"
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=default.target

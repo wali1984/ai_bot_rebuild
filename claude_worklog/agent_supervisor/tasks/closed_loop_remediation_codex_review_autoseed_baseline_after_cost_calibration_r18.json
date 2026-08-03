@@ -1,0 +1,31 @@
+{
+  "codex_pair_task_id": "codex_review_autoseed_baseline_after_cost_calibration_r18",
+  "completed_at": "2026-05-25T00:42:03Z",
+  "created_at": "2026-05-25T00:32:53Z",
+  "fail_blockers": [
+    "1. **`BaselineCalibration` dataclass** \u2014 empirical-bin calibrator (5 bins by default) fitted from `ROW_TRAINABLE` rows only. Stores per-bin `mean_after_cost_bps`, `positive_share`, `negative_share`, sample counts.",
+    "1. **`BaselineCalibration` dataclass** \u2014 empirical-bin calibrator (5 bins by default) fitted from `ROW_TRAINABLE` rows only. Stores per-bin `mean_after_cost_bps`, `positive_share`, `negative_share`, sample counts."
+  ],
+  "file_lock_group": "v2_native_baseline_after_cost_calibration",
+  "lease_id": "ab9e8de05bc1445f94ae10cdbe3d8f90",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "pid_or_job_id": 1573506,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "started_at": "2026-05-25T00:39:03Z",
+  "status": "completed",
+  "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration_r18",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-25T00:42:03Z",
+  "worker_id": "claude-1"
+}

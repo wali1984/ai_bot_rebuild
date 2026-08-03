@@ -20,7 +20,6 @@ export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: Trad
     if (initializedRef.current && symbolRef.current === symbol) return undefined;
 
     let active = true;
-    let loaded = false;
     let observer: MutationObserver | null = null;
     initializedRef.current = true;
     symbolRef.current = symbol;
@@ -52,9 +51,6 @@ export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: Trad
     script.src = WIDGET_SRC;
     script.async = true;
     script.type = 'text/javascript';
-    script.onload = () => {
-      loaded = true;
-    };
     script.onerror = () => {
       if (active) setFailed(true);
     };
@@ -93,18 +89,19 @@ export function TradingViewWidget({ symbol = 'BINANCE:BTCUSDT', fallback }: Trad
         ref={containerRef}
         aria-hidden={failed ? 'true' : undefined}
       />
-      {!failed && !ready ? (
+      {!ready && fallback ? fallback : null}
+      {!ready ? (
         <div className="tradingview-widget-loading" role="status">
-          TradingView primary chart loading for {symbol}. If the external widget is blocked, the local read-only fallback appears automatically.
+          {failed
+            ? `TradingView external widget did not connect for ${symbol}. Local live-market chart remains active.`
+            : `TradingView connecting for ${symbol}. Local live-market chart is active.`}
         </div>
       ) : null}
-      {failed
-        ? fallback ?? (
-            <div className="tradingview-widget-fallback" role="status">
-              Chart unavailable. TradingView widget failed to load.
-            </div>
-          )
-        : null}
+      {failed && !fallback ? (
+        <div className="tradingview-widget-fallback" role="status">
+          TradingView external widget did not connect.
+        </div>
+      ) : null}
     </div>
   );
 }

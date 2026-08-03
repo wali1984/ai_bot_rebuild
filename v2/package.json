@@ -2,5 +2,12 @@
   "name": "ai-bot-v2",
   "private": true,
   "version": "0.0.0",
-  "workspaces": ["frontend"]
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "brand:tokens": "node scripts/generate-nervyx-brand-tokens.mjs",
+    "brand:tokens:check": "node scripts/check-nervyx-brand-token-drift.mjs",
+    "ios:app-store-build:check": "python3 scripts/check_ios_app_store_build_number.py"
+  }
 }

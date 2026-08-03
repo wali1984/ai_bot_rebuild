@@ -1,23 +1,15 @@
 {
-  "task_id": "094_trainer_parity_2e1d_codex_autofix",
   "agent": "codex",
-  "risk_level": "L1",
-  "status": "pending",
-  "depends_on": [
-    "092_trainer_parity_2e1d_service_composition_codex_review"
-  ],
-  "predecessor_task_ids": [
-    "092_trainer_parity_2e1d_service_composition_codex_review"
-  ],
-  "predecessor_required_marker": "PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_CODEX_FAIL",
-  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/119_2E1D_SERVICE_COMPOSITION_CODEX_GO_NO_GO.md",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "emit_files": true,
-  "task_granularity_mode": "consolidated_default",
   "allowed_output_prefixes": [
     "v2/backend/tests/unit/services/trainer_parity/",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/"
   ],
+  "completed_at": "2026-05-04T22:18:24.867188+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "092_trainer_parity_2e1d_service_composition_codex_review"
+  ],
+  "emit_files": true,
   "forbidden_output_paths": [
     "v2/backend/app/services/",
     "v2/backend/app/adapters/",
@@ -38,6 +30,15 @@
     "claude_worklog/security/",
     "claude_worklog/requirements_inbox/"
   ],
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_recommended_action": "On PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_PASSED, supervisor dispatches 095_trainer_parity_2e1d_codex_rereview_after_autofix. On PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_FAILED with concrete blockers and no safety violation, surface to human attention; the planner does NOT chain a second autofix layer. On any safety violation per the stop conditions, surface to human attention; no further autofix is permitted.",
+  "predecessor_required_marker": "PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_CODEX_FAIL",
+  "predecessor_required_marker_file": "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/119_2E1D_SERVICE_COMPOSITION_CODEX_GO_NO_GO.md",
+  "predecessor_task_ids": [
+    "092_trainer_parity_2e1d_service_composition_codex_review"
+  ],
+  "prompt": "You are Codex acting as the non-live autofix agent for 092's 2E1D service-composition review failure. Work only inside /home/wali/Desktop/AI BOT REBUILD and only within required_output_files. Do not modify trainer_parity service source, prior milestone files, service package __init__.py files, task definitions, runtime prompts, or files 112 through 119. Do not access external venues, live services, production key-value stores, secrets, release systems, or production schema tooling. Remediate exactly five test/documentation blockers from 118: add the two omitted service test paths to test_service_milestone_forbidden_tokens.py; add tuple and element identity assertions to test_evaluate_does_not_mutate_supplied_histories.py; compare pass-through growth to compute_stream_id_growth_in_window in test_evaluate_passes_now_ms_into_compose.py; strengthen positive sequential growth coverage in test_evaluate_returns_snapshot_with_growth_from_history.py; and create 120_2E1D_TEST_PLAN_FINAL_COUNT_ADDENDUM.md documenting why 34 authored service tests are canonical for 2E1D. Run the validation commands described by 118/119 and emit 121_2E1D_AUTOFIX_REPORT.md plus 122_2E1D_AUTOFIX_GO_NO_GO.md. The GO/NO-GO file must contain exactly one line: PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_PASSED or PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_FAILED.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "v2/backend/tests/unit/services/trainer_parity/test_service_milestone_forbidden_tokens.py",
     "v2/backend/tests/unit/services/trainer_parity/test_evaluate_does_not_mutate_supplied_histories.py",
@@ -47,6 +48,14 @@
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/121_2E1D_AUTOFIX_REPORT.md",
     "claude_worklog/phase2_core_rebuild/trainer_gpu_parity_impl/122_2E1D_AUTOFIX_GO_NO_GO.md"
   ],
-  "prompt": "You are Codex acting as the non-live autofix agent for 092's 2E1D service-composition review failure. Work only inside /home/wali/Desktop/AI BOT REBUILD and only within required_output_files. Do not modify trainer_parity service source, prior milestone files, service package __init__.py files, task definitions, runtime prompts, or files 112 through 119. Do not access external venues, live services, production key-value stores, secrets, release systems, or production schema tooling. Remediate exactly five test/documentation blockers from 118: add the two omitted service test paths to test_service_milestone_forbidden_tokens.py; add tuple and element identity assertions to test_evaluate_does_not_mutate_supplied_histories.py; compare pass-through growth to compute_stream_id_growth_in_window in test_evaluate_passes_now_ms_into_compose.py; strengthen positive sequential growth coverage in test_evaluate_returns_snapshot_with_growth_from_history.py; and create 120_2E1D_TEST_PLAN_FINAL_COUNT_ADDENDUM.md documenting why 34 authored service tests are canonical for 2E1D. Run the validation commands described by 118/119 and emit 121_2E1D_AUTOFIX_REPORT.md plus 122_2E1D_AUTOFIX_GO_NO_GO.md. The GO/NO-GO file must contain exactly one line: PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_PASSED or PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_FAILED.",
-  "next_recommended_action": "On PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_PASSED, supervisor dispatches 095_trainer_parity_2e1d_codex_rereview_after_autofix. On PHASE2E1D_TRAINER_PARITY_SERVICE_COMPOSITION_AUTOFIX_FAILED with concrete blockers and no safety violation, surface to human attention; the planner does NOT chain a second autofix layer. On any safety violation per the stop conditions, surface to human attention; no further autofix is permitted."
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-04T22:18:24.867188+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/094_trainer_parity_2e1d_codex_autofix.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_granularity_mode": "consolidated_default",
+  "task_id": "094_trainer_parity_2e1d_codex_autofix",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

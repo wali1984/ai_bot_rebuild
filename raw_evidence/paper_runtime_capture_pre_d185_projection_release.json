@@ -1,0 +1,168 @@
+{
+  "credentials_all_present": true,
+  "credentials_present": {
+    "/home/wali/.config/ai-bot-v2/credentials/adaptive-hard-validator/seed.cred": true,
+    "/home/wali/.config/ai-bot-v2/credentials/binance-bracket-evidence/evidence-hmac.cred": true
+  },
+  "label": "pre_d185_projection_release",
+  "live_gate": "blocked_human_only",
+  "paper_only": true,
+  "schema": "paper_runtime_acceptance_capture_v1",
+  "service": {
+    "ActiveState": "active",
+    "ExecMainStartTimestamp": "Tue 2026-07-28 16:04:42 EDT",
+    "MainPID": "255719"
+  },
+  "snapshot": {
+    "accepted_fills_count": 0,
+    "closed_trades_count": 0,
+    "cycle_generated_utc": "2026-07-28T20:20:52.303878Z",
+    "destructive_wipe_receipt_count": 14,
+    "duplicate_close_count": 0,
+    "duplicate_fill_count": 0,
+    "equity_usd": 3000.0,
+    "fill_persistence_trace_utc": "2026-07-28T20:20:43.066142Z",
+    "free_margin_usd": 3000.0,
+    "invalid_admission_quarantined": 27,
+    "open_positions_count": 0,
+    "paper_account_epoch": 1,
+    "paper_session_id": "paper_session_140989e198032b94",
+    "pending_reservations_count": 0,
+    "proof_backed_positions": 0,
+    "proof_store_backfill_complete": true,
+    "proof_store_initialized": true,
+    "proof_store_len": 0,
+    "proof_store_present": true,
+    "quarantine_count": 27,
+    "quarantine_rows_with_empty_reasons": 0,
+    "reservation_leak_count": 0,
+    "reservation_snapshot_present": true,
+    "reserved_margin_usd": 0.0,
+    "safety": {
+      "exchange_action_taken": true,
+      "live_gate": true,
+      "paper_only": true,
+      "places_real_order": true,
+      "routes_to_live": true
+    },
+    "unproved_positions": 0,
+    "used_margin_usd": 0.0,
+    "valid_accepted_for_ledger": 0,
+    "wallet_balance_usd": 3000.0,
+    "wallet_equity_margin_conserved": true,
+    "wipe_receipts": [
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 86.87315,
+        "utc": "2026-07-28T09:24:51.646272Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 48.9203,
+        "utc": "2026-07-28T01:17:57.868618Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 80.3226,
+        "utc": "2026-07-28T03:36:47.252914Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 51.06634,
+        "utc": "2026-07-28T01:13:19.534396Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 48.835,
+        "utc": "2026-07-28T01:09:46.844048Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 48.535,
+        "utc": "2026-07-28T01:25:09.409630Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 52.7366,
+        "utc": "2026-07-28T08:43:08.445523Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 78.2246192,
+        "utc": "2026-07-28T08:14:41.071746Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 76.5413604,
+        "utc": "2026-07-28T08:49:00.588649Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 50.96144,
+        "utc": "2026-07-28T01:21:21.550780Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 48.515,
+        "utc": "2026-07-28T02:57:21.017825Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 78.2,
+        "utc": "2026-07-28T03:00:44.131714Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 88.0918,
+        "utc": "2026-07-28T09:09:26.091429Z"
+      },
+      {
+        "accepted_fill_proof_count": 0,
+        "phantom_position_count": 1,
+        "reason": null,
+        "removed_position_count": 0,
+        "used_margin_released_usd": 86.87736,
+        "utc": "2026-07-28T09:46:11.130431Z"
+      }
+    ]
+  }
+}

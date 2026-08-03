@@ -1,0 +1,38 @@
+{
+  "agent": "codex",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "created_utc": "2026-05-16T02:25:19Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [
+    "claude_p0_2_native_rl_masa_ppo_trainer_gated_by_p0_1_feature_snapshots"
+  ],
+  "forbidden": [
+    "trainer_wrapper_or_subprocess_bridge_marked_migrated",
+    "policy_forward_pass_missing",
+    "gymnasium_env_loop_missing",
+    "unified_feature_builder_tensor_assembly_missing",
+    "p0_1_native_feature_snapshots_missing_or_stale",
+    "confidence_alone_allows_trade",
+    "expected_move_after_cost_missing_from_outputs",
+    "trainer_source_or_feature_snapshot_id_missing_from_outputs",
+    "reward_stack_missing_fee_slippage_cost_penalty",
+    "old_redis_write_appears",
+    "exchange_mutation_appears",
+    "live_gate_changes",
+    "live_symbols_not_empty",
+    "positive_edge_or_live_ready_claimed"
+  ],
+  "lane": "native_core_p0_true_migration_review",
+  "live_gate": "blocked_human_only",
+  "prompt": "Review P0.2 native RL/MASA/PPO/reward trainer migration. Fail if P0.1 native feature snapshots are not consumed, if implementation is wrapper/schema/smoke-only, if PPO/MASA/reward/gym/env/obs/checkpoint/confidence components are missing, if old Redis writes or exchange mutation appear, or if live/canary/shutdown is approved.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/native_rl_masa_ppo_p0_2/latest/codex_review/CODEX_NATIVE_RL_MASA_PPO_REVIEW.md",
+    "claude_worklog/final_readiness/native_rl_masa_ppo_p0_2/latest/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "risk_level": "L2",
+  "status": "blocked_until_claude_p0_2_outputs_exist",
+  "task_id": "codex_review_p0_2_native_rl_masa_ppo_trainer"
+}

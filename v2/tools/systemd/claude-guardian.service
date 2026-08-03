@@ -1,0 +1,20 @@
+[Unit]
+Description=Claude Capital Guardian Resume Service
+Documentation=file:///home/wali/Desktop/AI BOT REBUILD/goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/RESUME_PROMPT.txt
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=wali
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="HOME=/home/wali"
+Environment="TERM=xterm-256color"
+ExecStart=/usr/bin/bash -c 'RESUME="$(cat goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/RESUME_PROMPT.txt)" && claude -p "$RESUME"'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/guardian_autorun.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/goal_state/V2_CLAUDE_CONTINUOUS_ADVERSARIAL_VALIDATION_AND_CAPITAL_PRODUCTIVITY_GUARDIAN/guardian_autorun.log
+TimeoutStartSec=3600
+RemainAfterExit=no
+
+[Install]
+WantedBy=default.target

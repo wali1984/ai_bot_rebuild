@@ -21,7 +21,11 @@ def build_risk_decision_evaluator(
 
     _now_ms_clock = now_ms_clock
 
-    def _evaluator(*, decision: OrchestratorDecisionRecord) -> RiskDecisionRecord:
-        return assemble_risk_decision_record(decision=decision, now_ms_clock=_now_ms_clock)
+    def _evaluator(*, decision: OrchestratorDecisionRecord, **kwargs: object) -> RiskDecisionRecord:
+        return assemble_risk_decision_record(
+            decision=decision,
+            now_ms_clock=_now_ms_clock,
+            **kwargs,
+        )
 
     return _evaluator

@@ -1,0 +1,40 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "go_no_go": "LEGACY_POST_REBOOT_FROZEN_READY",
+  "legacy_api_consuming_processes": [],
+  "legacy_api_consuming_processes_count": 0,
+  "legacy_auto_restart_active": false,
+  "legacy_data_preserved": true,
+  "legacy_logs_preserved": true,
+  "legacy_redis_orchestrator_keys": 0,
+  "legacy_redis_prediction_keys": 1,
+  "legacy_root": "/home/wali/Desktop/AI BOT",
+  "legacy_root_exists": true,
+  "legacy_root_size_bytes": 613240358580,
+  "legacy_root_top_level_entries": 926,
+  "legacy_systemd_units_known": [
+    "ai-bot-v2-continuous-legacy-log-remediation.service",
+    "ai-bot-v2-legacy-log-intelligence-observer.service",
+    "ai-bot-v2-legacy-v2-production-comparator.service",
+    "ai-bot-v2-continuous-legacy-log-remediation.timer",
+    "ai-bot-v2-legacy-log-intelligence-observer.timer"
+  ],
+  "legacy_trainer_trader_orchestrator_active_units": [
+    "ai-bot-v2-continuous-legacy-log-remediation.service",
+    "ai-bot-v2-legacy-log-intelligence-observer.service"
+  ],
+  "live_trading_enabled": false,
+  "notes": "Post-reboot freeze verification. No legacy bot processes detected. Legacy root directory preserved. Legacy Redis keys (orchestrator:*, prediction:*) preserved. No trim/flush attempted this session.",
+  "real_orders_enabled": false,
+  "redis_dbsize": 8793,
+  "redis_trim_attempted_this_session": false,
+  "redis_trim_or_flush_recent": [
+    "claude_worklog/coverage/CONFIG_ENV_MAP.json:        \"FLUSHDB\",",
+    "claude_worklog/coverage/SCRIPT_REGISTRY.json:        \"FLUSHDB\",",
+    "claude_worklog/coverage/SCRIPT_REGISTRY.json:        \"FLUSHDB\",",
+    "claude_worklog/coverage/SCRIPT_REGISTRY.json:        \"FLUSHDB\",",
+    "claude_worklog/coverage/SCRIPT_REGISTRY.json:        \"FLUSHDB\","
+  ],
+  "ts_iso": "2026-05-26T02:49:51Z",
+  "ts_utc": "20260526T022708Z"
+}

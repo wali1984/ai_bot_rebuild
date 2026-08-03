@@ -1,0 +1,45 @@
+{
+  "approves_live": false,
+  "calls_exchange_mutation": false,
+  "codex_pair_task_id": "claude_autoseed_altdata_replay_bundle_snapshot_attachment_r3",
+  "created_at": "2026-06-15T00:43:01Z",
+  "current_active": true,
+  "depends_on": [
+    "claude_autoseed_altdata_replay_bundle_snapshot_attachment_r3"
+  ],
+  "depends_on_task_id": "claude_autoseed_altdata_replay_bundle_snapshot_attachment_r3",
+  "file_lock_group": "altdata_replay_bundle_snapshot_attachment",
+  "mission_categories": [
+    "runtime stability"
+  ],
+  "paired_task_id": "claude_autoseed_altdata_replay_bundle_snapshot_attachment_r3",
+  "report_only_work": false,
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "writes_old_redis": false
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "writes_old_redis": false
+  },
+  "status": "blocked_dependency",
+  "task_id": "codex_review_claude_autoseed_altdata_replay_bundle_snapshot_attachment_r3",
+  "task_role": "codex_review",
+  "task_type": "CODEX_REVIEW",
+  "title": "Codex review for claude_autoseed_altdata_replay_bundle_snapshot_attachment_r3",
+  "ui_only_work": false,
+  "updated_at": "2026-06-15T00:43:01Z",
+  "writes_old_redis": false
+}

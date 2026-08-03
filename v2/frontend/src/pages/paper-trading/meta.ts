@@ -1,9 +1,9 @@
 import type { PageMeta } from '../../types/page';
 const meta: PageMeta = {
   id: 'paper-trading',
-  title: 'Paper Trading',
+  title: 'Execution Runtime',
   surface: 'admin',
-  description: 'Paper-mode loop view. No exchange-side mutation possible.',
+  description: 'Realtime trading loop view with approval-gated execution telemetry.',
   navCategory: 'execution',
   dangerousControlIds: [],
 };

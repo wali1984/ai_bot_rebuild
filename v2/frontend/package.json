@@ -5,31 +5,47 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/prune-dist-public-artifacts.mjs",
     "preview": "vite preview",
     "build:paper-online": "cd ../.. && python3 -m v2.backend.app.cli.paper_online_runtime --once --write-evidence",
     "build:live-observer": "cd ../.. && python3 -m v2.backend.app.cli.live_observer_bridge --write-evidence",
     "run:paper-online": "cd ../.. && python3 -m v2.backend.app.cli.paper_online_runtime --loop --interval 30",
     "build:operator-truth": "node scripts/build-operator-truth-payload.mjs",
     "crawl:dashboard": "node scripts/crawl-dashboard-routes.mjs",
+    "crawl:control-center": "node scripts/authenticated-control-center-audit.mjs",
     "crawl:production-website": "node scripts/crawl-production-website-routes.mjs",
     "crawl:tonight": "node scripts/crawl-tonight-routes.mjs",
+    "soak:realtime": "node scripts/realtime-soak-check.mjs",
+    "audit:public-ready": "node scripts/public-ready-audit.mjs",
     "sync:proof-artifacts": "node scripts/sync-proof-artifacts.mjs",
     "typecheck": "tsc -b --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:mock": "playwright test --grep \"\\[COMPONENT_MOCK\\]\" --retries=0",
+    "test:integration": "PLAYWRIGHT_NO_WEBSERVER=1 playwright test --grep \"\\[LOCAL_INTEGRATION\\]\" --retries=0",
+    "test:production-e2e": "PLAYWRIGHT_NO_WEBSERVER=1 playwright test --grep \"\\[PRODUCTION_E2E\\]\" --retries=0",
+    "test:admin-gate": "npm run build && echo '=== CATEGORY: COMPONENT_MOCK ===' && npm run test:mock && echo '=== CATEGORY: LOCAL_INTEGRATION (requires backend on :8000) ===' && npm run test:integration && echo '=== GATE: PRODUCTION_E2E must be run post-deploy against real URL ==='",
+    "test:admin-release": "npm run build && playwright test tests/e2e/admin_information_architecture.spec.ts tests/e2e/admin_visual_final.spec.ts tests/e2e/admin_controls_security.spec.ts tests/e2e/admin_data_consistency.spec.ts tests/e2e/trader_menu_navigation_final.spec.ts tests/e2e/admin_viewport_visual.spec.ts --retries=0"
   },
   "dependencies": {
+    "date-fns": "^4.4.0",
+    "lightweight-charts": "^5.2.0",
+    "lucide-react": "^1.20.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "react-router-dom": "6.26.2"
+    "react-hot-toast": "^2.6.0",
+    "react-is": "^19.2.7",
+    "react-router-dom": "6.26.2",
+    "recharts": "^3.8.1",
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
-    "typescript": "5.6.2",
-    "vite": "5.4.8",
-    "@vitejs/plugin-react": "4.3.1",
+    "@playwright/test": "1.48.0",
+    "@stagewise/toolbar": "^0.6.3",
+    "@types/node": "20.16.10",
     "@types/react": "18.3.10",
     "@types/react-dom": "18.3.0",
-    "@types/node": "20.16.10",
-    "@playwright/test": "1.48.0"
+    "@vitejs/plugin-react": "4.3.1",
+    "typescript": "5.6.2",
+    "vite": "5.4.8"
   }
 }

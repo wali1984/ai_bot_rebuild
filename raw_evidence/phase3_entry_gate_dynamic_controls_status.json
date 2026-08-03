@@ -1,0 +1,72 @@
+{
+  "schema_version": "v2_entry_gate_dynamic_controls_status_v1",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "audit_findings": {
+    "static_blocks_found": {
+      "_SOAK_ZERO_EDGE_SYMBOLS": {
+        "file": "v2/backend/app/services/paper_trade_management/entry_gate.py",
+        "line": 17,
+        "symbols": ["BCHUSDT", "FILUSDT", "SIRENUSDT", "SUIUSDT", "TRUMPUSDT", "OPUSDT", "CHZUSDT", "ETCUSDT"],
+        "evidence_date": "2026-06-16",
+        "evidence_basis": "340 closed paper trades, 0% win rate"
+      },
+      "_NOISY_TIMEFRAMES": {
+        "file": "v2/backend/app/services/paper_trade_management/entry_gate.py",
+        "line": 30,
+        "timeframes": ["1m", "5m"],
+        "evidence_basis": "1m=18% WR, 5m=25% WR soak evidence"
+      },
+      "_BLOCKED_ENTRY_MODES": {
+        "file": "v2/backend/app/services/paper_trade_management/entry_gate.py",
+        "line": 34,
+        "modes": ["reduce_size_mode"],
+        "evidence_basis": "43 trades, 16% WR, -$6.49 soak evidence"
+      }
+    }
+  },
+  "fixes_applied": [
+    {
+      "fix": "Created outcome_memory.py with OutcomeMemoryBucket, evaluate_outcome_memory_bucket(), load_outcome_memory_bucket()",
+      "file": "v2/backend/app/services/paper_trade_management/outcome_memory.py",
+      "metrics_tracked": [
+        "rolling_win_rate", "rolling_ev_bps", "drawdown_contribution_usd",
+        "slippage_failure_rate", "reversal_after_entry_rate", "missed_tp_then_stop_rate"
+      ],
+      "redis_key_pattern": "v2:paper:outcome_memory:{symbol}:{timeframe}",
+      "static_fallback": "STATIC_SOAK_FALLBACK when Redis has no data for bucket"
+    },
+    {
+      "fix": "Replaced static frozenset blocks in entry_gate.py with dynamic outcome-memory evaluation",
+      "file": "v2/backend/app/services/paper_trade_management/entry_gate.py",
+      "detail": "Static soak data preserved in outcome_memory.py as initial fallback only; Redis data overrides when available",
+      "block_reason_recorded": true,
+      "evidence_source_in_reason": true
+    }
+  ],
+  "dynamic_thresholds": {
+    "min_win_rate": 0.35,
+    "max_drawdown_usd": -10.0,
+    "max_slippage_failure_rate": 0.40,
+    "max_reversal_after_entry_rate": 0.50,
+    "max_missed_tp_then_stop_rate": 0.40,
+    "min_trade_count_for_dynamic": 20
+  },
+  "tests": {
+    "test_file": "v2/backend/tests/unit/services/paper_trade_management/test_phase2_3_4_gates.py",
+    "phase3_tests": [
+      "test_outcome_memory_blocks_zero_win_rate_bucket",
+      "test_outcome_memory_blocks_high_slippage_failure",
+      "test_outcome_memory_insufficient_sample_allows_through",
+      "test_outcome_memory_blocks_excessive_drawdown",
+      "test_entry_gate_blocks_soak_symbol_via_static_fallback",
+      "test_entry_gate_blocks_noisy_timeframe_static_fallback",
+      "test_entry_gate_allows_healthy_bucket",
+      "test_entry_gate_records_outcome_memory_source",
+      "test_entry_gate_no_static_frozensets_in_gate_code",
+      "test_entry_gate_places_no_real_order"
+    ],
+    "result": "PASS"
+  },
+  "phase_status": "PHASE_3_COMPLETE",
+  "live_gate": "blocked_human_only"
+}

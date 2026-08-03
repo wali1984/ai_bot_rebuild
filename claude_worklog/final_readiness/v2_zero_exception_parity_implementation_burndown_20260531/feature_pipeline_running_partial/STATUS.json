@@ -1,0 +1,32 @@
+{
+  "claim": "Feature pipeline is live with compact features plus full TA compatibility; the artifact preserves the known non-562-field boundary.",
+  "completed_by": "codex_takeover",
+  "confidence": "MEDIUM_HIGH",
+  "files_modified": [
+    "v2/backend/app/services/feature_pipeline_native/service.py",
+    "v2/backend/app/services/full_talib_ta/service.py"
+  ],
+  "generated_est": "2026-06-03T22:44:59-04:00",
+  "generated_utc": "2026-06-04T02:44:59Z",
+  "implementation_marker": "V2_ZERO_EXCEPTION_PARITY_FEATURE_PIPELINE_RUNNING_PARTIAL_CODEX_TAKEOVER_DONE",
+  "live_safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "exchange_action_taken": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "places_real_order": false,
+    "trader_execution_enabled": false,
+    "writes_exchange_orders": false,
+    "writes_legacy_redis": false
+  },
+  "milestone": "v2_zero_exception_parity_implementation_burndown_20260531",
+  "missing_evidence": "Full legacy 562-field unified feature vector is not claimed complete by this row; compact plus full TA is live.",
+  "raw_evidence": "v2:features:latest:* has 38 total / 27 fresh keys; v2:features:ta:* has 72 fresh keys; trainer reads V2OnlyReader inputs.",
+  "schema_version": "zero_exception_task_status_v1",
+  "status": "DONE_VERIFIED",
+  "task_slug": "feature_pipeline_running_partial",
+  "verification_command": "redis-cli --scan --pattern \"v2:features:latest:*\" | wc -l"
+}

@@ -1,0 +1,13 @@
+[Unit]
+Description=Resume bounded CoinAnk hot-series compaction every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+RandomizedDelaySec=30s
+Persistent=true
+Unit=ai-bot-v2-coinank-hot-series-compactor.service
+
+[Install]
+WantedBy=timers.target

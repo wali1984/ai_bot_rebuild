@@ -1,4 +1,4 @@
-/* AI BOT V2 — cache-only service worker.
+/* NERVYX ONE — cache-only service worker.
  *
  * SAFETY CONTRACT (per CLAUDE.md and 16_MOBILE_IPHONE_AND_PWA_READINESS.md):
  *   - This worker NEVER caches mutating responses.
@@ -12,7 +12,7 @@
 // that may still hold a stale built bundle. The activate handler deletes
 // every cache whose name differs from STATIC_CACHE on the next page load,
 // so changing this constant is sufficient to evict stale assets.
-const STATIC_CACHE = 'aibot-v2-static-v4-20260523';
+const STATIC_CACHE = 'nervyx-one-static-v2-20260715';
 const STATIC_ASSETS = ['/manifest.webmanifest'];
 
 // Hard list of root paths that must never be served from cache. The
@@ -91,8 +91,9 @@ self.addEventListener('fetch', (event) => {
   }
 
   // SPA shell paths are always network-first. We never want to serve a
-  // cached older HTML/landing that points at a stale bundle hash.
-  if (FORCE_NETWORK_ROOT_PATHS.includes(url.pathname)) {
+  // cached older HTML/landing that points at a stale bundle hash. Applies to
+  // EVERY navigation (any SPA route refresh), not just the root path list.
+  if (req.mode === 'navigate' || FORCE_NETWORK_ROOT_PATHS.includes(url.pathname)) {
     event.respondWith(
       fetch(req, { cache: 'no-store' }).catch(() =>
         caches.match('/index.html'),
@@ -101,10 +102,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Never cache Vite dev-server module paths — they contain HMR transforms
+  // that only work with the exact running server instance.
+  const isViteDevPath = (
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.search.includes('?import') ||
+    url.search.includes('?t=') ||
+    url.search.includes('v=')
+  );
+  if (isViteDevPath) {
+    event.respondWith(fetch(req, { cache: 'no-store' }));
+    return;
+  }
+
   event.respondWith(
     fetch(req)
       .then((res) => {
-        // Cache only successful, basic, GET, non-API responses.
+        // Cache only successful, basic, GET, non-API, non-dev responses.
         if (res && res.status === 200 && res.type === 'basic' && !url.pathname.startsWith('/api/')) {
           const clone = res.clone();
           caches.open(STATIC_CACHE).then((cache) => cache.put(req, clone)).catch(() => undefined);

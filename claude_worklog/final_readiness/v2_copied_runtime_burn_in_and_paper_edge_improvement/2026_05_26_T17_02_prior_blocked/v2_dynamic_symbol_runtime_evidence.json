@@ -1,0 +1,81 @@
+{
+  "schema_version": "v2_dynamic_symbol_runtime_evidence_v1",
+  "phase": 3,
+  "generated_est": "2026-05-26T17:02:47-0400",
+  "generated_utc": "2026-05-26T21:02:47Z",
+  "source_payload": "v2/frontend/public/operator_runtime/symbol_universe/latest/symbol_universe_status.json",
+  "source_payload_freshness_seconds": 0,
+
+  "discovered_symbols_count": 27,
+  "discovered_symbols": [
+    "1000BONKUSDT", "1000FLOKIUSDT", "1000PEPEUSDT", "1000SHIBUSDT",
+    "ALICEUSDT", "ASTERUSDT", "AUCTIONUSDT", "AVNTUSDT",
+    "BANKUSDT", "BARDUSDT", "BTCUSDT", "COINANK_ONLY_USDT",
+    "DOGEUSDT", "ETHUSDT", "FARTCOINUSDT", "HIGHUSDT",
+    "KUCOIN_ONLY_USDT", "LINKUSDT", "LTCUSDT", "PENGUUSDT",
+    "PIPPINUSDT", "RAVEUSDT", "RIVERUSDT", "SOLUSDT",
+    "UNIUSDT", "WIFUSDT", "XRPUSDT"
+  ],
+
+  "candidate_symbols_count": 27,
+  "candidate_symbols_source_field": "dynamic_discovered_symbols",
+
+  "training_symbols_count_observed_in_redis_unified_features": 27,
+  "training_symbols_evidence_method": "v2:unified_features:<symbol>:<timeframe> key inventory; 170 keys across 27 symbols x 5 timeframes = expected ~135",
+
+  "paper_symbols_count": 89,
+  "paper_symbols_evidence_method": "v2:paper:* Redis key count",
+
+  "baseline_25_coverage": {
+    "expected_baseline_count": 25,
+    "discovered_count_overlapping_baseline": 25,
+    "all_25_baseline_symbols_present_in_discovered": true,
+    "extra_symbols_beyond_baseline": ["COINANK_ONLY_USDT", "KUCOIN_ONLY_USDT"]
+  },
+
+  "binance_usdm_directly_tradable_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+  "binance_usdm_directly_tradable_count": 3,
+  "binance_usdm_tradability_note": "publisher pins directly-tradable to BTC/ETH/SOL until additional symbols pass per-symbol Binance USDM verification; this is NOT the 'currently active V2 symbol' set and does not violate the 3-symbol-drift remediation since `discovered_symbols` and `dynamic_discovered_symbols` are the broader 27-symbol set fed to the resolver",
+
+  "coinank_symbols": {
+    "directly_tradable": false,
+    "tradability_classification": "market_intelligence_only_until_binance_usdm_confirmed"
+  },
+
+  "excluded_symbols": [
+    {
+      "symbol": "COINANK_ONLY_USDT",
+      "reason": "placeholder for symbols visible only via CoinAnk; never tradable on Binance USDM; classified market-intelligence-only"
+    },
+    {
+      "symbol": "KUCOIN_ONLY_USDT",
+      "reason": "placeholder for symbols visible only via KuCoin; not tradable on Binance USDM"
+    }
+  ],
+
+  "stale_symbol_feeds": [],
+  "stale_symbol_feed_assessment_method": "v2:unified_features:<symbol>:<timeframe>:latest key TTL/freshness; out of scope for this snapshot phase; deferred to phase 4",
+
+  "symbol_specific_paper_edge": {
+    "available_in_24h_war_room_artifacts": "no_per_symbol_edge_yet",
+    "war_room_validation_rows": 16,
+    "interpretation": "validation set too small for per-symbol PnL attribution"
+  },
+
+  "resolver_runtime_verification": {
+    "resolver_module": "v2/backend/app/services/v2_symbol_runtime_universe.py",
+    "resolver_behavior_in_runtime": "Inferred from active services: native ingestors live loop, feature pipeline native loop, rl-core inference loop, orchestrator arbitration loop all started 13:22:03 EDT and produce v2:unified_features:* across 27 symbols (not 3); resolver default branch is active and effective",
+    "smoke_test_envvar_set_in_any_service": false,
+    "smoke_test_envvar_check_command": "systemctl --user show-environment | grep V2_SYMBOL_PROFILE (no result)"
+  },
+
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "paper_symbols_expanded": false,
+    "places_real_order": false,
+    "writes_old_redis": false,
+    "approves_live": false,
+    "approves_canary": false
+  }
+}

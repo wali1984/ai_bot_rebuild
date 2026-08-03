@@ -1,0 +1,43 @@
+{
+  "agent": "codex",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/codex_review/"
+  ],
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "forbidden": [
+    "legacy_mutation",
+    "old_redis_write",
+    "exchange_action",
+    "leverage_change",
+    "margin_mode_change",
+    "live_gate_unlock",
+    "approval_token_creation",
+    "redis_trim_approval_creation",
+    "future_outcome_label_used_for_entry_gate",
+    "unvalidated_proxy_edge_used_for_fill_permission",
+    "paper_edge_proven_without_post_filter_net_fills",
+    "live_readiness_implied"
+  ],
+  "lane": "shutdown_readiness_review",
+  "live_gate": "blocked_human_only",
+  "managed_by": "codex_shutdown_readiness_controller",
+  "max_attempts": 1,
+  "predecessor_task_ids": [
+    "claude_improve_expected_move_after_cost_coverage_current_shadow_sample"
+  ],
+  "prompt": "Review the current-sample expected_move_after_cost model improvement packet. Fail if future shadow outcomes authorize fills, confidence alone can permit fills, expected_move_after_cost_bps missing can permit fills, trainer_source or feature_freshness missing can permit fills, thresholds are lowered without native evidence, positive paper edge is claimed without net-positive post-filter fills, live/canary/shutdown readiness is implied, old Redis mutation appears, exchange mutation appears, live_gate changes, or live_symbols is not []. Emit CODEX_REVIEW.md, CODEX_GO_NO_GO.md, and codex_review_status.json.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/codex_review/CODEX_REVIEW.md",
+    "claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/codex_review/CODEX_GO_NO_GO.md",
+    "claude_worklog/final_readiness/paper_expected_move_coverage_current_sample/latest/codex_review/codex_review_status.json"
+  ],
+  "risk_level": "L1",
+  "status": "completed",
+  "task_id": "codex_review_expected_move_after_cost_current_sample_model_improvement",
+  "task_timeout_seconds": 1200
+}

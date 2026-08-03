@@ -1,0 +1,30 @@
+{
+  "codex_pair_task_id": "codex_review_autoseed_baseline_after_cost_calibration",
+  "completed_at": "2026-05-24T19:56:29Z",
+  "created_at": "2026-05-24T19:50:32Z",
+  "fail_blockers": [
+    "1. Add `_fit_after_cost_calibration()` \u2014 closed-form least-squares of `after_cost_return_bps ~ a + b\u00b7p` on TRAINABLE rows only, gated by sample count and RMSE-improvement vs the hardcoded `(p\u22120.5)\u00b750 \u2212 7` formula."
+  ],
+  "file_lock_group": "v2_native_baseline_after_cost_calibration",
+  "lease_id": "b8f2c8777d014535a987fe958373d8cc",
+  "next_action": "Remediate the safe V2-side fail blockers listed in fail_blockers. Do not touch legacy. Do not call exchange mutation. Keep live_gate=blocked_human_only and live_symbols=[].",
+  "owner": "CLAUDE",
+  "pid_or_job_id": 1573506,
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "calls_exchange_mutation": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": [],
+    "modifies_legacy_repo": false,
+    "writes_old_redis": false
+  },
+  "started_at": "2026-05-24T19:53:14Z",
+  "status": "completed",
+  "task_id": "closed_loop_remediation_codex_review_autoseed_baseline_after_cost_calibration",
+  "task_type": "REMEDIATION",
+  "updated_at": "2026-05-24T19:56:29Z",
+  "worker_id": "claude-1"
+}

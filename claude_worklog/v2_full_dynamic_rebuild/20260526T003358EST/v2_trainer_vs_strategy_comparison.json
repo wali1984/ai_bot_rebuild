@@ -1,0 +1,24 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "comparison_dimensions": [
+    "after_cost_pnl_per_symbol",
+    "win_rate",
+    "drawdown",
+    "trade_frequency",
+    "block_reasons",
+    "false_positives",
+    "false_negatives",
+    "signal_overlap_with_trainer"
+  ],
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_TRAINER_VS_STRATEGY_COMPARISON_READY",
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "status": "scaffold_pending_first_engine_run",
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "writes_exchange_orders": false
+}

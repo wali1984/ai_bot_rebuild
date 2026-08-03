@@ -1,0 +1,122 @@
+=== BRANCH/HEAD ===
+codex/pipeline-trust-refresh
+cc43ec6209e790176b3a8c8433cff0b8407cc0f4
+=== DIRTY FILES ===
+=== V2 SERVICES (running) ===
+ai-bot-v2-1000x-trajectory-tracker.service
+ai-bot-v2-a-plus-context-loop.service
+ai-bot-v2-adaptive-gate-tuner.service
+ai-bot-v2-agg-trades-ingestor-loop.service
+ai-bot-v2-all-timeframe-prediction-signal-price-target-publisher.service
+ai-bot-v2-alt-data-candidate-publisher-loop.service
+ai-bot-v2-alt-data-symbol-scoring-loop.service
+ai-bot-v2-altdata-confluence-loop.service
+ai-bot-v2-alternative-data-status-loop.service
+ai-bot-v2-arkham-presence-loop.service
+ai-bot-v2-binance-kline-wss-loop.service
+ai-bot-v2-binance-mark-price-wss-seeder.service
+ai-bot-v2-binance-public-metadata-ingestor.service
+ai-bot-v2-binance-usdm-commission-evidence-broker.service
+ai-bot-v2-binance-usdm-leverage-bracket-evidence.service
+ai-bot-v2-codex-shutdown-readiness-takeover.service
+ai-bot-v2-coinank-direct-status-publisher.service
+ai-bot-v2-coinank-global-aggregator-direct.service
+ai-bot-v2-coinank-intel-bridge.service
+ai-bot-v2-coinank-live-direct.service
+ai-bot-v2-coinapi-rest-fallback-loop.service
+ai-bot-v2-coinapi-wsds-loop.service
+ai-bot-v2-coinglass-liq24-publisher.service
+ai-bot-v2-coinglass-provider-loop.service
+ai-bot-v2-crossexchange-analyzer.service
+ai-bot-v2-dynamic-symbol-discovery-loop.service
+ai-bot-v2-feature-pipeline-native-loop.service
+ai-bot-v2-feature-snapshot-builder.service
+ai-bot-v2-frontend-vite.service
+ai-bot-v2-full-talib-ta-loop.service
+ai-bot-v2-ingestors-status-publisher.service
+ai-bot-v2-kucoin-public-rest-loop.service
+ai-bot-v2-legacy-v2-production-comparator.service
+ai-bot-v2-liquidation-enhanced.service
+ai-bot-v2-liquidation-levels-engine.service
+ai-bot-v2-liquidation-runtime-status-publisher.service
+ai-bot-v2-liquidation-surface-publisher.service
+ai-bot-v2-liquidation-wss-paper-shadow.service
+ai-bot-v2-log-errors-status-publisher.service
+ai-bot-v2-market-chart-payload-publisher.service
+ai-bot-v2-memory-watchdog.service
+ai-bot-v2-microstructure-runtime-supervisor.service
+ai-bot-v2-moralis-provider-loop.service
+ai-bot-v2-native-cuda-trainer-persistent.service
+ai-bot-v2-native-ingestors-live-loop.service
+ai-bot-v2-operator-review-publisher.service
+ai-bot-v2-opportunity-tracker-publisher.service
+ai-bot-v2-orchestrator-arbitration-loop.service
+ai-bot-v2-orderbook-features-publisher.service
+ai-bot-v2-paper-decision-lineage-publisher.service
+ai-bot-v2-paper-shadow-observation.service
+ai-bot-v2-portfolio-cascade-guard.service
+ai-bot-v2-portfolio-state-publisher.service
+ai-bot-v2-position-history-persistent-tracker.service
+ai-bot-v2-professional-market-chart-payload-publisher.service
+ai-bot-v2-profiled-base-feature-publisher.service
+ai-bot-v2-profiled-training-observation-coordinator.service
+ai-bot-v2-provider-data-plane-health.service
+ai-bot-v2-public-intel-free-tier-loop.service
+ai-bot-v2-public-website-backend.service
+=== TRAINER + PREDICTION + RECOVERY UNITS (all) ===
+ai-bot-v2-all-timeframe-prediction-signal-price-target-publisher.service enabled
+ai-bot-v2-continuous-offline-gpu-trainer.service enabled
+ai-bot-v2-dynamic-93-edge-recovery-signal-quality-burndown.service disabled
+ai-bot-v2-liquidation-wss-paper-shadow.service enabled
+ai-bot-v2-live-canary-dry-run.service linked
+ai-bot-v2-native-cuda-trainer-persistent.service enabled
+ai-bot-v2-orchestrator-arbitration-loop.service enabled
+ai-bot-v2-paper-decision-lineage-publisher.service enabled
+ai-bot-v2-paper-equity-reconciliation-loop.service disabled
+ai-bot-v2-paper-online-runtime.service disabled
+ai-bot-v2-paper-shadow-observation.service enabled
+ai-bot-v2-paper-shadow-outcome-observer.service linked
+ai-bot-v2-risk-gateway-live-loop.service enabled
+ai-bot-v2-trade-management-paper-loop.service enabled
+ai-bot-v2-trainer-bridge.service masked
+ai-bot-v2-trainer-checkpoint-evidence.service enabled
+ai-bot-v2-trainer-fail-closed-watchdog.service static
+ai-bot-v2-trainer-logrotate.service static
+ai-bot-v2-trainer-scheduled-pretrain.service static
+ai-bot-v2-trainer-training-live-loop.service disabled
+ai-bot-v2-worker-porting-orchestrator.service disabled
+ai-bot-v2-dynamic-93-edge-recovery-signal-quality-burndown.timer enabled
+ai-bot-v2-live-canary-dry-run.timer enabled
+ai-bot-v2-paper-equity-reconciliation-loop.timer enabled
+ai-bot-v2-paper-shadow-outcome-observer.timer enabled
+ai-bot-v2-trainer-fail-closed-watchdog.timer enabled
+ai-bot-v2-trainer-logrotate.timer enabled
+ai-bot-v2-trainer-scheduled-pretrain.timer enabled
+=== REPAIR-HOLD DROP-INS ===
+/home/wali/.config/systemd/user/ai-bot-v2-trainer-scheduled-pretrain.service.d/99-codex-repair-hold.conf
+/home/wali/.config/systemd/user/ai-bot-v2-native-ppo-masa-continuous-training-guard.service.d/99-codex-repair-hold.conf
+/home/wali/.config/systemd/user/ai-bot-v2-adaptive-capital-productivity.service.d/99-codex-repair-hold.conf
+/home/wali/.config/systemd/user/ai-bot-v2-edge-replay-factory.service.d/99-codex-repair-hold.conf
+/home/wali/.config/systemd/user/ai-bot-v2-continuous-offline-gpu-trainer.service.d/99-codex-repair-hold.conf
+/home/wali/.config/systemd/user/ai-bot-v2-continuous-edge-guardian.service.d/99-codex-repair-hold.conf
+/home/wali/.config/systemd/user/ai-bot-v2-production-replacement-runtime-guard.service.d/99-codex-paper-writer-containment.conf
+=== ACTIVE WRITER PIDS (prediction/paper/trainer) ===
+39361 --loop --interval-seconds 60
+2554114 --loop --interval-seconds 60
+2590586 --loop --interval-seconds 60
+2921320 67108864 --checkpoint-serialization-byte-budget 134217728
+3893251 --worklog-path=/home/wali/Desktop/AI BOT REBUILD/claude_worklog/final_readiness/v2_binance_kline_wss_runtime/latest/v2_binance_kline_wss_status.json
+=== PREDICTION KEY PATTERNS ===
+v2:prediction:* : 1259
+v2:shadow:prediction:* : 0
+v2:model_registry:* : 0
+v2:prediction_serving:* : 0
+v2:trainer:hybrid_cuda:signals:paper:* : 0
+=== CHECKPOINT FILES ===
+.local_models/paper_recovery/paper_recovery_checkpoint_v1.pt
+.local_models/paper_provisional/PAPER_PROVISIONAL_100_ROW_CHECKPOINT.pt
+-rw-rw-r-- 1 wali wali 10367 Jul 25 19:39 .local_models/paper_provisional/PAPER_PROVISIONAL_100_ROW_CHECKPOINT.pt
+=== TEMPORARY LANES (services) ===
+ai-bot-v2-autonomous-full-rebuild-self-healing-controller.service        disabled       enabled
+ai-bot-v2-self-healing-supervisor.service                                enabled        enabled
+ai-bot-v2-autonomous-full-rebuild-self-healing-controller.timer          disabled       enabled

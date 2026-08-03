@@ -1,0 +1,18 @@
+[Unit]
+StartLimitBurst=5
+StartLimitIntervalSec=600
+Description=AI BOT V2 all-timeframe prediction/signal/price-target website publisher (paper/shadow only)
+After=network-online.target redis.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+ExecStart=/usr/bin/env bash -lc '"/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_all_timeframe_prediction_signal_price_target_publisher --loop --interval-seconds 60'
+Restart=always
+RestartSec=15
+
+[Install]
+WantedBy=default.target

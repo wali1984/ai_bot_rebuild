@@ -1,4 +1,4 @@
-# AI BOT V2 Local UI
+# NERVYX ONE Local UI
 
 Run the React/Vite frontend from this directory:
 
@@ -16,10 +16,10 @@ http://localhost:5173/
 
 Routes to check:
 
-- `/` redirects to `/admin/mission-control?role=admin` so the default browser route opens the real admin Mission Control cockpit.
-- `/admin/mission-control?role=admin` shows the same cockpit inside the admin shell.
-- `/admin` redirects to `/admin/mission-control?role=admin`.
-- `/landing` keeps the public shell route available for comparison only; it is no longer the default route.
+- `/` opens the NERVYX ONE public landing route.
+- `/dashboard?role=admin` opens the NERVYX EXECUTE paper/read-only trader dashboard.
+- `/admin/monitor-center?role=admin` opens the NERVYX OBSERVE admin shell.
+- `/landing` keeps the public shell route available for compatibility.
 
 If the browser still shows an older UI:
 
@@ -35,13 +35,12 @@ npm run build
 
 The dev build unregisters local service workers automatically so cached `/` or
 `/index.html` shells do not hide new React source changes. If the browser still
-lands on the old public shell, clear the service worker and site data, then open
-`http://localhost:5173/` again and confirm the address bar redirects to
-`/admin/mission-control?role=admin`.
+lands on an old shell, clear the service worker and site data, then open
+`http://localhost:5173/` again.
 
 ## Chart panel behaviour
 
-The Mission Control chart panel (`cockpit-charting-market-data`) embeds the
+The NERVYX EXECUTE chart panel (`cockpit-charting-market-data`) embeds the
 external TradingView Advanced Chart widget for `BINANCE:BTCUSDT` by default.
 The widget is read-only: it never places, cancels, or modifies orders.
 

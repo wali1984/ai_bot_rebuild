@@ -1,0 +1,20 @@
+[Unit]
+Description=AI BOT V2 Moralis provider loop (read-only smart-money data; CU-budgeted 2M/month; V2 namespace only)
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI BOT REBUILD/v2/backend"
+Environment="LIVE_GATE=blocked_human_only"
+# Identity authority is the repository-bound, metadata-verified Redis token map.
+# An embedded address list can drift and spend CU before symbol attribution.
+Environment="MORALIS_TOKENS="
+Environment="MORALIS_TRAINER_ISOLATION=1"
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m app.cli.v2_moralis_provider_loop --sleep-seconds 60'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_moralis_provider_loop.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_moralis_provider_loop.err
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

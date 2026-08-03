@@ -1,0 +1,67 @@
+{
+  "schema_version": "v2_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:25Z",
+  "window_start_est": "2020-01-01T00:00:00+00:00",
+  "window_end_est": "2026-06-21T23:02:22+00:00",
+  "event_count_in_window": 95728,
+  "live_gate": "blocked_human_only",
+  "live_mutation_count_must_be_zero": 0,
+  "mutates_exchange": false,
+  "fill_count": 2279,
+  "closed_trade_count": 7,
+  "open_position_count": 1,
+  "blocked_count": 93376,
+  "paper_realized_pnl": -0.077439,
+  "paper_unrealized_pnl": 0,
+  "win_count": 1,
+  "loss_count": 3,
+  "win_rate": 0.1429,
+  "profit_factor": 0.2211,
+  "average_win_bps": null,
+  "average_loss_bps": null,
+  "max_drawdown_usdt": 0.099416,
+  "trade_count_by_symbol": {
+    "BTCUSDT": 2286
+  },
+  "trade_count_by_timeframe": {
+    "unknown": 2286
+  },
+  "trade_count_by_strategy": {
+    "unknown": 2270,
+    "LEGACY_HYBRID_TRAINER_REDIS_READONLY": 16
+  },
+  "long_count": 0,
+  "short_count": 0,
+  "long_short_ratio": 0.0,
+  "top_block_reasons": [
+    {
+      "reason": "deny_canary_profile_tightening",
+      "count": 63097
+    },
+    {
+      "reason": "deny_low_confidence",
+      "count": 19101
+    },
+    {
+      "reason": "deny_stale_market_feed",
+      "count": 8025
+    },
+    {
+      "reason": "deny_orchestrator_held",
+      "count": 2489
+    },
+    {
+      "reason": "deny_expected_move_model_review",
+      "count": 659
+    },
+    {
+      "reason": "deny_paper_outcome_model_missing",
+      "count": 5
+    }
+  ],
+  "exit_reason_counts": {
+    "none": 3,
+    "TAKE_PROFIT": 1,
+    "STOP_LOSS": 3
+  }
+}

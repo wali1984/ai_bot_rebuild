@@ -1,0 +1,70 @@
+{
+  "goal_id": "CLAUDE_FINAL_RUNTIME_CUTOVER_COST_WEBSITE_AND_1000X_VERIFIER",
+  "generated_utc": "2026-06-28T05:20:00Z",
+  "verifier": "claude-sonnet-4-6 read-only",
+  "website_service": {
+    "port": "127.0.0.1:8000",
+    "portfolio_api_status": 200,
+    "portfolio_api_stale": true,
+    "portfolio_api_lag_ms": 84716691,
+    "portfolio_api_source": "Fallback runtime snapshot + Fallback runtime snapshot",
+    "portfolio_api_source_type": "static_payload",
+    "portfolio_api_timestamp": "2026-06-27T05:35:32.421184Z"
+  },
+  "api_checks": {
+    "portfolio": {
+      "status": 200,
+      "stale": true,
+      "lag_ms": 84716691,
+      "data_equity": null,
+      "data_positions": 0,
+      "data_closed_trades": 0,
+      "finding": "STALE_FALLBACK_NOT_LIVE_REDIS"
+    },
+    "signals": {
+      "status": 200,
+      "has_data": true
+    },
+    "health": {
+      "status": "ERROR",
+      "note": "/api/v2/health returned error in current check"
+    }
+  },
+  "redis_vs_api_discrepancy": {
+    "redis_v2_portfolio_state_equity": 11.45782453,
+    "redis_closed_trades": 133,
+    "api_closed_trades": 0,
+    "discrepancy": "CONFIRMED \u2014 API serving June 27 static snapshot, Redis has 133 current trades",
+    "root_cause": "portfolio API endpoint serving static_payload fallback instead of live v2:portfolio:state or v2:paper:closed_trades"
+  },
+  "data_validation_errors": {
+    "visible_count_per_matrix": 0,
+    "matrix_generated_utc": "2026-06-28T02:38:11Z",
+    "actual_stale_portfolio_finding": true,
+    "stale_portfolio_lag_ms": 84716691,
+    "note": "Validation matrix predates portfolio API regression; actual portfolio data is stale"
+  },
+  "runtime_truth": {
+    "active_paper_runtime": "v2_trade_management_paper_loop",
+    "paper_policy_owner": "challenger_v2",
+    "candidate_id": "challenger_v2_cuda_exitless_83d35e31eea385da1a283b8e",
+    "paper_only": true,
+    "routes_to_live": false,
+    "places_real_order": false,
+    "live_gate": "blocked_human_only",
+    "challenger_closed_trades": 133,
+    "challenger_unique_symbols": 50,
+    "challenger_net_pnl_usd": 11.66
+  },
+  "a_grade_gate_current": {
+    "status": "A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED",
+    "generated_utc": "2026-06-28T05:06:29.043Z",
+    "A_grade_rows": 0,
+    "near_A_grade_rows": 25,
+    "allocator_pass_rows": 31,
+    "total_candidates": 545,
+    "bottleneck": "ALLOCATOR_GATE"
+  },
+  "overall_website_result": "PARTIAL",
+  "finding": "Portfolio API serving stale June 27 snapshot. All runtime safety gates pass. A-grade blocked at allocator."
+}

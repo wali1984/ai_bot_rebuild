@@ -1,16 +1,11 @@
 {
-  "task_id": "codex_review_v2_p2_binance_usdm_adapter_stub",
   "agent": "codex",
-  "lane": "runtime_migration_audit",
-  "risk_level": "L1",
-  "status": "pending",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "live_gate": "blocked_human_only",
-  "emit_files": true,
-  "required_output_files": [
-    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_p2_binance_usdm_adapter_stub_review.md",
-    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_p2_binance_usdm_adapter_stub_go_no_go.md"
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/"
   ],
+  "completed_at": "2026-05-14T09:20:00.641349+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
   "fail_conditions": [
     "new_order_method_does_not_raise",
     "change_initial_leverage_method_does_not_raise",
@@ -33,25 +28,39 @@
     "coinank_symbols_tradable_without_binance_usdm_confirmation",
     "missing_symbol_universe_public_payload_hidden_or_mocked"
   ],
+  "forbidden": [
+    "hardcoded_current_25_symbols_as_full_universe",
+    "train_or_trade_all_discovered_symbols_automatically",
+    "coinank_symbols_treated_as_tradable_without_binance_usdm_confirmation"
+  ],
   "go_no_go_file_contents": [
     "V2_P2_BINANCE_USDM_ADAPTER_STUB_CODEX_PASS",
     "V2_P2_BINANCE_USDM_ADAPTER_STUB_CODEX_FAIL"
   ],
+  "lane": "runtime_migration_audit",
+  "live_gate": "blocked_human_only",
+  "max_attempts": 5,
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "prompt": "EMIT-FILE MODE - DO NOT USE INTERACTIVE WRITE/EDIT TOOLS. The supervisor will materialize files from stdout. Output BEGIN_FILE blocks only for the required files. Use exactly this format, repeated once per file:\nBEGIN_FILE: relative/path/from/repo/root\n<complete file contents>\nEND_FILE\n\nRequired files to emit exactly:\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_p2_binance_usdm_adapter_stub_review.md\n- claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_p2_binance_usdm_adapter_stub_go_no_go.md\n\nDo not ask for permission to write files. Do not say files are drafted. Do not output a summary instead of file blocks. If you cannot complete all implementation files in one pass, still emit the legacy baseline files first when required and emit a failing status/report explaining the blocker. Keep live blocked_human_only. Do not touch /home/wali/Desktop/AI BOT. Do not write old Redis. Do not call exchange mutation APIs. Do not change leverage or margin.\n\nAudit the Binance USD-M futures adapter stub. All mutating endpoint methods must raise BLOCKED_GATE_NOT_APPROVED; secrets must not be logged or returned; read-only access must not unlock the gate. Emit review and a single-line GO/NO-GO. LEGACY-BASELINE GATE: this review must FAIL if claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_LEGACY_BASELINE_ANALYSIS.md or claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_legacy_behavior_mapping.json is missing, if the worker silently drops documented legacy behavior, or if tests do not cover the legacy-equivalent behavior named in the mapping.\n\nSYMBOL_UNIVERSE_CONTRACT_REQUIRED REVIEW GATE. Fail this review if the worker does not read symbol scope from the V2 Symbol Universe service or a V2 public symbol-universe payload, if it fails to distinguish `legacy_active_symbols`, `discovered_symbols`, `observed_symbols`, `training_symbols`, `paper_symbols`, and `live_blocked_symbols`, if it hardcodes the current 25 symbols as the full universe, if it trains/trades all discovered symbols automatically, or if it treats CoinAnk symbols as directly tradable without Binance USD-M confirmation. Missing public symbol-universe payload must be reported as an evidence gap, not replaced by hardcoded truth.\n\nSYMBOL_UNIVERSE_SELECTION_REVIEW_REQUIRED. Fail if the worker does not preserve `legacy_active_symbols` as the current 25-symbol legacy active subset, does not expose `dynamic_discovered_symbols` separately from selected `training_symbols` and `paper_symbols`, does not keep `live_symbols` as an empty list while live is `blocked_human_only`, treats all discovered symbols as training/paper/live scope by default, omits symbol-selection scoring factors (liquidity, volume, volatility, funding, open interest, spread, freshness, feature completeness, exchange availability, risk profile, model confidence, replay performance, operator overrides), or treats CoinAnk-only symbols as tradable without Binance USD-M confirmation.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_input_files": [
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_LEGACY_BASELINE_ANALYSIS.md",
     "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/v2_p2_binance_usdm_adapter_stub_legacy_behavior_mapping.json",
     "v2/backend/app/services/symbol_universe/service.py"
   ],
-  "allowed_output_prefixes": [
-    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/"
+  "required_output_files": [
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_p2_binance_usdm_adapter_stub_review.md",
+    "claude_worklog/final_readiness/emergency_v2_runtime_migration/latest/workers/codex_v2_p2_binance_usdm_adapter_stub_go_no_go.md"
   ],
-  "max_attempts": 5,
-  "task_timeout_seconds": 2400,
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-05-14T09:20:00.641349+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_review_v2_p2_binance_usdm_adapter_stub.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
   "symbol_universe_contract": "SYMBOL_UNIVERSE_CONTRACT_REQUIRED",
-  "forbidden": [
-    "hardcoded_current_25_symbols_as_full_universe",
-    "train_or_trade_all_discovered_symbols_automatically",
-    "coinank_symbols_treated_as_tradable_without_binance_usdm_confirmation"
-  ]
+  "task_id": "codex_review_v2_p2_binance_usdm_adapter_stub",
+  "task_timeout_seconds": 2400,
+  "updated_at": "2026-06-15T19:54:42Z"
 }

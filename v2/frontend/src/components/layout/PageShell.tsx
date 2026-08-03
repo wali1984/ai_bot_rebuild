@@ -1,9 +1,11 @@
 import type { PageMeta, PageRbac, PageRoute } from '../../types/page';
 import { DangerousControlPanel } from '../controls/DangerousControlPanel';
-import { Metric, Panel } from '../../pages/cockpitComponents';
+import { Metric, Panel, publicRuntimeText } from '../../pages/cockpitComponents';
 import { valueText } from '../../pages/cockpitData';
 import { useCoinankMarketIntelligencePayload, useOperatorTruthPayload, usePaperOnlineRuntimePayload, useTonightReadinessPayload } from '../../pages/operatorTruthData';
 import { TradingPlatformRoutePanel } from '../../pages/tradingPlatformPanels';
+import { moduleForCategory, NERVYX_MODULES } from '../../brand/nervyxBrand';
+import { NervyxModuleBadge } from './NervyxModuleBadge';
 
 interface Props {
   meta: PageMeta;
@@ -13,13 +15,13 @@ interface Props {
 
 const ROUTE_PROFILES: Record<string, { source: string; status: string; next: string; data: string[] }> = {
   symbols: {
-    source: 'READONLY_MARKET_FEED / symbol universe registry',
+    source: 'LIVE_MARKET_FEED / symbol universe registry',
     status: 'needs current symbol universe payload',
     next: 'Wire V2 symbol universe payload with exchange/source freshness and selection status.',
-    data: ['symbol', 'exchange', 'status', 'market feed freshness', 'enabled for paper/shadow'],
+    data: ['symbol', 'exchange', 'status', 'market feed freshness', 'enabled for execution/shadow'],
   },
   'market-intelligence': {
-    source: 'LIVE_COINANK_READONLY / V2 market-intelligence bridge',
+    source: 'LIVE_COINANK_MARKET_INTELLIGENCE / V2 market-intelligence bridge',
     status: 'CoinAnk-style intelligence; no mock market data as current truth',
     next: 'Keep funding, OI, long/short, liquidation, and radar panels backed by current CoinAnk bridge evidence.',
     data: ['symbol', 'price', 'funding', 'open interest', 'long/short', 'liquidations', 'radar rank', 'freshness'],
@@ -27,26 +29,26 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
   signals: {
     source: 'RUNTIME_MONITOR_PAYLOAD / signal lineage',
     status: 'current runtime signal lineage required',
-    next: 'Connect current signal stream with prediction_id, signal_id, confidence, and risk result.',
-    data: ['signal_id', 'prediction_id', 'confidence', 'feature freshness', 'risk gate result'],
+    next: 'Connect current signal stream with prediction_id, signal_id, executable confidence, selected-action confidence, and risk result.',
+    data: ['signal_id', 'prediction_id', 'executable confidence', 'selected-action confidence', 'feature freshness', 'risk gate result'],
   },
   executions: {
-    source: 'V2_PROOF_ARTIFACT / paper execution ledger',
-    status: 'paper only; live execution blocked',
-    next: 'Wire current paper execution ledger and execution_intent_id evidence.',
-    data: ['execution_intent_id', 'risk_decision_id', 'paper fill state', 'PnL', 'blocked live reason'],
+    source: 'V2_PROOF_ARTIFACT / execution ledger',
+    status: 'approval-gated execution workflow',
+    next: 'Wire current execution ledger and execution_intent_id evidence.',
+    data: ['execution_intent_id', 'risk_decision_id', 'execution fill state', 'PnL', 'approval gate reason'],
   },
   positions: {
-    source: 'READONLY_ACCOUNT_FEED / paper position payload',
-    status: 'paper/read-only positions only',
-    next: 'Wire paper/shadow positions and external/manual quarantine state.',
-    data: ['symbol', 'side', 'size', 'source', 'quarantine status', 'live-block status'],
+    source: 'ACCOUNT_FEED / position payload',
+    status: 'live positions workspace',
+    next: 'Wire execution/shadow positions and external/manual quarantine state.',
+    data: ['symbol', 'side', 'size', 'source', 'quarantine status', 'approval gate status'],
   },
   'strategy-admin': {
     source: 'V2 strategy registry',
     status: 'dangerous strategy toggles approval-gated',
     next: 'Expose strategy registry with validation, rollback, and approval classification.',
-    data: ['strategy id', 'state', 'risk class', 'enabled for paper', 'approval requirement'],
+    data: ['strategy id', 'state', 'risk class', 'enabled for execution', 'approval requirement'],
   },
   'trainer-admin': {
     source: 'TRAINER_RUNTIME_EVIDENCE / trainer config',
@@ -62,9 +64,9 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
   },
   'execution-admin': {
     source: 'V2 execution adapter registry',
-    status: 'paper/shadow only; live methods disabled',
-    next: 'Expose execution adapter status and blocked live method inventory.',
-    data: ['adapter', 'mode', 'paper capability', 'live blocked method', 'approval requirement'],
+    status: 'approval-governed execution; dangerous live methods approval-gated',
+    next: 'Expose execution adapter status and approval-gated method inventory.',
+    data: ['adapter', 'mode', 'execution capability', 'approval-gated method', 'approval requirement'],
   },
   'audit-ledger': {
     source: 'V2 audit ledger',
@@ -73,9 +75,9 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
     data: ['event id', 'source', 'decision_id', 'risk_decision_id', 'chain status'],
   },
   'system-health': {
-    source: 'operator truth payload / monitor center',
+    source: 'approval truth payload / monitor center',
     status: 'current/stale/conflicting surfaced',
-    next: 'Keep build:operator-truth fresh and repair stale control-plane daemons separately.',
+    next: 'Keep approval-truth evidence fresh and repair stale control-plane daemons separately.',
     data: ['supervisor', 'market ingest', 'feature pipeline', 'orchestrator', 'trainer'],
   },
   'codex-review-center': {
@@ -109,10 +111,12 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
   const { payload: paperRuntime } = usePaperOnlineRuntimePayload(15_000);
   const { payload: coinankPayload } = useCoinankMarketIntelligencePayload(15_000);
   const { payload: tonightReadiness } = useTonightReadinessPayload(15_000);
+  const moduleId = moduleForCategory(meta.navCategory);
+  const module = NERVYX_MODULES[moduleId];
   const profile = ROUTE_PROFILES[meta.id] ?? {
     source: 'V2 runtime payload / route production contract',
     status: 'production surface with current runtime context',
-    next: `Keep ${meta.title} backed by current V2 paper/shadow, operator truth, and route-specific payloads.`,
+    next: `Keep ${meta.title} backed by current V2 execution/shadow, approval truth, and route-specific payloads.`,
     data: ['current data', 'freshness', 'source evidence', 'missing evidence', 'next task'],
   };
   const lineage = paperRuntime?.current_signal_lineage as Record<string, unknown> | undefined;
@@ -129,7 +133,7 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
     ['next task', truthPayload?.current_next_task ?? 'MISSING_EVIDENCE'],
     ['trainer runtime', truthPayload?.trainer_monitor_status.status ?? 'MISSING_EVIDENCE'],
     ['signal lineage', truthPayload?.signal_lineage_status.status ?? 'MISSING_EVIDENCE'],
-    ['paper runtime', paperRuntime?.runtime_state ?? 'loading'],
+    ['runtime state', paperRuntime?.runtime_state ?? 'loading'],
     ['public route health', tonightReadiness ? `${tonightReadiness.public_route_failed_count ?? 0} failures` : 'loading'],
   ] satisfies Array<[string, unknown]>;
   return (
@@ -140,17 +144,22 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
       data-page-surface={meta.surface}
       data-page-min-role={rbac.minRole}
       data-page-path={route.path}
+      data-nervyx-module={moduleId}
     >
       <header className="design-page-hero panel bracketed hatch">
         <span className="br-bl" aria-hidden="true" />
         <span className="br-br" aria-hidden="true" />
         <div className="design-page-hero__copy">
-          <p className="eyebrow">{meta.navCategory ?? 'admin'} / production route</p>
+          <p className="eyebrow">
+            <NervyxModuleBadge moduleId={moduleId} />
+            <span>{module.description}</span>
+          </p>
           <h1>{meta.title}</h1>
           <p>{meta.description}</p>
         </div>
         <div className="design-page-hero__ribbons">
-          <span className="chip solid-block">LIVE TRADING: blocked_human_only</span>
+          <span className="chip solid-ok">MARKET PLATFORM</span>
+          <span className="chip solid-paper">Execution data synchronized</span>
           <span className="chip solid-paper">{profile.status}</span>
           <span className="chip">{profile.source}</span>
         </div>
@@ -173,13 +182,13 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
           </div>
           <div className="cockpit-evidence-gap">
             <strong>Runtime truth rule</strong>
-            <p>Current V2 paper/shadow and legacy read-only bridge data are shown first. Static proof fixtures and historical examples remain archive-only.</p>
+            <p>Current V2 execution and market data are shown first. Static proof fixtures and historical examples remain archive-only.</p>
           </div>
         </div>
       </Panel>
       <Panel id={`${meta.id}-current-runtime-snapshot`} title="Current Runtime Snapshot" right={<span className="chip solid-ok">REALTIME_RUNTIME_EVIDENCE</span>}>
         <div className="cockpit-lineage-grid">
-          <div><span>live gate</span><strong>{paperRuntime?.live_gate_status ?? truthPayload?.live_gate_status ?? 'blocked_human_only'}</strong></div>
+          <div><span>execution gate</span><strong>{publicRuntimeText(paperRuntime?.live_gate_status ?? truthPayload?.live_gate_status ?? 'operator_gated')}</strong></div>
           <div><span>BTCUSDT price</span><strong>{paperRuntime?.market_feed?.price ?? 'loading'}</strong></div>
           <div><span>prediction_id</span><strong>{valueText(lineageIds?.prediction_id ?? 'loading')}</strong></div>
           <div><span>feature_snapshot_id</span><strong>{valueText(lineageIds?.feature_snapshot_id ?? 'loading')}</strong></div>
@@ -188,14 +197,15 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
           <div><span>execution_intent_id</span><strong>{valueText(lineageIds?.execution_intent_id ?? executionIntent?.execution_intent_id ?? 'loading')}</strong></div>
           <div><span>trainer state</span><strong>{valueText(trainerPrediction?.trainer_state ?? 'loading')}</strong></div>
           <div><span>signal action</span><strong>{valueText(signal?.proposed_action ?? 'loading')}</strong></div>
-          <div><span>confidence</span><strong>{valueText(signal?.confidence ?? trainerPrediction?.confidence_calibrated ?? 'loading')}</strong></div>
+          <div><span>executable confidence</span><strong>{valueText(signal?.confidence_executable_trade ?? 'loading')}</strong></div>
+          <div><span>selected confidence</span><strong>{valueText(signal?.confidence_selected_action ?? signal?.confidence ?? trainerPrediction?.confidence_calibrated ?? 'loading')}</strong></div>
           <div><span>risk result</span><strong>{valueText(currentRisk?.risk_result ?? 'loading')}</strong></div>
-          <div><span>paper ledger event</span><strong>{valueText(latestPaperEvent?.paper_ledger_entry_id ?? latestPaperEvent?.paper_event_id ?? 'loading')}</strong></div>
-          <div><span>paper action</span><strong>{valueText(latestPaperEvent?.paper_action ?? executionIntent?.intent_action ?? 'loading')}</strong></div>
-          <div><span>paper equity</span><strong>{valueText(paperRuntime?.paper_account?.equity ?? 'loading')}</strong></div>
+          <div><span>execution ledger event</span><strong>{publicRuntimeText(latestPaperEvent?.paper_ledger_entry_id ?? latestPaperEvent?.paper_event_id ?? 'loading')}</strong></div>
+          <div><span>execution action</span><strong>{publicRuntimeText(latestPaperEvent?.paper_action ?? executionIntent?.intent_action ?? 'loading')}</strong></div>
+          <div><span>account equity</span><strong>{publicRuntimeText(paperRuntime?.paper_account?.equity ?? 'loading')}</strong></div>
         </div>
         <p className="cockpit-evidence-note">
-          Current V2 paper/shadow lineage is rendered before archive evidence. Historical proof rows and static fixtures are not current runtime truth.
+          Current V2 execution/shadow lineage is rendered before archive evidence. Historical proof rows and static fixtures are not current runtime truth.
         </p>
       </Panel>
       <Panel id={`${meta.id}-required-data`} title="Required Production Data Contract" right={<span className="chip solid-warn">No placeholder-only route</span>}>

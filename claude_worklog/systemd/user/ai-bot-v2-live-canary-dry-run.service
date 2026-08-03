@@ -1,0 +1,31 @@
+[Unit]
+Description=AI BOT V2 live-canary DRY-RUN executor (oneshot per timer tick; FakeExchangeAdapter only; NEVER places real orders; live_gate=blocked_human_only; live_symbols=[]; dry_run=true; live_enabled=false)
+After=ai-bot-v2-trade-management-paper-loop.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment="LIVE_GATE=blocked_human_only"
+Environment="V2_LIVE_CANARY_DRY_RUN=true"
+# Optional canary config + credentials files. Loaded if present:
+#   - live_canary.env: V2_LIVE_CANARY_MODE / SYMBOLS / cap values
+#   - live_canary_credentials.env: BINANCE_API_KEY / BINANCE_API_SECRET
+#     needed ONLY by the inline permission probe inside the executor's
+#     run_once() so the probe can call /fapi/v1/exchangeInfo (public)
+#     and /fapi/v2/account (signed read-only). The dry-run executor
+#     uses FakeExchangeAdapter and NEVER constructs the real
+#     BinanceFuturesExchangeAdapter, so credentials are only consumed
+#     by the read-only probe; no order endpoint is reachable from this
+#     process.
+# `-` prefix: file absence is non-fatal — probe simply reports
+# BINANCE_API_KEY_ENV_VAR_ABSENT and both mirrors carry that honest
+# BLOCKED state.
+EnvironmentFile=-/home/wali/Desktop/AI BOT REBUILD/.local_secrets/live_canary.env
+EnvironmentFile=-/home/wali/Desktop/AI BOT REBUILD/.local_secrets/live_canary_credentials.env
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_live_canary_executor --once --dry-run'
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_live_canary_dry_run.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_live_canary_dry_run.err
+
+[Install]
+WantedBy=default.target

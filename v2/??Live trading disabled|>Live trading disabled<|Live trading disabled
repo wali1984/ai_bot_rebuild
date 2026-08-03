@@ -1,0 +1,2 @@
+frontend/src/components/layout/PublicShell.tsx:99:        <span className="status-pill status-pill--warn">Trading safety: Paper-only execution</span>
+frontend/src/components/layout/AdminShell.tsx:224:          <span className="status-pill status-pill--warn">Risk: {riskLabel}</span>

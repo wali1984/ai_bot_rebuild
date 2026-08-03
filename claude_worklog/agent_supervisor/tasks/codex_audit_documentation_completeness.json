@@ -3,16 +3,25 @@
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/always_on_claude_codex_runtime/codex/codex_audit_documentation_completeness/"
   ],
+  "completed_at": "2026-06-28T01:46:03.379692+00:00",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "lane": "codex_parallel_audit",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "next_gate": "codex_audit_documentation_completeness",
   "prompt": "Run Codex non-live audit `codex_audit_documentation_completeness`. Do not touch /home/wali/Desktop/AI BOT. Do not write old Redis. Do not place/cancel orders. Do not change leverage/margin. Do not enable live trading. Review current runtime truth, primary objective drift, and safety. Create remediation task recommendations on fail.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/always_on_claude_codex_runtime/codex/codex_audit_documentation_completeness/codex_audit_documentation_completeness_REPORT.md\n...report...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/always_on_claude_codex_runtime/codex/codex_audit_documentation_completeness/codex_audit_documentation_completeness_GO_NO_GO.md\ncodex_audit_documentation_completeness_READY\nEND_FILE\n",
+  "reconciled_from_source_truth_at": "2026-06-28T01:46:12Z",
   "required_output_files": [
     "claude_worklog/final_readiness/always_on_claude_codex_runtime/codex/codex_audit_documentation_completeness/codex_audit_documentation_completeness_REPORT.md",
     "claude_worklog/final_readiness/always_on_claude_codex_runtime/codex/codex_audit_documentation_completeness/codex_audit_documentation_completeness_GO_NO_GO.md"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L1",
-  "status": "pending",
-  "task_id": "codex_audit_documentation_completeness"
+  "source_truth_completed_at": "2026-06-28T01:46:03.379692+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/codex_audit_documentation_completeness.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "codex_audit_documentation_completeness",
+  "updated_at": "2026-06-28T01:46:12Z"
 }

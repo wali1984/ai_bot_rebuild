@@ -1,0 +1,367 @@
+from __future__ import annotations
+
+from typing import Any
+
+from app.services.market_state_integrity.canonical_candles import (
+    REQUIRED_DECISION_TIMEFRAMES,
+    aggregate_closed_candles,
+    append_closed_candle,
+    build_multi_timeframe_decision_snapshot,
+    canonical_from_binance_rest,
+    canonical_from_binance_wss,
+    closed_candle_key,
+    current_candle_key,
+    latest_closed_candle_at_or_before,
+    storage_records_for_candle,
+)
+
+BASE_MS = 1_700_000_000_000
+DECISION_MS = BASE_MS + 14_400_000 + 1_000
+TF_MS = {"1m": 60_000, "5m": 300_000, "15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
+
+
+def wss_message(*, timeframe: str = "1m", closed: bool, open_time: int = BASE_MS) -> dict[str, Any]:
+    close_time = open_time + TF_MS[timeframe]
+    return {
+        "E": close_time + 250,
+        "k": {
+            "s": "BTCUSDT",
+            "i": timeframe,
+            "t": open_time,
+            "T": close_time,
+            "o": "100.0",
+            "h": "101.0",
+            "l": "99.0",
+            "c": "100.5",
+            "v": "12.0",
+            "q": "1206.0",
+            "n": 10,
+            "V": "6.0",
+            "Q": "603.0",
+            "B": "0",
+            "x": closed,
+        },
+    }
+
+
+def rest_row(*, timeframe: str, open_time: int) -> list[Any]:
+    close_time = open_time + TF_MS[timeframe]
+    return [open_time, "100", "101", "99", "100.5", "12", close_time, "1206", 10, "6", "603", "0"]
+
+
+def closed_payload(timeframe: str, *, available_offset_ms: int = 0, closed: bool = True) -> dict[str, Any]:
+    open_time = DECISION_MS - 1_000 - TF_MS[timeframe]
+    candle = canonical_from_binance_rest(
+        rest_row(timeframe=timeframe, open_time=open_time),
+        symbol="BTCUSDT",
+        timeframe=timeframe,
+        ingested_at=DECISION_MS - 500 + available_offset_ms,
+    ).to_dict()
+    candle["is_closed"] = closed
+    candle["closed_candle"] = closed
+    candle["candle_closed_confirmed"] = closed
+    candle["feature_eligible"] = closed
+    return candle
+
+
+def candles_by_timeframe(**overrides: Any) -> dict[str, list[dict[str, Any]]]:
+    out = {timeframe: [closed_payload(timeframe)] for timeframe in REQUIRED_DECISION_TIMEFRAMES}
+    for timeframe, value in overrides.items():
+        out[timeframe] = value
+    return out
+
+
+def test_wss_open_candle_goes_only_to_current_key_never_closed_key() -> None:
+    candle = canonical_from_binance_wss(wss_message(closed=False), symbol="BTCUSDT", timeframe="1m", ingested_at=BASE_MS + 1_000)
+
+    records = storage_records_for_candle(candle)
+
+    assert records == [(current_candle_key("binance", "BTCUSDT", "1m"), candle.to_dict())]
+    assert records[0][0] != closed_candle_key("binance", "BTCUSDT", "1m")
+    assert candle.is_closed is False
+    assert candle.feature_eligible is False
+
+
+def test_wss_closed_candle_goes_to_closed_key_with_finality_metadata() -> None:
+    candle = canonical_from_binance_wss(wss_message(closed=True), symbol="BTCUSDT", timeframe="1m", ingested_at=BASE_MS + 61_000)
+
+    records = storage_records_for_candle(candle)
+    payload = records[0][1]
+
+    assert records[0][0] == closed_candle_key("binance", "BTCUSDT", "1m")
+    assert payload["is_closed"] is True
+    assert payload["closed_candle"] is True
+    assert payload["candle_closed_confirmed"] is True
+    assert payload["available_at"] >= payload["event_time"]
+    assert payload["raw_payload_hash"]
+    assert payload["quote_volume"] == 1206.0
+    assert payload["num_trades"] == 10
+    assert payload["taker_buy_base_vol"] == 6.0
+    assert payload["taker_buy_quote_vol"] == 603.0
+    assert payload["ohlcv"]["quote_volume"] == 1206.0
+    assert payload["ohlcv"]["num_trades"] == 10
+
+
+def test_rest_current_candle_is_not_feature_eligible() -> None:
+    candle = canonical_from_binance_rest(
+        rest_row(timeframe="1m", open_time=BASE_MS),
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=BASE_MS + 10_000,
+    )
+
+    assert candle.is_closed is False
+    assert candle.feature_eligible is False
+    assert storage_records_for_candle(candle)[0][0] == current_candle_key("binance", "BTCUSDT", "1m")
+
+
+def test_rest_candle_finality_is_end_exclusive_at_close_boundary() -> None:
+    row = rest_row(timeframe="1m", open_time=BASE_MS)
+    close_time = int(row[6])
+
+    at_inclusive_close = canonical_from_binance_rest(
+        row,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=close_time,
+    )
+    after_inclusive_close = canonical_from_binance_rest(
+        row,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=close_time + 1,
+    )
+
+    assert at_inclusive_close.is_closed is False
+    assert at_inclusive_close.feature_eligible is False
+    assert after_inclusive_close.is_closed is True
+    assert after_inclusive_close.feature_eligible is True
+    assert after_inclusive_close.available_at == close_time + 1
+
+
+def test_wss_closed_flag_cannot_bypass_local_end_exclusive_finality() -> None:
+    message = wss_message(closed=True)
+    close_time = int(message["k"]["T"])
+
+    at_inclusive_close = canonical_from_binance_wss(
+        message,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=close_time,
+    )
+    after_inclusive_close = canonical_from_binance_wss(
+        message,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=close_time + 1,
+    )
+
+    assert at_inclusive_close.is_closed is False
+    assert at_inclusive_close.feature_eligible is False
+    assert after_inclusive_close.is_closed is True
+    assert after_inclusive_close.feature_eligible is True
+    assert after_inclusive_close.available_at >= close_time + 1
+
+
+def test_decision_at_inclusive_close_cannot_select_candle() -> None:
+    candle = canonical_from_binance_rest(
+        rest_row(timeframe="1m", open_time=BASE_MS),
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=BASE_MS + TF_MS["1m"] + 1,
+    ).to_dict()
+    close_time = int(candle["candle_close_time"])
+
+    assert latest_closed_candle_at_or_before([candle], close_time) is None
+    assert latest_closed_candle_at_or_before([candle], close_time + 1) == candle
+
+
+def test_rest_candle_preserves_binance_trade_and_taker_fields() -> None:
+    candle = canonical_from_binance_rest(
+        rest_row(timeframe="1m", open_time=BASE_MS),
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=BASE_MS + 61_000,
+    )
+
+    payload = candle.to_dict()
+
+    assert payload["quote_volume"] == 1206.0
+    assert payload["num_trades"] == 10
+    assert payload["taker_buy_base_vol"] == 6.0
+    assert payload["taker_buy_quote_vol"] == 603.0
+    assert payload["ohlcv"]["quote_volume"] == 1206.0
+    assert payload["ohlcv"]["num_trades"] == 10
+
+
+def test_append_closed_candle_deduplicates_by_open_time() -> None:
+    first = closed_payload("1m")
+    replacement = dict(first, close=101.0)
+
+    rows = append_closed_candle([first], replacement)
+
+    assert len(rows) == 1
+    assert rows[0]["close"] == 101.0
+
+
+def test_aggregate_closed_candles_builds_complete_higher_timeframe() -> None:
+    target_open = (BASE_MS // TF_MS["1h"]) * TF_MS["1h"]
+    rows = [
+        canonical_from_binance_rest(
+            [
+                target_open + index * TF_MS["5m"],
+                str(100 + index),
+                str(102 + index),
+                str(99 + index),
+                str(101 + index),
+                str(10 + index),
+                target_open + (index + 1) * TF_MS["5m"] - 1,
+                str(1000 + index),
+                index + 1,
+                str(4 + index),
+                str(400 + index),
+                "0",
+            ],
+            symbol="BTCUSDT",
+            timeframe="5m",
+            ingested_at=BASE_MS + (index + 1) * TF_MS["5m"],
+        ).to_dict()
+        for index in range(12)
+    ]
+
+    aggregates = aggregate_closed_candles(
+        rows,
+        symbol="BTCUSDT",
+        source_timeframe="5m",
+        target_timeframe="1h",
+        now_ms_value=target_open + TF_MS["1h"] + 1,
+    )
+
+    assert len(aggregates) == 1
+    candle = aggregates[0]
+    assert candle["timeframe"] == "1h"
+    assert candle["candle_open_time"] == target_open
+    assert candle["candle_close_time"] == target_open + TF_MS["1h"] - 1
+    assert candle["open"] == 100.0
+    assert candle["high"] == 113.0
+    assert candle["low"] == 99.0
+    assert candle["close"] == 112.0
+    assert candle["volume"] == sum(10 + index for index in range(12))
+    assert candle["candle_closed_confirmed"] is True
+    assert candle["resampled_from_timeframe"] == "5m"
+    assert candle["resampled_source_candle_count"] == 12
+
+
+def test_aggregate_closed_candles_rejects_missing_source_slot() -> None:
+    target_open = (BASE_MS // TF_MS["1h"]) * TF_MS["1h"]
+    rows = [
+        canonical_from_binance_rest(
+            rest_row(timeframe="5m", open_time=target_open + index * TF_MS["5m"]),
+            symbol="BTCUSDT",
+            timeframe="5m",
+            ingested_at=BASE_MS + (index + 1) * TF_MS["5m"],
+        ).to_dict()
+        for index in range(12)
+        if index != 5
+    ]
+
+    aggregates = aggregate_closed_candles(
+        rows,
+        symbol="BTCUSDT",
+        source_timeframe="5m",
+        target_timeframe="1h",
+        now_ms_value=target_open + TF_MS["1h"] + 1,
+    )
+
+    assert aggregates == []
+
+
+def test_aggregate_closed_candles_rejects_unfinished_target_window() -> None:
+    target_open = (BASE_MS // TF_MS["1h"]) * TF_MS["1h"]
+    rows = [
+        canonical_from_binance_rest(
+            rest_row(timeframe="5m", open_time=target_open + index * TF_MS["5m"]),
+            symbol="BTCUSDT",
+            timeframe="5m",
+            ingested_at=BASE_MS + (index + 1) * TF_MS["5m"],
+        ).to_dict()
+        for index in range(12)
+    ]
+
+    aggregates = aggregate_closed_candles(
+        rows,
+        symbol="BTCUSDT",
+        source_timeframe="5m",
+        target_timeframe="1h",
+        now_ms_value=target_open + TF_MS["1h"] - 1,
+    )
+
+    assert aggregates == []
+
+
+def test_mtf_snapshot_selects_only_closed_candles_and_shared_cutoff() -> None:
+    snapshot = build_multi_timeframe_decision_snapshot(
+        symbol="BTCUSDT",
+        decision_time=DECISION_MS,
+        candles_by_timeframe=candles_by_timeframe(),
+    )
+
+    assert snapshot["valid"] is True
+    assert snapshot["mtf_snapshot_id"].startswith("mtf_")
+    assert set(snapshot["selected_candles"]) == set(REQUIRED_DECISION_TIMEFRAMES)
+    assert snapshot["feature_cutoff"] == min(snapshot["all_tf_candle_timestamps"])
+
+
+def test_mtf_snapshot_blocks_unfinished_higher_timeframe() -> None:
+    snapshot = build_multi_timeframe_decision_snapshot(
+        symbol="BTCUSDT",
+        decision_time=DECISION_MS,
+        candles_by_timeframe=candles_by_timeframe(**{"15m": [closed_payload("15m", closed=False)]}),
+    )
+
+    assert snapshot["valid"] is False
+    assert "MISSING_CLOSED_CANDLE_15m" in snapshot["reject_reasons"]
+
+
+def test_mtf_snapshot_blocks_available_at_after_decision() -> None:
+    snapshot = build_multi_timeframe_decision_snapshot(
+        symbol="BTCUSDT",
+        decision_time=DECISION_MS,
+        candles_by_timeframe=candles_by_timeframe(**{"1m": [closed_payload("1m", available_offset_ms=10_000)]}),
+    )
+
+    assert snapshot["valid"] is False
+    assert "AVAILABLE_AT_AFTER_DECISION_1m" in snapshot["reject_reasons"]
+
+
+def test_mtf_snapshot_falls_back_to_latest_candle_available_at_decision() -> None:
+    older_open = DECISION_MS - 1_000 - (2 * TF_MS["1m"])
+    older = canonical_from_binance_rest(
+        rest_row(timeframe="1m", open_time=older_open),
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=DECISION_MS - 60_000,
+    ).to_dict()
+    latest_unavailable = closed_payload("1m", available_offset_ms=10_000)
+
+    snapshot = build_multi_timeframe_decision_snapshot(
+        symbol="BTCUSDT",
+        decision_time=DECISION_MS,
+        candles_by_timeframe=candles_by_timeframe(**{"1m": [older, latest_unavailable]}),
+    )
+
+    assert snapshot["valid"] is True
+    assert "AVAILABLE_AT_AFTER_DECISION_1m" not in snapshot["reject_reasons"]
+    assert snapshot["selected_candles"]["1m"]["candle_close_time"] == older["candle_close_time"]
+
+
+def test_mtf_snapshot_accepts_same_second_when_decision_ms_is_after_available_at() -> None:
+    snapshot = build_multi_timeframe_decision_snapshot(
+        symbol="BTCUSDT",
+        decision_time="2026-06-22T07:27:00.250Z",
+        candles_by_timeframe=candles_by_timeframe(
+            **{"1m": [closed_payload("1m", available_offset_ms=100)]}
+        ),
+    )
+
+    assert "AVAILABLE_AT_AFTER_DECISION_1m" not in snapshot["reject_reasons"]

@@ -1,0 +1,43 @@
+{
+  "agent": "codex",
+  "allowed_paths": [
+    "v2/**",
+    "claude_worklog/**"
+  ],
+  "codex_governor_disposition": {
+    "disposition": "superseded_obsolete_not_a_pass",
+    "does_not_approve_canary": true,
+    "does_not_approve_live": true,
+    "does_not_approve_shutdown": true,
+    "does_not_claim_codex_pass": true,
+    "reason": "stale historical Codex review descriptor retired by full-rebuild self-healing governor; current final_readiness/codex packets supersede this descriptor",
+    "set_at_utc": "2026-05-23T01:34:32Z"
+  },
+  "forbidden": [
+    "old_redis_write",
+    "exchange_mutation",
+    "live_gate_change",
+    "live_symbols_non_empty",
+    "live_or_canary_approval",
+    "legacy_shutdown_approval",
+    "bridge_only_marked_migrated",
+    "wrapper_only_marked_full_parity",
+    "missing_sha256_citation",
+    "missing_dependency_closure",
+    "missing_config_env_mapping",
+    "missing_legacy_behavior_mapping",
+    "smoke_tests_only",
+    "frontend_hides_missing_core_systems"
+  ],
+  "lane": "native_core_p0_true_migration_review",
+  "live_gate": "blocked_human_only",
+  "prompt": "Review and govern V2_NATIVE_CORE_P0_TRUE_MIGRATION_SPRINT_READY. Codex must fail if any subproject is bridge-only but marked migrated; any subproject lacks SHA256 citations, dependency closure, config/env mapping, or legacy behavior mapping; tests are smoke-only; native feature pipeline still only reads legacy Redis; trainer remains subprocess wrapper only; RL/MASA/PPO/reward stack is missing; orchestrator arbitration is replaced by schema-only records; stop/TP/stealth exit engine is missing; hedge/DCA/dynamic sizing remain hidden or unclassified; old Redis writes appear; exchange mutation appears; live_gate changes; live_symbols is not []; frontend hides missing core systems. Codex must directly update frontend truth if Claude overstates migration. Codex must keep legacy shutdown blocked until P0 native core work is proven or explicitly operator-accepted for paper-only. Codex must not approve live/canary.",
+  "required_output_files": [
+    "claude_worklog/final_readiness/v2_native_core_p0_true_migration_sprint/latest/codex_review/CODEX_NATIVE_CORE_P0_TRUE_MIGRATION_REVIEW.md",
+    "claude_worklog/final_readiness/v2_native_core_p0_true_migration_sprint/latest/codex_review/CODEX_GO_NO_GO.md"
+  ],
+  "risk_level": "L2",
+  "status": "superseded_obsolete",
+  "task_id": "codex_review_v2_native_core_p0_true_migration_sprint",
+  "task_timeout_seconds": 3600
+}

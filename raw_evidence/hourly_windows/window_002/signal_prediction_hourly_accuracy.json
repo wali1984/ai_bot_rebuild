@@ -1,0 +1,44 @@
+{
+  "schema_version": "v2_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:28Z",
+  "window_start_est": "2026-06-21T22:02:26+00:00",
+  "window_end_est": "2026-06-21T23:02:26+00:00",
+  "event_count_in_window": 119,
+  "live_gate": "blocked_human_only",
+  "live_mutation_count_must_be_zero": 0,
+  "mutates_exchange": false,
+  "total_predictions_in_window": 119,
+  "filled_count": 0,
+  "closed_count": 0,
+  "stale_prediction_rows": 0,
+  "missing_critical_feature_rows": 0,
+  "prediction_accuracy_by_direction": {
+    "long": {
+      "total": 0,
+      "correct": 0,
+      "accuracy": null
+    },
+    "short": {
+      "total": 0,
+      "correct": 0,
+      "accuracy": null
+    }
+  },
+  "prediction_accuracy_by_symbol_tf": {},
+  "accepted_count": 0,
+  "blocked_count": 119,
+  "top_block_reasons": [
+    {
+      "reason": "deny_canary_profile_tightening",
+      "count": 116
+    },
+    {
+      "reason": "deny_low_confidence",
+      "count": 2
+    },
+    {
+      "reason": "deny_orchestrator_held",
+      "count": 1
+    }
+  ]
+}

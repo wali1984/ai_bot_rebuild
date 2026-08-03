@@ -1,0 +1,86 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "v2/backend/",
+    "v2/frontend/public/",
+    "claude_worklog/final_readiness/v2_autonomous_production_equivalence_burndown/",
+    "claude_worklog/agent_supervisor/tasks/"
+  ],
+  "controller_metadata": {
+    "controller": "v2_autonomous_production_equivalence_burndown_controller",
+    "field_group": "portfolio_state.portfolio_symbol_pre_trade_allowed",
+    "next_10_path": "claude_worklog/final_readiness/v2_full_observation_remaining_dim_execution_queue/latest/next_10_feature_tasks.json",
+    "queue_path": "claude_worklog/final_readiness/v2_full_observation_remaining_dim_execution_queue/latest/remaining_dim_execution_queue.json",
+    "selected_at_utc": "2026-05-22T13:13:57Z",
+    "slug": "portfolio_state_portfolio_symbol_pre_trade_allowed"
+  },
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "depends_on": [],
+  "fix_applied_at_utc": "2026-05-22T14:05:00Z",
+  "fix_applied_grouped_with_tasks": [
+    202,
+    204,
+    206,
+    208,
+    210,
+    212
+  ],
+  "fix_applied_implementation_report": "claude_worklog/final_readiness/v2_autonomous_production_equivalence_burndown/per_task/risk_decision_exact_source_field_group/IMPLEMENTATION_REPORT.md",
+  "fix_applied_marker": "V2_FULL_OBSERVATION_RISK_DECISION_EXACT_SOURCE_FIELD_GROUP_READY",
+  "fix_applied_marker_file": "claude_worklog/final_readiness/v2_autonomous_production_equivalence_burndown/per_task/risk_decision_exact_source_field_group/GO_NO_GO.md",
+  "forbidden_actions": [
+    "modify /home/wali/Desktop/AI BOT",
+    "place or cancel or modify exchange orders",
+    "change leverage or margin",
+    "enable live trading",
+    "create live/canary/shutdown/Redis-trim approval tokens",
+    "create paper-only shutdown acceptance file",
+    "expose raw API keys",
+    "deserialize checkpoint blobs",
+    "write old (legacy) Redis keys",
+    "claim checkpoint compatibility",
+    "claim policy architecture parity",
+    "zero-fill unknown values",
+    "stop V2 runtime, remediation governor, legacy log observer, V2-vs-legacy comparator, or liquidation WSS daemon"
+  ],
+  "forbidden_output_paths": [
+    "/home/wali/Desktop/AI BOT",
+    "/home/wali/Desktop/AI BOT REBUILD/legacy_reference"
+  ],
+  "lane": "production_equivalence",
+  "next_gate": "V2_FULL_OBSERVATION_PORTFOLIO_STATE_SYMBOL_PRE_TRADE_ALLOWED_BURNDOWN_READY_PARTIAL_PROGRESS",
+  "predecessor_required_marker": "V2_FULL_OBSERVATION_REMAINING_DIM_EXECUTION_QUEUE_REMEDIATED_READY",
+  "predecessor_required_marker_file": "claude_worklog/final_readiness/v2_full_observation_remaining_dim_execution_queue/latest/GO_NO_GO.md",
+  "predecessor_task_ids": [],
+  "prompt": "# Burndown task: V2 full-observation field group `portfolio_state.portfolio_symbol_pre_trade_allowed`\n\nThis is an autonomous burndown task driven by\n`claude_worklog/tools/v2_autonomous_production_equivalence_burndown_controller.py`.\n\n## Field spec (from remediated remaining-dim queue)\n- field_id: `portfolio_symbol_pre_trade_allowed`\n- scope: `per_symbol`\n- aggregate_dim_gap: 1\n- exact V2 source key(s): ['v2:risk:decisions']\n- expected payload field: `pre_trade_allowed`\n- stale_or_missing_behavior: emit MISSING_FROM_V2_RISK when row missing; do not zero-fill\n- implementation target function: `v2.backend.app.services.rl_core.full_observation_builder._build_portfolio_state_slice (risk projection)`\n- tests required: ['test_portfolio_symbol_pre_trade_allowed_truth_from_row', 'test_portfolio_symbol_pre_trade_allowed_missing_label_when_no_row']\n\n## Hard constraints\n- Do NOT consume legacy Redis keys.\n- Consume ONLY the exact V2 source key(s) listed above.\n- If the source payload is absent, emit the explicit MISSING source\n  label (see `SOURCE_TO_CATEGORY`). Do NOT zero-fill unknown values.\n- Do NOT change `checkpoint_compatibility_claimed` from false.\n- Do NOT change `policy_architecture_parity_claimed` from false.\n- Keep `zero_filled_field_count == 0`.\n- Do NOT start policy architecture or checkpoint loading.\n- Do NOT touch the legacy bot at /home/wali/Desktop/AI BOT.\n- Do NOT place / cancel / modify any exchange order.\n- Do NOT create live/canary/shutdown/Redis-trim approval tokens.\n\n## Required output\n- modify only V2 files (primary edit in `v2.backend.app.services.rl_core.full_observation_builder._build_portfolio_state_slice (risk projection)`).\n- add the required tests: ['test_portfolio_symbol_pre_trade_allowed_truth_from_row', 'test_portfolio_symbol_pre_trade_allowed_missing_label_when_no_row'].\n- refresh `full_observation_builder_status` and any affected V2\n  public payloads.\n- write implementation report under\n  `claude_worklog/final_readiness/v2_autonomous_production_equivalence_burndown/per_task/portfolio_state_portfolio_symbol_pre_trade_allowed/IMPLEMENTATION_REPORT.md`.\n- final GO_NO_GO marker:\n  `V2_FULL_OBSERVATION_PORTFOLIO_STATE_SYMBOL_PRE_TRADE_ALLOWED_BURNDOWN_READY_PARTIAL_PROGRESS`\n  or\n  `V2_FULL_OBSERVATION_PORTFOLIO_STATE_SYMBOL_PRE_TRADE_ALLOWED_BURNDOWN_BLOCKED`.\n\nWhen complete, the paired Codex review task\n`codex_review_v2_full_observation_portfolio_state_portfolio_symbol_pre_trade_allowed.json` will verify exact-source\nconsumption, real generated-dim increase, no zero-fill, no claim drift,\nand runtime/live safety.",
+  "queue_source_task": {
+    "aggregate_dim_gap": 1,
+    "exact_v2_source_keys": [
+      "v2:risk:decisions"
+    ],
+    "field_metadata": {
+      "exact_v2_source_keys": [
+        "v2:risk:decisions"
+      ],
+      "expected_payload_field": "pre_trade_allowed",
+      "field_id": "portfolio_symbol_pre_trade_allowed",
+      "implementation_target_function": "v2.backend.app.services.rl_core.full_observation_builder._build_portfolio_state_slice (risk projection)",
+      "scope": "per_symbol",
+      "stale_or_missing_behavior": "emit MISSING_FROM_V2_RISK when row missing; do not zero-fill",
+      "tests_required": [
+        "test_portfolio_symbol_pre_trade_allowed_truth_from_row",
+        "test_portfolio_symbol_pre_trade_allowed_missing_label_when_no_row"
+      ]
+    },
+    "task_field_group": "portfolio_state.portfolio_symbol_pre_trade_allowed"
+  },
+  "required_output_files": [
+    "claude_worklog/final_readiness/v2_autonomous_production_equivalence_burndown/per_task/portfolio_state_portfolio_symbol_pre_trade_allowed/IMPLEMENTATION_REPORT.md"
+  ],
+  "requires_clean_worktree": false,
+  "risk_level": "L1",
+  "secondary_lane": "paper_backtest_mvp",
+  "status": "fix_applied_pending_codex_review",
+  "task_granularity_mode": "consolidated_default",
+  "task_id": "204_claude_fix_v2_full_observation_portfolio_state_portfolio_symbol_pre_trade_allowed"
+}

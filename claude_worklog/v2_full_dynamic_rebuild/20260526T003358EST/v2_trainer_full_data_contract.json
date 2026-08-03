@@ -1,0 +1,60 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "copied_trainer_label_if_used": "COPIED_LEGACY_TRAINER_RUNNING_IN_V2_PAPER_MODE",
+  "copied_trainer_path_if_used": "v2/legacy_owned_runtime/rl/hybrid_trainer.py",
+  "credentials_values_exposed": false,
+  "current_mode": "V2_NATIVE_BASELINE_PAPER_SHADOW",
+  "go_no_go": "V2_TRAINER_FULL_DATA_CONTRACT_READY",
+  "inputs": [
+    "v2:market:*",
+    "v2:technical_analysis:*",
+    "v2:features:*",
+    "v2:altdata:*",
+    "v2:risk:decisions",
+    "v2:orchestrator:decisions",
+    "v2:paper:ledger",
+    "v2:paper:position_history",
+    "replay_bundles",
+    "backtest_labels"
+  ],
+  "live_symbols": [],
+  "outputs": [
+    "v2:prediction:{symbol}:{timeframe}",
+    "v2:trainer:heartbeat",
+    "v2:trainer:status",
+    "v2:trainer:dataset:manifest",
+    "v2:trainer:model:evaluation"
+  ],
+  "prediction_payload_required_fields": [
+    "selected_action",
+    "selected_action_index",
+    "expected_move_bps",
+    "expected_move_after_cost_bps",
+    "confidence_raw",
+    "confidence_calibrated",
+    "missing_or_stale_feature_flags",
+    "feature_snapshot_id",
+    "checkpoint_id",
+    "checkpoint_blocker",
+    "trainer_source",
+    "model_source",
+    "paper_fill_gate_status",
+    "paper_fill_gate_block_reasons"
+  ],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "trainer_modes": [
+    "V2_NATIVE_BASELINE_PAPER_SHADOW",
+    "COPIED_LEGACY_TRAINER_RUNNING_IN_V2_PAPER_MODE",
+    "V2_NATIVE_TRAINER_CANDIDATE",
+    "V2_NATIVE_TRAINER_READY"
+  ],
+  "trainer_must_not_trade": true,
+  "trainer_output_namespace": "v2:prediction:*",
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "v2_native_trainer_label": "V2_NATIVE_BASELINE_PAPER_SHADOW",
+  "writes_exchange_orders": false
+}

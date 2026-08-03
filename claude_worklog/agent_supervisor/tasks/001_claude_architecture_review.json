@@ -1,11 +1,21 @@
 {
-  "task_id": "001_claude_architecture_review",
   "agent": "claude",
-  "risk_level": "L1",
+  "completed_at": "2026-06-15T19:54:42Z",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "precheck_file": "claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md",
-  "precheck_contains": "V2_ARCHITECTURE_REVIEW_PASS",
-  "prompt": "You are reviewing V2 architecture in AI BOT REBUILD. Do not modify files. Confirm whether claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md contains V2_ARCHITECTURE_REVIEW_PASS. Print only: CLAUDE_ARCH_REVIEW_CONFIRMED or CLAUDE_ARCH_REVIEW_NOT_CONFIRMED.",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "next_recommended_action": "Run task 002_codex_adversarial_architecture_review",
-  "normalized_from_artifact": true
+  "normalized_from_artifact": true,
+  "precheck_contains": "V2_ARCHITECTURE_REVIEW_PASS",
+  "precheck_file": "claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md",
+  "prompt": "You are reviewing V2 architecture in AI BOT REBUILD. Do not modify files. Confirm whether claude_worklog/v2_architecture_review/10_ARCHITECTURE_REVIEW_GO_NO_GO.md contains V2_ARCHITECTURE_REVIEW_PASS. Print only: CLAUDE_ARCH_REVIEW_CONFIRMED or CLAUDE_ARCH_REVIEW_NOT_CONFIRMED.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
+  "resolved_from_source_truth": true,
+  "risk_level": "L1",
+  "source_truth_completed_at": "2026-06-15T19:54:42Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/001_claude_architecture_review.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "001_claude_architecture_review",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

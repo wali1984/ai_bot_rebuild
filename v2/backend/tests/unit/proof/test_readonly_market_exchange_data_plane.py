@@ -86,6 +86,17 @@ def test_binance_public_fetcher_uses_get_only_injected_http_client() -> None:
     assert all("order" not in url.lower() for url in called)
 
 
+def test_default_binance_http_fetcher_requires_rest_fallback_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+    connector = BinanceReadonlyConnector()
+
+    with pytest.raises(
+        RuntimeError,
+        match="BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+    ):
+        connector.fetch_market_ticker(symbol="BTCUSDT")
+
+
 def test_writer_emits_required_artifacts_and_public_copy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     workspace = Path.cwd()

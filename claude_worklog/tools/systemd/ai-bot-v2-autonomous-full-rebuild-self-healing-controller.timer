@@ -1,0 +1,12 @@
+[Unit]
+Description=AI BOT V2 Autonomous Full-Rebuild Self-Healing Controller (every 5 minutes)
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=ai-bot-v2-autonomous-full-rebuild-self-healing-controller.service
+
+[Install]
+WantedBy=timers.target

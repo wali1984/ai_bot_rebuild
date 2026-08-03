@@ -1,0 +1,158 @@
+{
+  "classification": "DETERMINISTIC_INVARIANTS_HOLD_WITH_WARNINGS",
+  "counts": {
+    "accepted_fills": 1,
+    "closed_trades": 102,
+    "intents": 261,
+    "open_positions": 1,
+    "proof_store": 1
+  },
+  "current_epoch": 1,
+  "current_session": "paper_session_140989e198032b94",
+  "failed_invariants": [],
+  "generated_utc": "2026-07-31T04:16:57.082436+00:00",
+  "invariants": {
+    "I01_one_paper_writer": {
+      "detail": "paper_loop=active legacy_online_runtime_active=False writer_id=v2_trade_management_paper_loop",
+      "evidence": {
+        "legacy_active": false,
+        "paper_main_pid": "373487"
+      },
+      "status": "PASS"
+    },
+    "I02_one_adaptive_writer": {
+      "detail": "distinct adaptive policy writers = ['candidate_outcome_adaptive_policy_v2']",
+      "evidence": {
+        "writers": [
+          "candidate_outcome_adaptive_policy_v2"
+        ]
+      },
+      "status": "PASS"
+    },
+    "I03_intents_session_scoped": {
+      "detail": "0 intents mis-scoped; 261/261 carry a session tag",
+      "evidence": {
+        "mis_scoped_examples": []
+      },
+      "status": "PASS"
+    },
+    "I04_directional_evidence_authenticated": {
+      "detail": "0 directional candidates; 0 missing authenticated feature/cost evidence",
+      "evidence": {
+        "directional_count": 0,
+        "missing_examples": []
+      },
+      "status": "PASS"
+    },
+    "I05_accepted_fill_has_one_proof": {
+      "detail": "1 accepted fills; 0 without a matching proof",
+      "evidence": {
+        "proof_store_len": 1,
+        "unproved_examples": []
+      },
+      "status": "PASS"
+    },
+    "I06_position_has_one_fill": {
+      "detail": "1 positions; 0 without a backing accepted fill/proof",
+      "evidence": {
+        "unbacked_examples": []
+      },
+      "status": "PASS"
+    },
+    "I07_close_references_one_position": {
+      "detail": "102 closed trades; 0 without a position ref (note: 70 distinct symbol-scoped position keys; sequential reuse is legitimate)",
+      "evidence": {
+        "unreferenced": 0
+      },
+      "status": "PASS"
+    },
+    "I08_accounting_conservation": {
+      "detail": "current-session trade_sum=-0.044562 vs ledger=-0.04456169 diff=0.0 (session=paper_session_140989e198032b94, n=10)",
+      "evidence": {
+        "diff": 0.0,
+        "ledger": -0.04456169,
+        "note": "cross-session comparison is NOT an accounting break; historical sessions reconcile in their archive",
+        "trade_sum": -0.044562
+      },
+      "status": "PASS"
+    },
+    "I09_reservation_conservation": {
+      "detail": "0 outstanding reservations, 1 open positions, 1 accepted fills",
+      "evidence": {
+        "outstanding": 0,
+        "reservation_key": "v2:paper:epoch:1:reservations"
+      },
+      "status": "PASS"
+    },
+    "I10_no_duplicate_fills_or_closes": {
+      "detail": "duplicate_fills=0 duplicate_closes=0",
+      "evidence": {
+        "duplicate_closes": 0,
+        "duplicate_fills": 0
+      },
+      "status": "PASS"
+    },
+    "I11_proof_store_valid": {
+      "detail": "proof_store_present=True len=1 open_positions=1 phantom_wipe_receipts=17",
+      "evidence": {
+        "cg_f063_signature": false,
+        "phantom_wipes": 17
+      },
+      "status": "PASS"
+    },
+    "I12_no_live_authority": {
+      "detail": "portfolio_live_flags={'places_real_order': None, 'trader_execution_enabled': False, 'account_mode': 'paper_shadow_only'} any_intent_live=False",
+      "evidence": {
+        "intent_live": false,
+        "live_flags": {
+          "account_mode": "paper_shadow_only",
+          "places_real_order": null,
+          "trader_execution_enabled": false
+        }
+      },
+      "status": "PASS"
+    },
+    "I13_restart_counters": {
+      "detail": "restart baseline captured for 5 services (delta evaluated in watch mode)",
+      "evidence": {
+        "nrestarts": {
+          "ai-bot-v2-feature-pipeline-native-loop": "0",
+          "ai-bot-v2-native-cuda-trainer-persistent": "0",
+          "ai-bot-v2-portfolio-state-publisher": "0",
+          "ai-bot-v2-rl-core-inference-loop": "0",
+          "ai-bot-v2-trade-management-paper-loop": "0"
+        }
+      },
+      "status": "PASS"
+    },
+    "I14_bounded_payloads": {
+      "detail": "largest mutable payload = 120903831 bytes; soft 8388608 / hard 268435456; intents ~463233 bytes/record x 261 candidates (per-cycle overwrite, LOAD-SCALING = CG-F065)",
+      "evidence": {
+        "bytes_per_intent": 463233,
+        "candidate_count": 261,
+        "load_scaling_note": "intents is overwritten per cycle (not accumulating) but scales linearly with candidate count; WARN not a correctness defect; verify under full-universe load (Phase 5); tracked as CG-F065",
+        "over_hard": {},
+        "over_soft": {
+          "v2:paper:closed_trades": 47744492,
+          "v2:paper:intents": 120903831
+        },
+        "payload_bytes": {
+          "v2:paper:accepted_fills": 2100452,
+          "v2:paper:closed_trades": 47744492,
+          "v2:paper:intents": 120903831,
+          "v2:paper:open_position_fill_proofs": 2295,
+          "v2:paper:positions": 294412
+        }
+      },
+      "status": "WARN"
+    }
+  },
+  "live_gate": "blocked_human_only",
+  "natural_wait_authorized": true,
+  "needs_instrumentation": [],
+  "paper_only": true,
+  "schema": "paper_cycle_invariant_monitor_v1",
+  "warnings": [
+    "I14_bounded_payloads"
+  ]
+}

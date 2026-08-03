@@ -1,0 +1,80 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_PROVIDER_FRESHNESS_MATRIX_READY",
+  "live_symbols": [],
+  "per_provider": {
+    "alphavantage": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "EXTERNAL_SOURCE_REQUIRED (creds absent)"
+    },
+    "arkham": {
+      "payload_age_seconds": 3801,
+      "redis_count": 0,
+      "status": "PRESENCE_ONLY_PUBLISHED (future-placeholder for full client adapter)"
+    },
+    "binance_futures_metadata": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "V2_IMPLEMENTED_NOT_RUNNING (operator start)"
+    },
+    "binance_liquidation_stream": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "RUNNING_NATIVE"
+    },
+    "binance_public_market": {
+      "payload_age_seconds": null,
+      "redis_count": 37,
+      "status": "RUNNING_VIA_PAPER_ONLINE_RUNTIME"
+    },
+    "ccxt": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "OPERATOR_REQUIRED"
+    },
+    "coinank": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "IMPLEMENTED_NOT_RUNNING"
+    },
+    "coinapi_rest": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "NOT_REQUIRED_FOR_CURRENT_PAPER_RUNTIME"
+    },
+    "coinapi_wsds": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "NOT_REQUIRED_FOR_CURRENT_PAPER_RUNTIME"
+    },
+    "kucoin": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "EXTERNAL_SOURCE_REQUIRED (creds absent)"
+    },
+    "lunarcrush": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "EXTERNAL_SOURCE_REQUIRED (creds absent)"
+    },
+    "nansen": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "EXTERNAL_SOURCE_REQUIRED (creds absent)"
+    },
+    "tokenmetrics": {
+      "payload_age_seconds": null,
+      "redis_count": 0,
+      "status": "DEFERRED_UNLESS_RE_ENABLED"
+    }
+  },
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:13-0400",
+  "writes_exchange_orders": false
+}

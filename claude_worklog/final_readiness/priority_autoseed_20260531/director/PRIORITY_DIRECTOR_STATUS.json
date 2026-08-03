@@ -1,0 +1,32 @@
+{
+  "director_task_id": "claude_priority_director_legacy_audit_omission_closure_20260531",
+  "generated_at": "2026-05-31T05:30:00Z",
+  "live_gate": "blocked_human_only",
+  "legacy_mutation_attempted": false,
+  "old_redis_writes_attempted": false,
+  "exchange_mutation_attempted": false,
+  "evidence_source_audit": "V2_VS_LEGACY_AUDIT_2026-05-31.md",
+  "evidence_source_dispatch": "claude_worklog/final_readiness/priority_autoseed_20260531/latest/PRIORITY_AUTONOMOUS_DISPATCH_PACKET.json",
+  "omissions_total": 11,
+  "omissions_with_task_descriptor": 11,
+  "omissions_with_exact_blocker": 11,
+  "omissions_running": 3,
+  "omissions_pending": 8,
+  "omissions_closed": 0,
+  "legacy_audit_items_total": 15,
+  "legacy_audit_items_represented": 15,
+  "data_sources_total": 23,
+  "data_sources_pass": 7,
+  "data_sources_blocked": 9,
+  "data_sources_missing_evidence": 7,
+  "website_truth_alignment": "BLOCKED_pending_website_stale_incorrect_page_remediation",
+  "acceptance_until_stop": {
+    "every_legacy_audit_item_represented": true,
+    "every_data_source_validated": true,
+    "every_omission_has_exact_blocker": true,
+    "website_displays_true_state": false
+  },
+  "gate": "PRIORITY_OMISSION_CLOSURE_BLOCKED",
+  "gate_reason": "All 11 omissions are represented as task descriptors with exact blockers, all 15 legacy audit items are covered, and all 23 data sources are validated to PASS/BLOCKED/MISSING_EVIDENCE. However, omission closure is blocked because (a) website truth alignment depends on still-pending remediation tasks (website_stale_incorrect_page, paper_decision_lineage_missing, missing_dynamic_symbol_coverage) and (b) 8/11 omissions remain in pending/unfinished state. Director cannot mark READY until pending tasks emit their READY gates or convert their BLOCKED markers into closed-resolution evidence.",
+  "next_recommended_action": "Continue dispatching the 8 pending omission tasks (missing_ingestor_service, stale_ingestor_payload, missing_v2_namespace_mapping, old_redis_adapter_for_copied_script, missing_dynamic_symbol_coverage, trainer_data_feed_gaps, website_stale_incorrect_page, paper_decision_lineage_missing, old_redis_writer_proof_missing). Each must emit its own GO_NO_GO.md with READY or explicit BLOCKED+exact-blocker. Re-run director after each batch settles."
+}

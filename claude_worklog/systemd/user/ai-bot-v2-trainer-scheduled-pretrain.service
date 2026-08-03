@@ -1,0 +1,15 @@
+[Unit]
+Description=V2 scheduled offline historical pretrain + out-of-sample-gated H2L (paper/shadow; live BLOCKED)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment=V2_TRAINER_HIDDEN_SIZE=2048
+Environment=V2_TRAINER_RESIDUAL_BLOCKS=4
+Environment=V2_TRAINER_TEMPORAL_ENCODER=gru
+Environment=V2_TRAINER_TEMPORAL_PROJ_DIM=256
+Environment=PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+# Diagnostic-only: may write an offline candidate and read the serving checkpoint
+# for comparison, but never promotes a checkpoint or restarts a service.
+ExecStart=/home/wali/Desktop/AI\x20BOT\x20REBUILD/.venv/bin/python -m v2.backend.app.cli.v2_trainer_scheduled_pretrain --batch-size 512 --train-rows 16000

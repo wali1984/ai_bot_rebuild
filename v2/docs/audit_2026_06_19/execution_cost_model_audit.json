@@ -1,0 +1,51 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "finding": "SPREAD_CONSTANT_NOT_MARKET_OBSERVED",
+  "severity": "HIGH",
+  "total_trades": 645,
+  "cost_summary": {
+    "total_fees_usd": 26.0448,
+    "total_slippage_usd": 13.0224,
+    "total_cost_usd": 39.0672,
+    "total_gross_pnl_usd": 61.2935,
+    "total_net_pnl_usd": 22.2262,
+    "cost_as_pct_of_gross": 63.7
+  },
+  "slippage_model": {
+    "is_constant": false,
+    "unique_values": 323,
+    "min_usd": 0.00153,
+    "max_usd": 0.16702,
+    "mean_usd": 0.02019,
+    "median_usd": 0.01442,
+    "median_bps_of_notional": 2.01,
+    "mean_bps_of_notional": 2.0,
+    "finding": "Slippage is ~2 bps of notional per trade. This is NOT a random/observed value \u2014 it appears to be 50% of fees (fees/2 = slippage in all records checked). This is a SIMULATED cost model, not market-observed.",
+    "evidence": "Sample trade: gross=1.4431, net=1.3732, fees=0.0466, slip=0.0233 \u2192 slip=fees/2 exactly. Pattern holds across 5 samples checked."
+  },
+  "fee_model": {
+    "median_bps_of_notional": 4.01,
+    "mean_bps_of_notional": 4.0,
+    "finding": "Fees appear to be computed as ~4 bps of notional (consistent with Binance taker rate 0.04%). This is a reasonable model.",
+    "is_market_consistent": true
+  },
+  "bid_ask_spread": {
+    "finding": "CRITICAL_HARDCODED",
+    "all_trades_value_bps": 2.0,
+    "all_trades_constant": true,
+    "source_field": "microstructure_context.bid_ask_spread_bps",
+    "evidence": "645/645 trades have bid_ask_spread_bps=2.0 exactly",
+    "impact": "Real bid-ask spreads on low-liquidity altcoins can be 20-200+ bps. Using a constant 2.0 bps underestimates execution cost on illiquid symbols (NIGHTUSDT, PUMPUSDT, PORTALUSDT). The router's high_spread_bps_threshold=12.0 is NEVER triggered because spread is always 2.0.",
+    "cost_underestimate_risk": "HIGH \u2014 symbols like NIGHTUSDT/PUMPUSDT (0% WR) may be structurally unprofitable when real spread included"
+  },
+  "total_round_trip_cost_model": {
+    "assumed_bps_entry": 2.0,
+    "assumed_bps_exit": 2.0,
+    "assumed_slippage_bps": 2.0,
+    "total_assumed_bps": 6.0,
+    "actual_median_total_bps": 6.02,
+    "note": "Real total cost = fees + slippage \u2248 6 bps per round trip. Breakeven expected move > 6 bps."
+  },
+  "blocker": true,
+  "confidence": "HIGH \u2014 computed from raw trade records + microstructure context fields"
+}

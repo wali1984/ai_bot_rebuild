@@ -3,12 +3,44 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0f14" />
+    <meta name="theme-color" content="#070A12" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <title>AI BOT V2 — Control Plane</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta name="description" content="NERVYX ONE Adaptive Market Intelligence with operator-gated execution controls." />
+    <meta property="og:title" content="NERVYX ONE — Adaptive Market Intelligence" />
+    <meta property="og:description" content="Adaptive Market Intelligence with operator-gated execution controls." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/brand/nervyx-one-social-banner.png" />
+    <meta property="og:image:width" content="1600" />
+    <meta property="og:image:height" content="900" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NERVYX ONE — Adaptive Market Intelligence" />
+    <meta name="twitter:description" content="Adaptive Market Intelligence with operator-gated execution controls." />
+    <meta name="twitter:image" content="/brand/nervyx-one-social-banner.png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <title>NERVYX ONE — Adaptive Market Intelligence</title>
   </head>
   <body>
     <div id="root"></div>
+    <!-- Kill stale service workers in dev (runs synchronously before any module script).
+         Uses sessionStorage so the reload only fires once per session. -->
+    <script>
+      (function () {
+        if (!('serviceWorker' in navigator)) return;
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+          if (!regs.length) return;
+          if (sessionStorage.getItem('_sw_killed')) return;
+          sessionStorage.setItem('_sw_killed', '1');
+          Promise.all(regs.map(function (r) { return r.unregister(); })).then(function () {
+            return caches.keys();
+          }).then(function (keys) {
+            return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+          }).then(function () {
+            location.reload();
+          });
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

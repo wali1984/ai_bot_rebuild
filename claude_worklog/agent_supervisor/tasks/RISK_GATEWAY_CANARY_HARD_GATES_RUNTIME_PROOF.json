@@ -1,18 +1,28 @@
 {
-  "task_id": "RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF",
   "agent": "claude",
-  "risk_level": "L2",
-  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
-  "lane": "primary_claude_lane",
-  "priority": 9890,
-  "emit_files": true,
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF/"
   ],
+  "completed_at": "2026-05-13T07:02:37.283Z",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "description": "Primary non-live risk gateway canary hard-gate runtime proof task after paper/shadow proof found profitability windows pending.",
+  "emit_files": true,
+  "lane": "primary_claude_lane",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "priority": 9890,
+  "prompt": "Primary non-live task: build or validate risk-gateway canary hard-gate runtime proof. Work only in AI BOT REBUILD. Use current V2 paper runtime and read-only legacy evidence. Do not mutate legacy, write old Redis, touch exchange state, change leverage or margin, create a live approval token, or enable live. Focus on weekly loss gate proof, kill switch proof, stale/missing/duplicate blockers, margin/leverage policy evidence, and canary blocker status. Emit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF/.",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF/RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF.md",
     "claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF/risk_gateway_canary_hard_gates_runtime_proof.json"
   ],
-  "description": "Primary non-live risk gateway canary hard-gate runtime proof task after paper/shadow proof found profitability windows pending.",
-  "prompt": "Primary non-live task: build or validate risk-gateway canary hard-gate runtime proof. Work only in AI BOT REBUILD. Use current V2 paper runtime and read-only legacy evidence. Do not mutate legacy, write old Redis, touch exchange state, change leverage or margin, create a live approval token, or enable live. Focus on weekly loss gate proof, kill switch proof, stale/missing/duplicate blockers, margin/leverage policy evidence, and canary blocker status. Emit exactly two BEGIN_FILE blocks under claude_worklog/final_readiness/go_live_tonight_primary_focus/primary_tasks/RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF/."
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
+  "source_truth_completed_at": "2026-05-13T07:02:37.283Z",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "RISK_GATEWAY_CANARY_HARD_GATES_RUNTIME_PROOF",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

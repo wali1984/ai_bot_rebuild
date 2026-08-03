@@ -1,4 +1,4 @@
-"""Response envelope models for AI BOT V2 API.
+"""Response envelope models for NERVYX ONE API.
 
 The envelope is the single canonical wrapper for every API response. Success
 responses carry `data`; failure responses carry `error` populated with a class

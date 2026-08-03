@@ -1,0 +1,18 @@
+{
+  "LIVE_GATE": "blocked_human_only",
+  "V2_PAPER_ONLY": "true",
+  "balances_exposed": false,
+  "credentials_values_exposed": false,
+  "go_no_go": "V2_RISK_DECISION_RUNTIME_STATUS_READY",
+  "live_symbols": [],
+  "real_order_attempted": false,
+  "real_order_submitted": false,
+  "risk_cli_module": "v2/backend/app/cli/v2_risk_gateway_runtime_worker.py",
+  "risk_payload_age_seconds": 873459,
+  "risk_payload_newest": "v2/frontend/public/risk_gateway_canary_hard_gates/latest/operator_dashboard_payload.json",
+  "risk_runtime_evidence_status": "MISSING_RUNTIME_EVIDENCE_FAIL_CLOSED",
+  "ts_est": "20260526T003358EST",
+  "ts_iso_est": "2026-05-26T00:49:14-0400",
+  "v2_risk_key_count": 1,
+  "writes_exchange_orders": false
+}

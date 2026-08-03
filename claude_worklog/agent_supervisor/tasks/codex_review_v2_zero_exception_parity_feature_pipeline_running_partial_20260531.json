@@ -1,0 +1,80 @@
+{
+  "agent": "codex",
+  "codex_pair_task_id": "claude_v2_zero_exception_parity_feature_pipeline_running_partial_20260531",
+  "completion_evidence": {
+    "artifact_dir": "claude_worklog/final_readiness/v2_zero_exception_parity_codex_review_burndown_20260531/feature_pipeline_running_partial",
+    "completed_by": "codex_takeover_review_pass",
+    "completed_est": "2026-06-03T22:51:41-04:00",
+    "completed_utc": "2026-06-04T02:51:41Z",
+    "decision": "PASS",
+    "live_safety": {
+      "approves_canary": false,
+      "approves_legacy_shutdown": false,
+      "approves_live": false,
+      "approves_redis_trim": false,
+      "exchange_action_taken": false,
+      "live_gate": "blocked_human_only",
+      "live_symbols": [],
+      "places_real_order": false,
+      "trader_execution_enabled": false,
+      "writes_exchange_orders": false,
+      "writes_legacy_redis": false
+    },
+    "marker": "V2_ZERO_EXCEPTION_PARITY_FEATURE_PIPELINE_RUNNING_PARTIAL_CODEX_PASS",
+    "missing_artifacts": [],
+    "paired_implementation_task_id": "claude_v2_zero_exception_parity_feature_pipeline_running_partial_20260531",
+    "safety_failures": []
+  },
+  "created_at": "2026-05-31T00:00:00Z",
+  "current_active": false,
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "dependency_release_reason": "paired_implementation_done_by_codex_takeover",
+  "dependency_released_at": "2026-06-04T02:44:59Z",
+  "depends_on": [
+    "claude_v2_zero_exception_parity_feature_pipeline_running_partial_20260531"
+  ],
+  "depends_on_task_id": "claude_v2_zero_exception_parity_feature_pipeline_running_partial_20260531",
+  "duplicate_suppression_key": null,
+  "expected_output_paths": [],
+  "fail_blockers": [],
+  "file_lock_group": "v2_zero_exception_parity_feature_pipeline_running_partial",
+  "max_stall_relaunches": 1,
+  "mission_category": "ZERO_EXCEPTION_PARITY",
+  "next_action": "Review paired V2 implementation task.",
+  "owner": "CODEX",
+  "paired_task_id": "claude_v2_zero_exception_parity_feature_pipeline_running_partial_20260531",
+  "predecessor_task_ids": [
+    "claude_v2_zero_exception_parity_feature_pipeline_running_partial_20260531"
+  ],
+  "priority": 9000,
+  "prompt": "Review the paired implementation task 'claude_v2_zero_exception_parity_feature_pipeline_running_partial_20260531' for V2_RUNNING_PARTIAL: feature_pipeline.py. Verify evidence is explicit, no fabricated values, no live/canary/shutdown and no legacy Redis key writes. PASS with marker V2_ZERO_EXCEPTION_PARITY_FEATURE_PIPELINE_RUNNING_PARTIAL_CODEX_PASS and FAIL with marker V2_ZERO_EXCEPTION_PARITY_FEATURE_PIPELINE_RUNNING_PARTIAL_CODEX_FAIL.",
+  "risk_level": "L1",
+  "safe_envelope": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "safety": {
+    "approves_canary": false,
+    "approves_legacy_shutdown": false,
+    "approves_live": false,
+    "approves_redis_trim": false,
+    "live_gate": "blocked_human_only",
+    "live_symbols": []
+  },
+  "scope_paths": [
+    "v2/legacy_owned_runtime/feature_pipeline.py",
+    "v2/backend/app/services/feature_pipeline_and_ta/service.py",
+    "v2/frontend/public/v2_legacy_data_zero_exception_parity_and_full_runtime_startup/latest/legacy_to_v2_zero_exception_data_matrix.json"
+  ],
+  "source_matrix_row": "v2_zero_exception_parity_feature_pipeline_running_partial",
+  "stall_count": 0,
+  "stall_threshold_seconds": 600,
+  "status": "done",
+  "task_id": "codex_review_v2_zero_exception_parity_feature_pipeline_running_partial_20260531",
+  "task_type": "CODEX_REVIEW",
+  "updated_at": "2026-06-04T02:51:41Z"
+}

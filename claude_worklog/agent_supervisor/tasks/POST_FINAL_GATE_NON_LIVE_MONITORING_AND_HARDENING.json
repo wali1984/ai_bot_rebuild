@@ -1,0 +1,27 @@
+{
+  "agent": "claude",
+  "allowed_output_prefixes": [
+    "claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/latest/"
+  ],
+  "completed_at": "2026-05-13T04:01:49.411342+00:00",
+  "cwd": "/home/wali/Desktop/AI BOT REBUILD",
+  "emit_files": true,
+  "lane": "primary_claude_lane",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
+  "next_gate": "POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING",
+  "prompt": "Build or validate `POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING` as the next primary V2 live-like paper/shadow objective. Website work is support-only. Keep live blocked_human_only. Work only in AI BOT REBUILD. Legacy is read-only observed unless a separate explicit operator patch authorizes one file. Do not write old Redis, place/cancel orders, change leverage/margin, or enable live trading.\n\nEmit exactly two BEGIN_FILE blocks:\nBEGIN_FILE: claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/latest/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING_REPORT.md\n...report...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/latest/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING_GO_NO_GO.md\nPOST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING_READY\nEND_FILE\n",
+  "reconciled_from_source_truth_at": "2026-05-26T17:49:17Z",
+  "required_output_files": [
+    "claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/latest/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING_REPORT.md",
+    "claude_worklog/final_readiness/post_final_gate_non_live_monitoring_and_hardening/latest/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING_GO_NO_GO.md"
+  ],
+  "resolved_from_source_truth": true,
+  "risk_level": "L2",
+  "source_truth_completed_at": "2026-05-13T04:01:49.411342+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "POST_FINAL_GATE_NON_LIVE_MONITORING_AND_HARDENING",
+  "updated_at": "2026-05-26T17:49:17Z"
+}

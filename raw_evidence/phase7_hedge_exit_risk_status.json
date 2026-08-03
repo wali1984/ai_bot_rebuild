@@ -1,0 +1,70 @@
+{
+  "schema_version": "v2_hedge_exit_risk_status_v1",
+  "generated_at": "2026-06-17T00:00:00Z",
+  "audit_findings": {
+    "hedge_engine_fail_closed_default": true,
+    "operator_paper_hedge_engine_approved_default": false,
+    "hedge_engine_places_exchange_orders": false,
+    "hedge_engine_writes_legacy_redis": false,
+    "exits_already_present": [
+      "TIER_0_EMERGENCY_LIQUIDATION_DISTANCE",
+      "TIER_0_DRAWDOWN_EMERGENCY_EXIT",
+      "TIER_1_MICROSTRUCTURE_REVERSAL_EXIT",
+      "TIER_1_MODEL_REVERSAL_EXIT",
+      "TIER_1_CONFIDENCE_DECAY_EXIT",
+      "TIER_1_STOP_LOSS",
+      "TIER_2_PROFIT_BANK",
+      "TIER_2_TAKE_PROFIT",
+      "TIER_2_DYNAMIC_TAKE_PROFIT",
+      "TIER_2_TRAILING_STOP",
+      "TIER_2_PROFIT_LOCK",
+      "TIER_2_HEDGE_LOCK_TRIGGER",
+      "TIER_4_MAX_HOLD_TIME"
+    ],
+    "missing_before_fix": [
+      "hedge_recommendation field",
+      "hedge_cost_bps field",
+      "hedge_benefit_bps field",
+      "unwind_reason field",
+      "ATR-based volatility-adjusted stop",
+      "liquidity-aware TP (ob_spread_bps check)"
+    ]
+  },
+  "fixes_applied": [
+    {
+      "fix": "Added hedge_recommendation, hedge_cost_bps, hedge_benefit_bps, unwind_reason fields to HedgeEvaluation",
+      "file": "v2/backend/app/services/trade_management_paper/hedge_engine.py",
+      "fields": {
+        "hedge_recommendation": "NO_HEDGE | HEDGE_PROPOSED | HEDGE_BLOCKED_BUDGET | HEDGE_FAIL_CLOSED",
+        "hedge_cost_bps": "8.0 (round-trip fee for hedge leg)",
+        "hedge_benefit_bps": "expected drawdown protection in bps (computed from excess drawdown)",
+        "unwind_reason": "UNWIND_WHEN_DRAWDOWN_RECOVERS_BELOW_{threshold}BPS_OR_POSITION_CLOSED"
+      },
+      "backward_compatible": true
+    },
+    {
+      "fix": "Added ATR-based volatility-adjusted stop (TIER_1_ATR_VOLATILITY_STOP)",
+      "file": "v2/backend/app/services/paper_trade_management/exits.py",
+      "config_field": "atr_stop_multiplier (default 2.0)",
+      "behavior": "When atr_bps > 0 provided to evaluate_exit(), fires stop at atr_bps * multiplier — before static stop_loss_bps. Overrides static stop when ATR-derived threshold is tighter.",
+      "backward_compatible": "atr_bps defaults to None → no change to existing behavior"
+    },
+    {
+      "fix": "Added liquidity-aware TP (skips TIER_2_TAKE_PROFIT when ob_spread_bps too wide)",
+      "file": "v2/backend/app/services/paper_trade_management/exits.py",
+      "config_field": "max_ob_spread_bps_for_tp (default 20.0)",
+      "behavior": "When ob_spread_bps > max_ob_spread_bps_for_tp, TIER_2_TAKE_PROFIT is skipped — position held until spread tightens. Prevents fill-quality-destroyed TP.",
+      "backward_compatible": "ob_spread_bps defaults to None → TP fires normally"
+    }
+  ],
+  "tests": {
+    "new_test_file": "v2/backend/tests/unit/services/paper_trade_management/test_phase7_hedge_and_exits.py",
+    "new_test_count": 16,
+    "existing_hedge_tests": "v2/backend/tests/integration/cli/test_v2_trade_management_paper_hedge_engine.py (11 tests — all pass)",
+    "result": "PASS",
+    "run_command": "PYTHONPATH=v2/backend .venv/bin/pytest v2/backend/tests/unit/services/paper_trade_management/test_phase7_hedge_and_exits.py v2/backend/tests/integration/cli/test_v2_trade_management_paper_hedge_engine.py -v"
+  },
+  "phase_status": "PHASE_7_COMPLETE",
+  "live_gate": "blocked_human_only",
+  "places_real_order": false
+}

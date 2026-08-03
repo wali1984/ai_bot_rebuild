@@ -1,0 +1,1168 @@
+diff --git a/v2/backend/app/cli/v2_trade_management_paper_loop.py b/v2/backend/app/cli/v2_trade_management_paper_loop.py
+index 37b63f60da..4c5a45911b 100644
+--- a/v2/backend/app/cli/v2_trade_management_paper_loop.py
++++ b/v2/backend/app/cli/v2_trade_management_paper_loop.py
+@@ -133,6 +133,9 @@ from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
+     AdaptivePolicyShadowError,
+     build_adaptive_policy_shadow_candidate,
+ )
++from v2.backend.app.domain.adaptive_policy_action_v2 import (
++    POLICY_MODE_BOUNDED_EXPLORATION,
++)
+ from v2.backend.app.services.market_structure.decision_context import (
+     ADVANCED_CONTEXT_FIELDS,
+ )
+@@ -33694,6 +33697,16 @@ _EXIT_OVERSHOOT_MAX_SAMPLE = 20
+ PAPER_ADAPTIVE_HEDGE_ENABLED = str(
+     os.environ.get("PAPER_ADAPTIVE_HEDGE_ENABLED", "")
+ ).strip().lower() in ("1", "true", "yes", "on")
++# Bounded information-gain exploration authority at the preemptive edge-control
++# layer (paper-only).  Default ON for paper: when the champion (exploitation)
++# action is REMAIN_FLAT the system may admit a small paper-only exploratory
++# directional action if the LEARNED exploration objective is positive, even when
++# expected edge is <= 0.  This relaxes ONLY the ``expected_edge > 0``
++# exploitation requirement; every integrity/loss/exit/quarantine/guardian/
++# venue-feasibility rail stays enforced (see decision.py).  Live stays BLOCKED.
++PAPER_INFORMATION_GAIN_EXPLORATION_ENABLED = str(
++    os.environ.get("PAPER_INFORMATION_GAIN_EXPLORATION_ENABLED", "true")
++).strip().lower() in ("1", "true", "yes", "on")
+ # Runtime safety interlock: the current deferred hedge implementation does not
+ # have atomic fill/margin reservation, exact parent-generation identity, or an
+ # independent canonical hedge decision. It can also defer an already-hit stop.
+@@ -53862,6 +53875,9 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
+             bucket_quarantine_status=_bucket_quarantine_for_intent,
+             allow_positive_edge_probation=True,
+             allow_paper_risk_controller_exploration=True,
++            allow_paper_risk_controller_information_gain_exploration=(
++                PAPER_INFORMATION_GAIN_EXPLORATION_ENABLED
++            ),
+             altdata_confluence=_altdata_confluence_cache[_conf_cache_key] or None,
+             adaptive_tuning_state=_adaptive_tuning_state,
+             decision_time=preemptive_runtime_decision_time,
+@@ -54656,6 +54672,19 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
+         intent["adaptive_policy_action"] = adaptive_action.to_payload()
+         intent["adaptive_policy_action_id"] = adaptive_action.decision_id
+         intent["adaptive_policy_action_sha256"] = adaptive_action.content_sha256
++        # Carry the selected policy mode (champion_exploitation vs
++        # bounded_information_seeking_exploration) forward so the downstream
++        # closed-trade/outcome record stays separately attributable between
++        # exploitation and bounded information-gain exploration.  Paper-only
++        # provenance: an exploration outcome is training feedback, never live
++        # profit (live stays BLOCKED).
++        intent["adaptive_policy_action_policy_mode"] = adaptive_action.policy_mode
++        intent["exploration_provenance"] = (
++            adaptive_action.policy_mode
++            == "bounded_information_seeking_exploration"
++        )
++        intent["counts_as_training_feedback"] = True
++        intent["counts_as_live_profit"] = False
+         intent["adaptive_policy_result_sha256"] = adaptive_policy_result.content_sha256
+         intent["adaptive_policy_reference_parity_status"] = (
+             adaptive_policy_result.parity_status
+diff --git a/v2/backend/app/services/adaptive_system/adaptive_policy_shadow_v2.py b/v2/backend/app/services/adaptive_system/adaptive_policy_shadow_v2.py
+index b168e62d7d..97c29f8a39 100644
+--- a/v2/backend/app/services/adaptive_system/adaptive_policy_shadow_v2.py
++++ b/v2/backend/app/services/adaptive_system/adaptive_policy_shadow_v2.py
+@@ -59,6 +59,7 @@ from v2.backend.app.services.adaptive_system.adaptive_hard_validator_v2 import (
+ )
+ from v2.backend.app.services.adaptive_system.adaptive_objective_reference_v2 import (
+     evaluate_reference_objective,
++    select_reference_action_id,
+ )
+ from v2.backend.app.services.adaptive_system.adaptive_objective_v2 import (
+     ACTION_INPUT_SCHEMA_VERSION,
+@@ -493,6 +494,25 @@ def _physical_plan(
+             (continuous_target / entry / step).to_integral_value(rounding=ROUND_FLOOR)
+             * step
+         )
++        # Venue feasibility is a hard physical validator, not sizing policy.
++        # Never increase a learned policy target merely to satisfy the venue
++        # minimum.  This candidate is ineligible and another opportunity must
++        # be selected when the exact continuous budget is sub-minimum.
++        if minimum_step_quantity > maximum_quantity:
++            raise AdaptivePolicyShadowError(
++                "venue_minimum_quantity_exceeds_venue_maximum"
++            )
++        if (
++            mode == BOUNDED_EXPLORATION
++            and selected_quantity < minimum_step_quantity
++        ):
++            raise AdaptivePolicyShadowError(
++                "continuous_policy_target_below_venue_minimum"
++            )
++        # Champion proposals retain the venue-minimum comparator so the
++        # objective can score complete exploit/explore alternatives.  A
++        # non-positive champion cannot win against the hard-valid flat action;
++        # a selected directional action must still pass the exact attestation.
+         selected_quantity = max(minimum_step_quantity, selected_quantity)
+         if selected_quantity > maximum_quantity:
+             selected_quantity = maximum_quantity
+@@ -2018,11 +2038,73 @@ def build_adaptive_policy_shadow_candidate(
+         16,
+     ) / float(2**64)
+     choose_exploration = draw < allocation.bounded_exploration_probability
++    # Bounded information-gain escape from the data-starvation deadlock.  When
++    # the champion (exploitation) action resolves to REMAIN_FLAT -- i.e. no
++    # positive-edge directional action exists, so every candidate would
++    # otherwise stay flat and generate no training feedback -- and a bounded
++    # exploration action carries a strictly positive LEARNED EXPLORATION
++    # OBJECTIVE, deterministically select that information-seeking action.
++    # ``exploration_action_id`` is only
++    # non-None when the exploration score already satisfies utility > 0.0 AND
++    # information_gain_contribution > 0.0 (adaptive_objective_v2.best), and
++    # utility = return_contribution - total_penalty + information_gain_contribution.
++    # So this fires precisely when expected edge is <= 0 but expected
++    # information gain more than offsets bounded downside.  It is a no-op when
++    # the champion is already directional or when no positive-objective
++    # exploration action exists, and it runs strictly AFTER the reference-parity
++    # formula check above.  The final action id is independently replayed below
++    # as a second parity check, so selection itself cannot drift silently.
++    champion_score = next(
++        (
++            score
++            for score in evaluation.scores
++            if score.action_id == evaluation.champion_action_id
++        ),
++        None,
++    )
++    champion_is_remain_flat = (
++        champion_score is not None
++        and champion_score.selected_action == ACTION_REMAIN_FLAT
++    )
++    exploration_score = (
++        next(
++            (
++                score
++                for score in evaluation.scores
++                if score.action_id == evaluation.exploration_action_id
++            ),
++            None,
++        )
++        if evaluation.exploration_action_id is not None
++        else None
++    )
++    information_gain_exploration_objective_positive = (
++        exploration_score is not None
++        and exploration_score.utility is not None
++        and exploration_score.utility > 0.0
++    )
++    deterministic_information_seeking_exploration = (
++        champion_is_remain_flat
++        and evaluation.exploration_action_id is not None
++        and information_gain_exploration_objective_positive
++    )
+     selected_id = (
+         evaluation.exploration_action_id
+-        if choose_exploration and evaluation.exploration_action_id is not None
++        if (choose_exploration or deterministic_information_seeking_exploration)
++        and evaluation.exploration_action_id is not None
+         else evaluation.champion_action_id
+     )
++    reference_selected_id = select_reference_action_id(
++        reference,
++        ordered_inputs,
++        candidate_id=candidate_id,
++        calibration_sha256=str(calibration["calibration_sha256"]),
++        bounded_exploration_probability=allocation.bounded_exploration_probability,
++    )
++    if selected_id != reference_selected_id:
++        raise AdaptivePolicyShadowError(
++            "reference_parity:final_selection_disagreement_count=1"
++        )
+     if selected_id is None:
+         # A hard-integrity or authorization failure must remain non-executable,
+         # but it is still a typed learning outcome.  Select the zero-notional
+diff --git a/v2/backend/app/services/paper_trade_management/outcomes.py b/v2/backend/app/services/paper_trade_management/outcomes.py
+index 5b8be83012..97fa573319 100644
+--- a/v2/backend/app/services/paper_trade_management/outcomes.py
++++ b/v2/backend/app/services/paper_trade_management/outcomes.py
+@@ -3,6 +3,10 @@ from __future__ import annotations
+ from datetime import UTC, datetime
+ from typing import Any
+ 
++from v2.backend.app.domain.adaptive_policy_action_v2 import (
++    POLICY_MODE_BOUNDED_EXPLORATION,
++)
++
+ from .accounting import fee_and_slippage_usd, pnl_bps, pnl_usd
+ from .position_state import (
+     PaperNetPosition,
+@@ -509,11 +513,26 @@ def build_close_event(
+             else "FALLBACK_OR_INCOMPLETE_ENTRY_EXIT_COST_PROVENANCE"
+         ),
+     }
++    # Exploitation vs bounded information-gain exploration provenance.  Kept on
++    # the outcome/close record so exploration and exploitation stay SEPARATELY
++    # ATTRIBUTABLE for training feedback.  ``policy_mode`` is the canonical
++    # selected mode ("champion_exploitation" or
++    # "bounded_information_seeking_exploration").  A bounded exploration close is
++    # training feedback but NEVER live profit (paper-only; live stays BLOCKED).
++    adaptive_policy_action_policy_mode = position.adaptive_policy_action_policy_mode
++    exploration_provenance = (
++        adaptive_policy_action_policy_mode == POLICY_MODE_BOUNDED_EXPLORATION
++    )
+     telemetry = {
+         "adaptive_allocation": adaptive_allocation,
+         "adaptive_policy_authoritative": position.adaptive_policy_authoritative,
+         "adaptive_policy_action_id": position.adaptive_policy_action_id,
+         "adaptive_policy_action_sha256": position.adaptive_policy_action_sha256,
++        "adaptive_policy_action_policy_mode": adaptive_policy_action_policy_mode,
++        "policy_mode": adaptive_policy_action_policy_mode,
++        "exploration_provenance": exploration_provenance,
++        "counts_as_training_feedback": True,
++        "counts_as_live_profit": False,
+         "adaptive_paper_policy_authorization_sha256": (
+             position.adaptive_paper_policy_authorization_sha256
+         ),
+@@ -766,6 +785,8 @@ def build_close_event(
+         "model_source": position.model_source or position.model_version,
+         "prediction_id": position.prediction_id,
+         "signal_id": position.source_signal_id,
++        "intent_id": position.source_intent_id,
++        "source_intent_id": position.source_intent_id,
+         "risk_decision_id": position.risk_decision_id,
+         "orchestrator_decision_id": position.orchestrator_decision_id,
+         "decision_id": position.decision_id,
+diff --git a/v2/backend/app/services/paper_trade_management/position_state.py b/v2/backend/app/services/paper_trade_management/position_state.py
+index 57b9341ce3..bf579d73e9 100644
+--- a/v2/backend/app/services/paper_trade_management/position_state.py
++++ b/v2/backend/app/services/paper_trade_management/position_state.py
+@@ -32,6 +32,7 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
+     "position_generation_id",
+     "position_id_version",
+     "entry_generation_time_utc",
++    "source_intent_id",
+     "active_model_registry_generation",
+     "checkpoint_generation",
+     "paper_strategy_cohort_id",
+@@ -51,6 +52,7 @@ _PAPER_POSITION_RECONSTRUCTION_FIELDS = (
+     "adaptive_policy_authoritative",
+     "adaptive_policy_action_id",
+     "adaptive_policy_action_sha256",
++    "adaptive_policy_action_policy_mode",
+     "adaptive_paper_policy_authorization_sha256",
+     "adaptive_policy_paper_cycle_receipt_id",
+     "adaptive_policy_paper_cycle_receipt_sha256",
+@@ -1164,6 +1166,7 @@ class PaperNetPosition:
+     position_id_version: str | None = None
+     entry_generation_time_utc: str | None = None
+     source_signal_id: str | None = None
++    source_intent_id: str | None = None
+     prediction_id: str | None = None
+     preemptive_decision_id: str | None = None
+     risk_decision_id: str | None = None
+@@ -1313,6 +1316,11 @@ class PaperNetPosition:
+     adaptive_policy_authoritative: bool = False
+     adaptive_policy_action_id: str | None = None
+     adaptive_policy_action_sha256: str | None = None
++    # champion_exploitation vs bounded_information_seeking_exploration.  Carried
++    # so the closed-trade/outcome record stays separately attributable between
++    # exploitation and bounded information-gain exploration, including across
++    # restart reconstruction.
++    adaptive_policy_action_policy_mode: str | None = None
+     adaptive_paper_policy_authorization_sha256: str | None = None
+     adaptive_policy_paper_cycle_receipt_id: str | None = None
+     adaptive_policy_paper_cycle_receipt_sha256: str | None = None
+@@ -2527,6 +2535,7 @@ class PaperNetPosition:
+             "position_generation_id": self.position_generation_id,
+             "position_id_version": self.position_id_version,
+             "entry_generation_time_utc": self.entry_generation_time_utc,
++            "source_intent_id": self.source_intent_id,
+             "active_model_registry_generation": (
+                 self.active_model_registry_generation
+             ),
+@@ -2551,6 +2560,7 @@ class PaperNetPosition:
+             "adaptive_policy_authoritative": self.adaptive_policy_authoritative,
+             "adaptive_policy_action_id": self.adaptive_policy_action_id,
+             "adaptive_policy_action_sha256": self.adaptive_policy_action_sha256,
++            "adaptive_policy_action_policy_mode": self.adaptive_policy_action_policy_mode,
+             "adaptive_paper_policy_authorization_sha256": (
+                 self.adaptive_paper_policy_authorization_sha256
+             ),
+@@ -2802,6 +2812,8 @@ class PaperNetPosition:
+             "position_generation_id": self.position_generation_id,
+             "position_id_version": self.position_id_version,
+             "entry_generation_time_utc": self.entry_generation_time_utc,
++            "source_intent_id": self.source_intent_id,
++            "intent_id": self.source_intent_id,
+             "symbol": self.symbol,
+             "side": self.side,
+             "net_quantity": round(self.net_quantity, 12),
+@@ -2816,6 +2828,7 @@ class PaperNetPosition:
+             "adaptive_policy_authoritative": self.adaptive_policy_authoritative,
+             "adaptive_policy_action_id": self.adaptive_policy_action_id,
+             "adaptive_policy_action_sha256": self.adaptive_policy_action_sha256,
++            "adaptive_policy_action_policy_mode": self.adaptive_policy_action_policy_mode,
+             "adaptive_paper_policy_authorization_sha256": (
+                 self.adaptive_paper_policy_authorization_sha256
+             ),
+@@ -4051,6 +4064,9 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
+         position_id_version=POSITION_ID_VERSION,
+         entry_generation_time_utc=generation.entry_time_utc,
+         source_signal_id=fill.get("signal_id"),
++        source_intent_id=first_present(
++            fill.get("intent_id"), fill.get("source_intent_id")
++        ),
+         prediction_id=fill.get("prediction_id") or fill.get("source_prediction_id"),
+         preemptive_decision_id=first_present(
+             fill.get("preemptive_decision_id"),
+@@ -4509,6 +4525,11 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
+             if fill.get("adaptive_policy_action_sha256") not in (None, "")
+             else None
+         ),
++        adaptive_policy_action_policy_mode=(
++            str(fill.get("adaptive_policy_action_policy_mode"))
++            if fill.get("adaptive_policy_action_policy_mode") not in (None, "")
++            else None
++        ),
+         adaptive_paper_policy_authorization_sha256=(
+             str(fill.get("adaptive_paper_policy_authorization_sha256"))
+             if fill.get("adaptive_paper_policy_authorization_sha256")
+diff --git a/v2/backend/app/services/preemptive_edge_control/decision.py b/v2/backend/app/services/preemptive_edge_control/decision.py
+index 1876fc1717..a7d0be8277 100644
+--- a/v2/backend/app/services/preemptive_edge_control/decision.py
++++ b/v2/backend/app/services/preemptive_edge_control/decision.py
+@@ -41,6 +41,7 @@ from v2.backend.app.services.preemptive_edge_control.schema import (
+ PREEMPTIVE_DECISIONS = {
+     "ALLOW",
+     "PAPER_RISK_CONTROLLER_EXPLORATION",
++    "PAPER_RISK_CONTROLLER_INFORMATION_GAIN_EXPLORATION",
+     "POSITIVE_EDGE_PROBATION_PAPER",
+     "REDUCE_SIZE_PAPER_ONLY",
+     "SHADOW_ONLY",
+@@ -547,6 +548,7 @@ def evaluate_candidate(
+     bucket_quarantine_status: dict[str, Any] | None = None,
+     allow_positive_edge_probation: bool = False,
+     allow_paper_risk_controller_exploration: bool = False,
++    allow_paper_risk_controller_information_gain_exploration: bool = False,
+     allow_reduce_or_close: bool = False,
+     altdata_confluence: dict[str, Any] | None = None,
+     adaptive_tuning_state: Mapping[str, Any] | None = None,
+@@ -584,6 +586,9 @@ def evaluate_candidate(
+     control_flags = {
+         "allow_positive_edge_probation": allow_positive_edge_probation,
+         "allow_paper_risk_controller_exploration": (allow_paper_risk_controller_exploration),
++        "allow_paper_risk_controller_information_gain_exploration": (
++            allow_paper_risk_controller_information_gain_exploration
++        ),
+         "allow_reduce_or_close": allow_reduce_or_close,
+     }
+ 
+@@ -902,6 +907,30 @@ def evaluate_candidate(
+         and not advanced_block
+         and not altdata_high_risk_conflict
+     )
++    # Bounded information-gain exploration eligibility.  IDENTICAL to the
++    # positive-edge risk-controller exploration tier above EXCEPT that the
++    # exploitation requirement ``expected_edge > 0.0`` is dropped: the expected
++    # edge may be <= 0 as long as it remains ESTIMABLE (``expected_edge is not
++    # None``).  Every other protected rail is preserved unchanged.  No
++    # information-gain signal exists at this preemptive layer, so the POSITIVE
++    # learned-exploration-objective requirement (utility > 0 AND
++    # information_gain_contribution > 0) is enforced downstream in the adaptive
++    # objective/selection layer.  This relaxes ONLY the exploitation edge sign.
++    paper_risk_controller_information_gain_exploration_eligible = (
++        allow_paper_risk_controller_information_gain_exploration
++        and scoped_paper_lane_authorized
++        and guardian_halted
++        and not bucket.get("bucket_negative")
++        and not matched_quarantine
++        and not atr_stop_cluster
++        and expected_edge is not None
++        and loss_probability < PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND
++        and confidence_risk < 0.75
++        and exit_score >= PAPER_RISK_CONTROLLER_EXPLORATION_MIN_EXIT_FEASIBILITY
++        and trust_not_no_trade
++        and not advanced_block
++        and not altdata_high_risk_conflict
++    )
+ 
+     hard_safety_block = (
+         bucket.get("bucket_negative")
+@@ -911,7 +940,9 @@ def evaluate_candidate(
+         or not decision_time_input_valid
+     )
+     scoped_paper_lane_eligible = (
+-        positive_edge_probation_eligible or paper_risk_controller_exploration_eligible
++        positive_edge_probation_eligible
++        or paper_risk_controller_exploration_eligible
++        or paper_risk_controller_information_gain_exploration_eligible
+     )
+     adaptive_loss_threshold_applies = not scoped_paper_lane_eligible
+     adaptive_loss_threshold_breached = (
+@@ -934,6 +965,13 @@ def evaluate_candidate(
+     elif paper_risk_controller_exploration_eligible:
+         decision = "PAPER_RISK_CONTROLLER_EXPLORATION"
+         reasons.append("GLOBAL_GUARDIAN_HALT_SCOPED_TO_PAPER_RISK_CONTROLLER_EXPLORATION")
++    elif paper_risk_controller_information_gain_exploration_eligible:
++        # Reached only when expected edge is <= 0 (positive-edge tiers above did
++        # not fire) but edge is estimable and every protected rail is clean.
++        decision = "PAPER_RISK_CONTROLLER_INFORMATION_GAIN_EXPLORATION"
++        reasons.append(
++            "GLOBAL_GUARDIAN_HALT_SCOPED_TO_PAPER_INFORMATION_GAIN_EXPLORATION"
++        )
+     elif adaptive_loss_threshold_breached:
+         decision = "NO_TRADE"
+     elif expected_edge is None or expected_edge <= 0:
+@@ -1088,12 +1126,19 @@ def evaluate_candidate(
+                 "REDUCE_SIZE_PAPER_ONLY",
+                 "POSITIVE_EDGE_PROBATION_PAPER",
+                 "PAPER_RISK_CONTROLLER_EXPLORATION",
++                "PAPER_RISK_CONTROLLER_INFORMATION_GAIN_EXPLORATION",
+             },
+             "allow_positive_edge_probation_paper": (decision == "POSITIVE_EDGE_PROBATION_PAPER"),
+             "allow_paper_risk_controller_exploration": (
+                 decision == "PAPER_RISK_CONTROLLER_EXPLORATION"
+             ),
+             "paper_risk_controller_exploration": (decision == "PAPER_RISK_CONTROLLER_EXPLORATION"),
++            "allow_paper_risk_controller_information_gain_exploration": (
++                decision == "PAPER_RISK_CONTROLLER_INFORMATION_GAIN_EXPLORATION"
++            ),
++            "paper_risk_controller_information_gain_exploration_eligible": (
++                decision == "PAPER_RISK_CONTROLLER_INFORMATION_GAIN_EXPLORATION"
++            ),
+             "allow_reduced_size_paper_only": decision == "REDUCE_SIZE_PAPER_ONLY",
+             "allow_live_dry_run": decision == "ALLOW",
+             "scoped_paper_lane_authorized": scoped_paper_lane_authorized,
+@@ -1234,6 +1279,7 @@ def replay_preemptive_decision(
+     required_control_flags = (
+         "allow_positive_edge_probation",
+         "allow_paper_risk_controller_exploration",
++        "allow_paper_risk_controller_information_gain_exploration",
+         "allow_reduce_or_close",
+     )
+     if any(type(control_flags.get(field)) is not bool for field in required_control_flags):
+@@ -1282,6 +1328,9 @@ def replay_preemptive_decision(
+         allow_paper_risk_controller_exploration=control_flags[
+             "allow_paper_risk_controller_exploration"
+         ],
++        allow_paper_risk_controller_information_gain_exploration=control_flags[
++            "allow_paper_risk_controller_information_gain_exploration"
++        ],
+         allow_reduce_or_close=control_flags["allow_reduce_or_close"],
+         altdata_confluence=optional_mapping("altdata_evidence"),
+         adaptive_tuning_state=copy.deepcopy(dict(tuning_state)),
+diff --git a/v2/backend/app/services/preemptive_edge_control/reasons.py b/v2/backend/app/services/preemptive_edge_control/reasons.py
+index 2bb752db2c..46456cf4a0 100644
+--- a/v2/backend/app/services/preemptive_edge_control/reasons.py
++++ b/v2/backend/app/services/preemptive_edge_control/reasons.py
+@@ -5,6 +5,7 @@ from __future__ import annotations
+ CANONICAL_PREEMPTIVE_ACTIONS: tuple[str, ...] = (
+     "ALLOW_A_PLUS_CANDIDATE",
+     "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION",
++    "ALLOW_PAPER_INFORMATION_GAIN_EXPLORATION",
+     "ALLOW_PROBATION_PAPER",
+     "ALLOW_REDUCE_SIZE_PAPER",
+     "SHADOW_ONLY",
+@@ -28,6 +29,7 @@ ALLOW_ACTIONS: frozenset[str] = frozenset(
+     {
+         "ALLOW_A_PLUS_CANDIDATE",
+         "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION",
++        "ALLOW_PAPER_INFORMATION_GAIN_EXPLORATION",
+         "ALLOW_PROBATION_PAPER",
+         "ALLOW_REDUCE_SIZE_PAPER",
+     }
+@@ -37,6 +39,7 @@ PAPER_ONLY_ALLOW_ACTIONS: frozenset[str] = frozenset(
+     {
+         "ALLOW_PROBATION_PAPER",
+         "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION",
++        "ALLOW_PAPER_INFORMATION_GAIN_EXPLORATION",
+         "ALLOW_REDUCE_SIZE_PAPER",
+     }
+ )
+@@ -84,6 +87,8 @@ def canonical_block_action(
+         return "ALLOW_A_PLUS_CANDIDATE"
+     if decision == "PAPER_RISK_CONTROLLER_EXPLORATION":
+         return "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION"
++    if decision == "PAPER_RISK_CONTROLLER_INFORMATION_GAIN_EXPLORATION":
++        return "ALLOW_PAPER_INFORMATION_GAIN_EXPLORATION"
+     if decision == "POSITIVE_EDGE_PROBATION_PAPER":
+         return "ALLOW_PROBATION_PAPER"
+     if decision == "REDUCE_SIZE_PAPER_ONLY":
+diff --git a/v2/backend/tests/unit/services/adaptive_system/test_bounded_information_gain_exploration_selection.py b/v2/backend/tests/unit/services/adaptive_system/test_bounded_information_gain_exploration_selection.py
+new file mode 100644
+index 0000000000..beabcdf97c
+--- /dev/null
++++ b/v2/backend/tests/unit/services/adaptive_system/test_bounded_information_gain_exploration_selection.py
+@@ -0,0 +1,286 @@
++"""Change 2 fixtures: deterministic bounded information-gain exploration
++selection in the adaptive policy shadow.
++
++When the champion (exploitation) action resolves to REMAIN_FLAT and a bounded
++exploration action carries a strictly positive learned exploration objective
++(``utility > 0`` AND ``information_gain_contribution > 0``), the shadow selects
++the information-seeking directional action deterministically -- breaking the
++data-starvation deadlock -- while reference parity is preserved.
++"""
++
++from __future__ import annotations
++
++import copy
++import hashlib
++
++import pytest
++from cryptography.hazmat.primitives import serialization
++from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
++
++from v2.backend.app.services.adaptive_system import adaptive_hard_validator_v2
++from v2.backend.app.services.adaptive_system import adaptive_objective_v2
++from v2.backend.app.services.adaptive_system import adaptive_policy_shadow_v2
++from v2.backend.app.services.adaptive_system.adaptive_paper_policy_authorization_v2 import (  # noqa: E501
++    authorize_adaptive_paper_policy_action,
++)
++from v2.backend.app.services.adaptive_system.adaptive_policy_shadow_v2 import (
++    build_adaptive_policy_shadow_candidate,
++)
++from v2.backend.app.services.adaptive_system.candidate_outcome_calibration_v2 import (
++    _canonical_sha256,
++)
++from v2.backend.tests.unit.services.adaptive_system.test_adaptive_policy_shadow_v2 import (  # noqa: E501
++    _SEED,
++    _calibration,
++    _feature_snapshot,
++    _intent,
++    _registry,
++)
++
++_PRIVATE = Ed25519PrivateKey.from_private_bytes(
++    hashlib.sha256(b"adaptive-shadow-runtime-test-validator").digest()
++)
++_PUBLIC_HEX = _PRIVATE.public_key().public_bytes(
++    serialization.Encoding.Raw,
++    serialization.PublicFormat.Raw,
++).hex()
++
++BOUNDED = "bounded_information_seeking_exploration"
++
++
++@pytest.fixture(autouse=True)
++def _validator_anchor(monkeypatch: pytest.MonkeyPatch) -> None:
++    monkeypatch.setattr(
++        adaptive_objective_v2,
++        "CANONICAL_HARD_VALIDATOR_PUBLIC_KEY_HEX",
++        _PUBLIC_HEX,
++    )
++    monkeypatch.setattr(
++        adaptive_hard_validator_v2,
++        "CANONICAL_HARD_VALIDATOR_PUBLIC_KEY_HEX",
++        _PUBLIC_HEX,
++    )
++
++
++def _controlled_statistic(
++    *, after_cost_expectancy_bps: float, posterior_uncertainty: float, tail_0_9: float
++) -> dict:
++    return {
++        "sample_count": 40,
++        "after_cost_expectancy_bps": after_cost_expectancy_bps,
++        "win_rate_posterior_mean": 0.5,
++        "posterior_uncertainty": posterior_uncertainty,
++        "loss_probability": 0.2,
++        "stop_out_probability": 0.01,
++        "profit_exit_probability": 0.3,
++        "reversal_probability": 0.02,
++        "slippage_failure_probability": 0.1,
++        "missed_tp_then_stop_probability": 0.02,
++        "venue_infeasible_probability": 0.1,
++        "return_bps_quantiles": {"0.1": -2.0, "0.5": 0.0, "0.9": 2.0},
++        "tail_loss_bps_quantiles": {"0.1": 0.0, "0.5": 0.0, "0.9": tail_0_9},
++        "mfe_bps_quantiles": {"0.1": 1.0, "0.5": 2.0, "0.9": 3.0},
++        "mae_bps_quantiles": {"0.1": -2.0, "0.5": -1.0, "0.9": 0.0},
++        "transaction_cost_bps_quantiles": {"0.1": 1.0, "0.5": 1.0, "0.9": 1.0},
++        "slippage_bps_quantiles": {"0.1": 0.1, "0.5": 0.1, "0.9": 0.1},
++        "market_impact_bps_quantiles": {"0.1": 0.1, "0.5": 0.1, "0.9": 0.1},
++        "realized_volatility_bps_quantiles": {"0.1": 1.0, "0.5": 2.0, "0.9": 3.0},
++        "funding_bps_mean": 0.0,
++    }
++
++
++def _calibration_with_statistic(statistic: dict) -> dict:
++    calibration = copy.deepcopy(_calibration())
++    calibration["global_statistics"] = copy.deepcopy(statistic)
++    for key in list(calibration["side_timeframe_statistics"]):
++        calibration["side_timeframe_statistics"][key] = copy.deepcopy(statistic)
++    calibration["side_timeframe_statistics"]["LONG:15m"] = copy.deepcopy(statistic)
++    calibration["side_timeframe_statistics"]["SHORT:15m"] = copy.deepcopy(statistic)
++    material = {k: v for k, v in calibration.items() if k != "calibration_sha256"}
++    calibration["calibration_sha256"] = _canonical_sha256(material)
++    return calibration
++
++
++def _low_cost_intent() -> dict:
++    intent = _intent()
++    intent["microstructure_continuous_estimates"]["slippage_bps"] = 0.1
++    intent["microstructure_continuous_estimates"]["market_impact_bps"] = 0.1
++    intent["microstructure_continuous_estimates"]["fill_probability"] = 0.8
++    intent["microstructure_continuous_estimates"]["adverse_selection_probability"] = 0.2
++    return intent
++
++
++def _build(calibration: dict):
++    return build_adaptive_policy_shadow_candidate(
++        intent=_low_cost_intent(),
++        feature_snapshot=_feature_snapshot(),
++        paper_status={"paper_only": True, "open_position_count": 0},
++        calibration=calibration,
++        registry=_registry(),
++        validator_seed=_SEED,
++        generated_at_ms=4_000_000,
++    )
++
++
++def test_exploration_fires_when_champion_flat_and_objective_positive() -> None:
++    """Fixture 1: champion=REMAIN_FLAT (edge<=0), positive learned exploration
++    objective -> the bounded exploration directional action is selected and is
++    an authorizable action."""
++
++    # Slightly negative edge -> champion directional utility < flat (util 0) so
++    # champion resolves to flat; high posterior uncertainty + tiny tail -> the
++    # exploration objective (utility) is strictly positive.
++    calibration = _calibration_with_statistic(
++        _controlled_statistic(
++            after_cost_expectancy_bps=-0.5,
++            posterior_uncertainty=0.9,
++            tail_0_9=1.0,
++        )
++    )
++    result = _build(calibration)
++    evaluation = result.objective_evaluation
++
++    champion_score = next(
++        score
++        for score in evaluation.scores
++        if score.action_id == evaluation.champion_action_id
++    )
++    assert champion_score.selected_action == "remain_flat"
++    assert evaluation.exploration_action_id is not None
++    exploration_score = next(
++        score
++        for score in evaluation.scores
++        if score.action_id == evaluation.exploration_action_id
++    )
++    assert exploration_score.utility is not None and exploration_score.utility > 0.0
++    assert exploration_score.information_gain_contribution > 0.0
++
++    selected = result.selected_adaptive_action
++    assert selected.selected_action == "directional_trade"
++    assert selected.policy_mode == BOUNDED
++    assert selected.target_notional_usd > 0.0
++    # Live authority never granted at the shadow layer.
++    assert selected.execution_authority is False
++    assert result.routes_to_live is False
++    assert result.places_real_order is False
++
++    # The selected information-seeking action authorizes through the standard
++    # adaptive paper authorization lane (no parallel path).  hard_validator_passed
++    # requires the full hard-check inputs + venue DECISION_EXECUTABLE + physical
++    # catastrophic plan to have passed for this exact action.
++    authorization = authorize_adaptive_paper_policy_action(
++        result, authorized_at_ms=5_000_000
++    )
++    payload = authorization.to_payload()
++    assert payload["hard_validator_passed"] is True
++    assert payload["selected_action"] == "directional_trade"
++    assert payload["selected_objective_input_id"] == evaluation.exploration_action_id
++
++
++def test_stays_flat_when_champion_flat_and_objective_nonpositive() -> None:
++    """Fixture 3: champion=REMAIN_FLAT and NO positive-objective exploration
++    action (utility <= 0 -> exploration_action_id is None) -> stays flat, no
++    wasteful exploration."""
++
++    result = _build(copy.deepcopy(_calibration()))  # default: exploration util < 0
++    evaluation = result.objective_evaluation
++
++    champion_score = next(
++        score
++        for score in evaluation.scores
++        if score.action_id == evaluation.champion_action_id
++    )
++    assert champion_score.selected_action == "remain_flat"
++    # A bounded exploration action exists in the scores but its utility is <= 0,
++    # so it is not an eligible exploration action.
++    assert evaluation.exploration_action_id is None
++    assert any(
++        score.policy_mode == BOUNDED
++        and score.utility is not None
++        and score.utility <= 0.0
++        for score in evaluation.scores
++    )
++    assert result.selected_adaptive_action.selected_action == "remain_flat"
++    assert result.selected_adaptive_action.target_notional_usd == 0.0
++
++
++def test_reference_parity_maintained_when_information_seeking_fires() -> None:
++    """Fixture 5: independent objective and final-selection parity both pass."""
++
++    calibration = _calibration_with_statistic(
++        _controlled_statistic(
++            after_cost_expectancy_bps=-0.5,
++            posterior_uncertainty=0.9,
++            tail_0_9=1.0,
++        )
++    )
++    result = _build(calibration)
++
++    # build_adaptive_policy_shadow_candidate raises AdaptivePolicyShadowError on
++    # any parity disagreement; reaching here proves parity held.
++    assert result.parity_status == "PASS"
++    assert result.parity_disagreement_count == 0
++    # And the information-seeking action was indeed selected in this scenario.
++    assert result.selected_adaptive_action.policy_mode == BOUNDED
++
++
++def test_subminimum_policy_budget_never_rounds_up_to_venue_minimum() -> None:
++    """A useful candidate stays flat when its own risk budget is sub-minimum."""
++
++    intent = _low_cost_intent()
++    derived = intent["paper_cycle_reservation_snapshot"]["derived"]
++    derived["remaining_total_notional_usd"] = 4.0
++    derived["remaining_symbol_notional_usd"] = 4.0
++    calibration = _calibration_with_statistic(
++        _controlled_statistic(
++            after_cost_expectancy_bps=-0.5,
++            posterior_uncertainty=0.9,
++            tail_0_9=1.0,
++        )
++    )
++
++    result = build_adaptive_policy_shadow_candidate(
++        intent=intent,
++        feature_snapshot=_feature_snapshot(),
++        paper_status={"paper_only": True, "open_position_count": 0},
++        calibration=calibration,
++        registry=_registry(),
++        validator_seed=_SEED,
++        generated_at_ms=4_000_000,
++    )
++
++    assert result.selected_adaptive_action.selected_action == "remain_flat"
++    assert result.selected_adaptive_action.target_notional_usd == 0.0
++    directional_reasons = {
++        reason
++        for action_id, reasons in result.action_dispositions
++        if not action_id.endswith(":flat")
++        for reason in reasons
++    }
++    assert (
++        "PHYSICAL_PLAN_UNAVAILABLE:continuous_policy_target_below_venue_minimum"
++        in directional_reasons
++    )
++
++
++def test_final_selection_reference_disagreement_fails_closed(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    calibration = _calibration_with_statistic(
++        _controlled_statistic(
++            after_cost_expectancy_bps=-0.5,
++            posterior_uncertainty=0.9,
++            tail_0_9=1.0,
++        )
++    )
++    monkeypatch.setattr(
++        adaptive_policy_shadow_v2,
++        "select_reference_action_id",
++        lambda *_args, **_kwargs: "forged-reference-action",
++    )
++
++    with pytest.raises(
++        adaptive_policy_shadow_v2.AdaptivePolicyShadowError,
++        match="final_selection_disagreement_count=1",
++    ):
++        _build(calibration)
+diff --git a/v2/backend/tests/unit/services/paper_trade_management/test_exploration_provenance_tagging.py b/v2/backend/tests/unit/services/paper_trade_management/test_exploration_provenance_tagging.py
+new file mode 100644
+index 0000000000..0f9f8190a4
+--- /dev/null
++++ b/v2/backend/tests/unit/services/paper_trade_management/test_exploration_provenance_tagging.py
+@@ -0,0 +1,99 @@
++"""Change 3 fixtures: bounded information-gain exploration provenance is carried
++onto the closed-trade / outcome record so exploration stays separately
++attributable from exploitation and is never counted as live profit.
++"""
++
++from __future__ import annotations
++
++from v2.backend.app.services.paper_trade_management.outcomes import build_close_event
++from v2.backend.app.services.paper_trade_management.position_state import (
++    PaperNetPosition,
++)
++
++BOUNDED = "bounded_information_seeking_exploration"
++CHAMPION = "champion_exploitation"
++
++
++def _position(**overrides: object) -> PaperNetPosition:
++    base: dict[str, object] = dict(
++        position_id="paper_pos_test",
++        symbol="BTCUSDT",
++        side="long",
++        net_quantity=1.0,
++        avg_entry_price=100.0,
++        opened_est="2026-06-14T00:00:00Z",
++        source_signal_id="signal_test",
++        prediction_id="pred_test",
++        market_state_id="market_state_test",
++        timeframe="1m",
++        feature_snapshot_id="feature_snapshot_test",
++        entry_market_state_id="market_state_test",
++        strategy_id="trend_following",
++        strategy_family="trend_following",
++        strategy_selected_mode="trend_following",
++        hedge_state="NO_HEDGE",
++        hedge_reason="NO_HEDGE_CONTEXT",
++        drawdown_at_entry=0.0,
++        market_regime_at_entry="trend",
++        best_favorable_price=100.0,
++        intra_trade_high_price=100.0,
++        intra_trade_low_price=100.0,
++        last_mark_price=100.0,
++        last_mark_est="2026-06-14T00:00:00Z",
++        fill_ids=["fill_test"],
++        decision_id="decision_test",
++        mtf_snapshot_id="mtf_test",
++        feature_cutoff="2026-06-13T23:59:59Z",
++        decision_time="2026-06-14T00:00:00Z",
++        available_at="2026-06-14T00:00:00Z",
++        selected_action="long",
++        model_version="v2_test",
++        checkpoint_id="checkpoint_test",
++        source_hashes={"model": "abc123", "feature": "def456"},
++        adaptive_policy_authoritative=True,
++        adaptive_policy_action_id="apa2_test",
++    )
++    base.update(overrides)
++    return PaperNetPosition(**base)
++
++
++def _close(position: PaperNetPosition) -> dict:
++    close_event, _outcome = build_close_event(
++        position=position,
++        close_quantity=1.0,
++        exit_price=102.0,
++        exit_time="2026-06-14T00:01:00Z",
++        close_reason="TIER_2_TAKE_PROFIT",
++    )
++    return close_event
++
++
++def test_exploration_close_carries_bounded_information_seeking_provenance() -> None:
++    close_event = _close(
++        _position(adaptive_policy_action_policy_mode=BOUNDED)
++    )
++
++    assert close_event["policy_mode"] == BOUNDED
++    assert close_event["adaptive_policy_action_policy_mode"] == BOUNDED
++    assert close_event["exploration_provenance"] is True
++    assert close_event["counts_as_training_feedback"] is True
++    assert close_event["counts_as_live_profit"] is False
++
++
++def test_exploitation_close_is_separately_attributable() -> None:
++    close_event = _close(
++        _position(adaptive_policy_action_policy_mode=CHAMPION)
++    )
++
++    assert close_event["policy_mode"] == CHAMPION
++    # Exploitation is NOT tagged as exploration provenance -> separately
++    # attributable from bounded information-gain exploration.
++    assert close_event["exploration_provenance"] is False
++    assert close_event["counts_as_training_feedback"] is True
++    assert close_event["counts_as_live_profit"] is False
++
++
++def test_position_payload_persists_policy_mode_for_reload() -> None:
++    position = _position(adaptive_policy_action_policy_mode=BOUNDED)
++    payload = position.to_payload(generated_utc="2026-06-14T00:01:00Z")
++    assert payload["adaptive_policy_action_policy_mode"] == BOUNDED
+diff --git a/v2/backend/tests/unit/services/preemptive_edge_control/test_information_gain_exploration_eligibility.py b/v2/backend/tests/unit/services/preemptive_edge_control/test_information_gain_exploration_eligibility.py
+new file mode 100644
+index 0000000000..c8e09712e6
+--- /dev/null
++++ b/v2/backend/tests/unit/services/preemptive_edge_control/test_information_gain_exploration_eligibility.py
+@@ -0,0 +1,284 @@
++"""Change 1 fixtures: bounded information-gain exploration eligibility at the
++preemptive edge-control layer.
++
++These prove that the new ``paper_risk_controller_information_gain_exploration``
++sibling eligibility relaxes ONLY the exploitation ``expected_edge > 0`` sign and
++keeps every protected rail enforced.
++
++Because the preemptive loss model forces ``pre_trade_loss_probability >= 0.90``
++for ``expected_edge <= 0`` (candidate_loss_risk.py) and the exit-feasibility
++model caps the score at ``<= 0.4`` for ``expected_edge <= 0``
++(exit_feasibility.py), the info-gain tier is UNREACHABLE at this layer for a
++genuinely non-positive-edge candidate WITHOUT lowering those two protected rails.
++The rail-isolation tests therefore hold the loss-probability and exit-feasibility
++inputs at passing values (via test doubles) so that each remaining protected
++conjunct can be exercised independently; a separate test proves the loss and
++exit rails still block a real non-positive-edge candidate when NOT doubled.
++"""
++
++from __future__ import annotations
++
++import copy
++
++import pytest
++
++import v2.backend.app.services.preemptive_edge_control.decision as decision_module
++from v2.backend.app.services.preemptive_edge_control.decision import (
++    evaluate_candidate,
++    replay_preemptive_decision,
++)
++from v2.backend.tests.unit.services.preemptive_edge_control.test_decision_snapshot_contract import (  # noqa: E501
++    ALTDATA,
++    DECISION_TIME,
++    GUARDIAN,
++    TUNING_STATE,
++    _candidate,
++    _healthy_bucket_health,
++)
++
++INFO_GAIN_DECISION = "PAPER_RISK_CONTROLLER_INFORMATION_GAIN_EXPLORATION"
++HALTED_GUARDIAN = {
++    "status": "HALTED",
++    "new_entries_allowed": False,
++    "a_grade_new_entries_allowed": False,
++}
++
++
++def _scoped_negative_edge_candidate(**overrides: object) -> dict[str, object]:
++    candidate = _candidate(
++        expected_move_bps=3.0,
++        expected_move_after_cost_bps=-1.0,  # expected edge <= 0 but estimable
++        paper_only=True,
++        routes_to_live=False,
++        places_real_order=False,
++        paper_cohort_preemptive_controls_scoped=True,
++        paper_cohort_breaker_new_entries_allowed=True,
++    )
++    candidate.update(overrides)
++    return candidate
++
++
++def _evaluate(
++    candidate: dict[str, object],
++    *,
++    monkeypatch: pytest.MonkeyPatch | None = None,
++    guardian: dict[str, object] = HALTED_GUARDIAN,
++    bucket_health: dict[str, dict[str, object]] | None = None,
++    bucket_quarantine_status: dict[str, object] | None = None,
++    altdata: dict[str, object] | None = None,
++    exit_score: float | None = 0.60,
++    loss: float | None = 0.40,
++    allow_information_gain: bool = True,
++) -> dict[str, object]:
++    if monkeypatch is not None and loss is not None:
++        monkeypatch.setattr(
++            decision_module,
++            "assess_candidate_loss_risk",
++            lambda **_: {
++                "pre_trade_loss_probability": loss,
++                "pre_trade_loss_risk_reasons": [],
++                "adaptive_microstructure_trust_threshold_used": 0.41,
++            },
++        )
++    if monkeypatch is not None and exit_score is not None:
++        original_exit = decision_module.assess_exit_feasibility
++
++        def _fake_exit(candidate: dict, cost_edge: dict) -> dict:
++            result = original_exit(candidate, cost_edge)
++            result["exit_feasibility_score"] = exit_score
++            return result
++
++        monkeypatch.setattr(decision_module, "assess_exit_feasibility", _fake_exit)
++    return evaluate_candidate(
++        candidate,
++        closed_rows=[],
++        bucket_health=(
++            bucket_health if bucket_health is not None else _healthy_bucket_health()
++        ),
++        continuous_edge_guardian_gate=guardian,
++        bucket_quarantine_status=bucket_quarantine_status,
++        adaptive_tuning_state=TUNING_STATE,
++        altdata_confluence=(altdata if altdata is not None else copy.deepcopy(ALTDATA)),
++        allow_paper_risk_controller_information_gain_exploration=allow_information_gain,
++        decision_time=DECISION_TIME,
++    )
++
++
++def test_information_gain_exploration_fires_when_rails_clean(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    """Fixture 1 (decision layer): rail-clean, edge<=0 candidate is admitted as
++    a paper-only information-gain exploration decision."""
++
++    result = _evaluate(_scoped_negative_edge_candidate(), monkeypatch=monkeypatch)
++
++    assert result["preemptive_decision"] == INFO_GAIN_DECISION
++    assert result["preemptive_action"] == "ALLOW_PAPER_INFORMATION_GAIN_EXPLORATION"
++    assert result["allow_paper_fill"] is True
++    assert result["paper_risk_controller_information_gain_exploration_eligible"] is True
++    assert result["allow_paper_risk_controller_information_gain_exploration"] is True
++    # Live authority stays blocked: paper-only, no live dry-run.
++    assert result["paper_only"] is True
++    assert result["routes_to_live"] is False
++    assert result["places_real_order"] is False
++    assert result["allow_live_dry_run"] is False
++    # Edge is genuinely non-positive; only the edge-sign requirement was relaxed.
++    assert float(result["expected_edge_after_cost_bps"]) <= 0.0
++    # Folding into the scoped lane suppresses the adaptive-loss threshold gate.
++    assert result["adaptive_loss_probability_threshold_applied"] is False
++
++
++@pytest.mark.parametrize(
++    "rail",
++    [
++        "bucket_negative",
++        "atr_stop_cluster",
++        "matched_quarantine",
++        "advanced_block",
++        "altdata_high_risk_conflict",
++        "exit_score_below_min",
++        "guardian_not_halted",
++        "scoped_lane_not_authorized",
++    ],
++)
++def test_information_gain_exploration_blocked_per_rail(
++    monkeypatch: pytest.MonkeyPatch, rail: str
++) -> None:
++    """Fixture 2 (decision layer): with loss/exit held at passing values, each
++    protected rail independently prevents the info-gain tier from firing."""
++
++    kwargs: dict[str, object] = {"monkeypatch": monkeypatch}
++    candidate = _scoped_negative_edge_candidate()
++
++    if rail == "bucket_negative":
++        bucket = _healthy_bucket_health()
++        bucket["symbol:BTCUSDT"].update(
++            {
++                "profit_factor": 0.4,
++                "win_rate": 0.2,
++                "wins": 1,
++                "losses": 4,
++                "gross_win_usd": 1.0,
++                "gross_loss_usd": 5.0,
++                "net_sum_usd": -5.0,
++                "notional_weighted_expectancy_bps": -10.0,
++            }
++        )
++        kwargs["bucket_health"] = bucket
++    elif rail == "atr_stop_cluster":
++        bucket = _healthy_bucket_health()
++        bucket["symbol:BTCUSDT"]["atr_stop_rate"] = 0.8
++        kwargs["bucket_health"] = bucket
++    elif rail == "matched_quarantine":
++        kwargs["bucket_quarantine_status"] = {"blocked_bucket_keys": ["symbol:BTCUSDT"]}
++    elif rail == "advanced_block":
++        candidate["advanced_indicator_context"] = {
++            "bullish_fvg_present": False,
++            "bearish_fvg_present": False,
++            "sweep_risk_long_side": 0.9,
++            "trade_tape_confirmation_score": 0.5,
++            "fvg_orderbook_trust_confluence": 0.78,
++            "fvg_expected_edge_after_cost": -1.0,
++            "distance_to_vwap_bps": 4.0,
++            "cvd_slope": 0.2,
++        }
++    elif rail == "altdata_high_risk_conflict":
++        altdata = copy.deepcopy(ALTDATA)
++        altdata["features"]["altdata_trade_block_score"] = 0.9
++        kwargs["altdata"] = altdata
++    elif rail == "exit_score_below_min":
++        kwargs["exit_score"] = 0.40  # below PAPER_RISK_CONTROLLER_EXPLORATION_MIN
++    elif rail == "guardian_not_halted":
++        kwargs["guardian"] = GUARDIAN
++    elif rail == "scoped_lane_not_authorized":
++        candidate = _scoped_negative_edge_candidate(
++            paper_cohort_preemptive_controls_scoped=False
++        )
++
++    result = _evaluate(candidate, **kwargs)  # type: ignore[arg-type]
++
++    assert result["preemptive_decision"] != INFO_GAIN_DECISION
++    assert result["paper_risk_controller_information_gain_exploration_eligible"] is False
++    assert result["allow_paper_fill"] is False
++    assert result["routes_to_live"] is False
++    assert result["places_real_order"] is False
++
++
++def test_loss_probability_and_exit_rails_preserved_block_negative_edge() -> None:
++    """The loss-probability and exit-feasibility rails are NOT lowered: with no
++    test doubles a genuinely non-positive-edge candidate stays NO_TRADE."""
++
++    result = evaluate_candidate(
++        _scoped_negative_edge_candidate(),
++        closed_rows=[],
++        bucket_health=_healthy_bucket_health(),
++        continuous_edge_guardian_gate=HALTED_GUARDIAN,
++        adaptive_tuning_state=TUNING_STATE,
++        altdata_confluence=copy.deepcopy(ALTDATA),
++        allow_paper_risk_controller_information_gain_exploration=True,
++        decision_time=DECISION_TIME,
++    )
++
++    assert result["preemptive_decision"] == "NO_TRADE"
++    assert result["paper_risk_controller_information_gain_exploration_eligible"] is False
++    assert result["allow_paper_fill"] is False
++    assert float(result["pre_trade_loss_probability"]) >= 0.90
++    assert float(result["exit_feasibility_score"]) <= 0.40
++
++
++def test_env_flag_gates_information_gain_tier(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    """When the authority flag is False the info-gain tier cannot fire even on a
++    rail-clean candidate (default-off for non-paper callers)."""
++
++    result = _evaluate(
++        _scoped_negative_edge_candidate(),
++        monkeypatch=monkeypatch,
++        allow_information_gain=False,
++    )
++
++    assert result["preemptive_decision"] != INFO_GAIN_DECISION
++    assert result["paper_risk_controller_information_gain_exploration_eligible"] is False
++    assert result["allow_paper_fill"] is False
++
++
++def test_replay_preserves_information_gain_control_flag(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    """Fixture 5 (preemptive parity): the new control flag round-trips through
++    the replay contract so retained receipts remain independently replayable."""
++
++    original = _evaluate(_scoped_negative_edge_candidate(), monkeypatch=monkeypatch)
++    material = original["preemptive_input_material"]
++    assert isinstance(material, dict)
++    control_flags = material["control_flags"]
++    assert (
++        control_flags["allow_paper_risk_controller_information_gain_exploration"]
++        is True
++    )
++
++    # Replay must reproduce the identical decision (including the new tier) from
++    # retained immutable material with no external reads and identical hash.
++    monkeypatch.setattr(
++        decision_module,
++        "assess_candidate_loss_risk",
++        lambda **_: {
++            "pre_trade_loss_probability": 0.40,
++            "pre_trade_loss_risk_reasons": [],
++            "adaptive_microstructure_trust_threshold_used": 0.41,
++        },
++    )
++    original_exit = decision_module.assess_exit_feasibility
++
++    def _fake_exit(candidate: dict, cost_edge: dict) -> dict:
++        result = original_exit(candidate, cost_edge)
++        result["exit_feasibility_score"] = 0.60
++        return result
++
++    monkeypatch.setattr(decision_module, "assess_exit_feasibility", _fake_exit)
++    replayed = replay_preemptive_decision(
++        material,
++        expected_input_hash=str(original["preemptive_input_hash"]),
++    )
++    assert replayed == original

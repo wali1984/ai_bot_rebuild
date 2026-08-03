@@ -1,0 +1,13 @@
+[Unit]
+Description=Claude Capital Guardian Resume Timer
+Documentation=file:///home/wali/Desktop/AI BOT REBUILD/v2/tools/systemd/claude-guardian.service
+Requires=claude-guardian.service
+
+[Timer]
+OnActiveSec=1800
+OnUnitActiveSec=1800
+AccuracySec=60
+Persistent=true
+
+[Install]
+WantedBy=timers.target

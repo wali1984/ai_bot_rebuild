@@ -1,0 +1,41 @@
+.public-status__row-label,
+.public-status__row-detail,
+.public-status__chip {
+  min-width: 0;
+}
+
+.public-status__row-detail {
+  overflow-wrap: anywhere;
+}
+
+.public-status__chip {
+  max-width: 100%;
+  text-align: center;
+  white-space: normal;
+}
+
+@media (max-width: 640px) {
+  .public-status__row {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: start !important;
+    column-gap: 12px !important;
+    row-gap: 6px !important;
+  }
+
+  .public-status__row-label {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .public-status__chip {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .public-status__row-detail {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}

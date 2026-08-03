@@ -3,16 +3,25 @@
   "allowed_output_prefixes": [
     "claude_worklog/final_readiness/legacy_execution_containment/latest/"
   ],
+  "completed_at": "2026-05-12T22:55:35.593229+00:00",
   "cwd": "/home/wali/Desktop/AI BOT REBUILD",
   "emit_files": true,
   "lane": "primary_claude_lane",
+  "next_action": "Source-of-truth completed this task in state/tasks; redispatch is suppressed.",
   "next_gate": "LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE_READY",
   "prompt": "You are Claude running under AI BOT REBUILD supervisor.\n\nTask: produce a read-only legacy execution containment and trainer parity safe-mode packet.\n\nScope:\n- Work inside /home/wali/Desktop/AI BOT REBUILD only.\n- Legacy bot mutation is forbidden.\n- Legacy Redis mutation is forbidden.\n- Exchange or capital actions are forbidden.\n- Margin and leverage changes are forbidden.\n- Live gate remains blocked_human_only.\n- Website work is support-only.\n\nInspect current V2 paper runtime, legacy bridge evidence, legacy trainer runtime marker, legacy trader observation evidence, and Risk Gateway paper-only status. Do not edit source code. Emit exactly two BEGIN_FILE blocks:\n\nBEGIN_FILE: claude_worklog/final_readiness/legacy_execution_containment/latest/LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE_REPORT.md\n...markdown report...\nEND_FILE\n\nBEGIN_FILE: claude_worklog/final_readiness/legacy_execution_containment/latest/GO_NO_GO.md\nLEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE_READY\nEND_FILE\n",
+  "reconciled_from_source_truth_at": "2026-06-15T19:54:42Z",
   "required_output_files": [
     "claude_worklog/final_readiness/legacy_execution_containment/latest/LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE_REPORT.md",
     "claude_worklog/final_readiness/legacy_execution_containment/latest/GO_NO_GO.md"
   ],
+  "resolved_from_source_truth": true,
   "risk_level": "L1",
-  "status": "pending",
-  "task_id": "LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE"
+  "source_truth_completed_at": "2026-05-12T22:55:35.593229+00:00",
+  "source_truth_record": "claude_worklog/agent_supervisor/state/tasks/LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE.json",
+  "source_truth_status": "completed",
+  "source_truth_superseded": true,
+  "status": "completed",
+  "task_id": "LEGACY_EXECUTION_CONTAINMENT_AND_TRAINER_PARITY_SAFE_MODE",
+  "updated_at": "2026-06-15T19:54:42Z"
 }

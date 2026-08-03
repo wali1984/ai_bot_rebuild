@@ -1,0 +1,152 @@
+{
+  "goal_id": "V2_REBUILD_MASTER_END_TO_END_SYSTEM_AUDIT_AND_OPERATOR_MANUAL",
+  "generated_utc": "2026-07-01T22:56:31Z",
+  "completed_utc": "2026-07-01T22:56:31Z",
+  "final_marker": "V2_REBUILD_MASTER_END_TO_END_SYSTEM_AUDIT_AND_OPERATOR_MANUAL_BLOCKED",
+  "phases": [
+    {
+      "phase_id": "P01",
+      "phase_name": "Full repository and script inventory",
+      "status": "COMPLETE",
+      "artifacts_written": ["file_inventory_backend.json","file_inventory_frontend.json","file_inventory_docs.json","file_inventory_systemd.json","script_catalog.md"],
+      "findings": ["230 CLI scripts","361 service files","82 API files","464 frontend TS/TSX files","126 systemd units","1337 test files"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P02",
+      "phase_name": "Ingestor and data-source audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["INGESTOR_MASTER_AUDIT.md","ingestor_inventory.json","ingestor_gap_register.json"],
+      "findings": ["15 ingestors audited","AICoin CREDENTIAL_BLOCKED","LunarCrush/Nansen UNKNOWN"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P03",
+      "phase_name": "Redis/data-flow map",
+      "status": "COMPLETE",
+      "artifacts_written": ["DATA_FLOW_MASTER_MAP.md","data_flow_graph.mmd","redis_keyspace_map.json"],
+      "findings": ["1,135,176 v2: keys","44 key families mapped","No legacy namespace writes"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P04",
+      "phase_name": "Trainer system audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["TRAINER_MASTER_AUDIT.md","trainer_runtime_status.json"],
+      "findings": ["PPO+MASA on RTX 5080","Checkpoint loadable","741/741 feedback quarantined"],
+      "blockers": ["GAP_P0_001"]
+    },
+    {
+      "phase_id": "P05",
+      "phase_name": "Prediction, signal, and actionability audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["PREDICTION_SIGNAL_MASTER_AUDIT.md"],
+      "findings": ["1,070 prediction keys","All blocked by deny_default","Sample BTCUSDT 1h confidence=0.7224"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P06",
+      "phase_name": "Orchestrator audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["ORCHESTRATOR_MASTER_AUDIT.md"],
+      "findings": ["393 preds -> 130 winners","cannot_bypass_risk_gateway=true"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P07",
+      "phase_name": "Risk controller audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["RISK_CONTROLLER_MASTER_AUDIT.md"],
+      "findings": ["130/130 decisions DENY","deny_default active","fail_closed=true"],
+      "blockers": ["GAP_P1_001"]
+    },
+    {
+      "phase_id": "P08",
+      "phase_name": "Paper trader audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["PAPER_TRADER_MASTER_AUDIT.md"],
+      "findings": ["Sole owner since 2026-06-27","PnL=-$253.49","743 closed trades","0 consumable feedback"],
+      "blockers": ["GAP_P0_001","GAP_P0_002"]
+    },
+    {
+      "phase_id": "P09",
+      "phase_name": "Live trader/live gate audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["LIVE_TRADER_MASTER_AUDIT.md","live_gate_status.json"],
+      "findings": ["live_gate=blocked_human_only","places_real_order=false","5 active blockers"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P10",
+      "phase_name": "Adaptive capital/leverage/margin audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["ADAPTIVE_CAPITAL_MASTER_AUDIT.md"],
+      "findings": ["max_leverage=1.0 by design","8-module allocator operational"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P11",
+      "phase_name": "Backend API audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["BACKEND_API_MASTER_AUDIT.md"],
+      "findings": ["V1 30 routers, V2 19 routers","10-layer middleware","~28 stub routes"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P12",
+      "phase_name": "Frontend/website audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["FRONTEND_MASTER_AUDIT.md"],
+      "findings": ["56 pages","464 TS/TSX files","SSE streaming","Mobile app TestFlight build 5"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P13",
+      "phase_name": "Tests and validation audit",
+      "status": "COMPLETE",
+      "artifacts_written": ["TEST_MASTER_AUDIT.md"],
+      "findings": ["1,337 test files","3,493 test functions","48 Playwright specs","Coverage gap: feedback quarantine"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P14",
+      "phase_name": "Master operator manual",
+      "status": "COMPLETE",
+      "artifacts_written": ["AI_BOT_V2_MASTER_OPERATOR_MANUAL.md"],
+      "findings": ["43 sections written","All operator commands documented"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P15",
+      "phase_name": "Script-by-script documentation",
+      "status": "COMPLETE",
+      "artifacts_written": ["SCRIPT_BY_SCRIPT_REFERENCE.md"],
+      "findings": ["231 scripts documented","15 categories A-O"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P16",
+      "phase_name": "Gap register and current blocker list",
+      "status": "COMPLETE",
+      "artifacts_written": ["CURRENT_GAPS_AND_BLOCKERS.md","gap_register.json"],
+      "findings": ["11 total gaps","2 P0","3 P1","3 P2","3 P3"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P17",
+      "phase_name": "Validation commands",
+      "status": "COMPLETE",
+      "artifacts_written": ["VALIDATION_SUMMARY.md","validation_results.json"],
+      "findings": ["12 PASS","3 WARN","2 FAIL","Overall BLOCKED"],
+      "blockers": []
+    },
+    {
+      "phase_id": "P18",
+      "phase_name": "Final report and GO/NO-GO",
+      "status": "COMPLETE",
+      "artifacts_written": ["AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md","GO_NO_GO.md","operator_dashboard_payload.json"],
+      "findings": ["NO-GO","P0: feedback quarantine","P0: negative PnL"],
+      "blockers": ["GAP_P0_001","GAP_P0_002"]
+    }
+  ]
+}

@@ -1,0 +1,102 @@
+{
+  "audit_utc": "2026-06-19T00:15:00Z",
+  "finding": "TRAILING_STOP_DOMINANT_LOSS_DRIVER",
+  "severity": "CRITICAL",
+  "summary": {
+    "ts_exit_count": 395,
+    "ts_pct_of_all_exits": 61.2,
+    "ts_win_rate": 10.1,
+    "ts_total_pnl_usd": -135.97,
+    "ts_win_pnl_usd": 9.12,
+    "ts_loss_pnl_usd": -145.09,
+    "ts_avg_win_usd": 0.228,
+    "ts_avg_loss_usd": -0.409,
+    "ts_avg_hold_s": 1842.0,
+    "ts_win_avg_hold_s": 2643.0,
+    "ts_loss_avg_hold_s": 1752.0
+  },
+  "per_timeframe": {
+    "15m": {
+      "n": 67,
+      "wins": 6,
+      "wr_pct": 9.0,
+      "pnl_usd": -24.04
+    },
+    "1h": {
+      "n": 70,
+      "wins": 8,
+      "wr_pct": 11.4,
+      "pnl_usd": -19.81
+    },
+    "1m": {
+      "n": 74,
+      "wins": 11,
+      "wr_pct": 14.9,
+      "pnl_usd": -21.81
+    },
+    "4h": {
+      "n": 88,
+      "wins": 4,
+      "wr_pct": 4.5,
+      "pnl_usd": -33.56
+    },
+    "5m": {
+      "n": 96,
+      "wins": 11,
+      "wr_pct": 11.5,
+      "pnl_usd": -36.76
+    }
+  },
+  "per_strategy_mode": {
+    "mean_reversion_mode": {
+      "n": 5,
+      "wins": 2,
+      "wr_pct": 40.0,
+      "pnl_usd": -0.18
+    },
+    "reduce_size_mode": {
+      "n": 12,
+      "wins": 3,
+      "wr_pct": 25.0,
+      "pnl_usd": -6.93
+    },
+    "trend_mode": {
+      "n": 378,
+      "wins": 35,
+      "wr_pct": 9.3,
+      "pnl_usd": -128.86
+    }
+  },
+  "behavioral_analysis": {
+    "pattern": "PREMATURE_ACTIVATION_THEN_REVERSAL",
+    "description": "Trailing stop fires at 89.9% loss rate. This means positions briefly moved enough to ACTIVATE the trailing stop mechanism, then reversed before reaching profit target. The trailing stop distance (inferred ~60 bps from prior audit) is too tight relative to symbol volatility, causing whipsaw exits.",
+    "evidence": [
+      "WR at TS exit = 10.1% (vs 30.39% overall WR)",
+      "Average hold at TS loss = 1,842s \u2014 positions held long enough to activate TS",
+      "TIER_2_TAKE_PROFIT has WR=100% and avg_pnl=+$1.37 \u2014 TP-eligible moves exist",
+      "Max hold at TS win suggests small wins occur when stop placed very tight"
+    ],
+    "comparison_with_tp": {
+      "tp_count": 113,
+      "tp_wr": "100%",
+      "tp_total_pnl": 155.15,
+      "ts_count": 395,
+      "ts_wr": "10.1%",
+      "ts_total_pnl": -135.97,
+      "finding": "If TS were removed and replaced with wider TP, system might convert 355 TS-losses to TP-wins or extended hold gains"
+    }
+  },
+  "counterfactual": {
+    "scenario_A": "If trailing stop widened from 60 to 120 bps: fewer premature TS exits, more TP and MHT exits \u2014 estimated +$50-100 PnL improvement (unverified, requires replay)",
+    "scenario_B": "If trailing stop removed entirely: WR would likely rise above 50% (355 TS losses become open positions), but tail risk increases significantly",
+    "scenario_C": "ATR-based trailing stop: adjusts to symbol volatility \u2014 requires 100+ trade validation per symbol/TF"
+  },
+  "remediation_required": [
+    "Widen trailing stop distance from ~60 bps to 100-150 bps on 1m/5m",
+    "Implement per-symbol ATR-calibrated trailing stop",
+    "Run 200-trade soak after any TS parameter change before live approval",
+    "Add per-trade MFE/MAE recording to quantify optimal stop distance"
+  ],
+  "blocker": true,
+  "confidence": "CONFIRMED \u2014 computed from 645 closed trade records"
+}

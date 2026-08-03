@@ -1,0 +1,16 @@
+{
+  "schema_version": "v2_continuous_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:29Z",
+  "blocker_3_status": "OPEN",
+  "paper_events_path": "/home/wali/Desktop/AI BOT REBUILD/v2/runtime/paper_online/latest/paper_events.jsonl",
+  "closed_trade_count": 7,
+  "soak_target": 500,
+  "soak_progress_pct": 1.4,
+  "win_rate": 0.1429,
+  "win_rate_target": 0.55,
+  "soak_met": false,
+  "soak_remaining": 493,
+  "required_before_trading": true,
+  "gate_status": "blocked_human_only",
+  "mutates_exchange": false
+}

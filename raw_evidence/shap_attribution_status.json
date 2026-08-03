@@ -1,0 +1,13 @@
+{
+  "schema_version": "v2_continuous_hourly_monitor_v1",
+  "generated_at": "2026-06-21T23:02:29Z",
+  "blocker_4_status": "OPEN",
+  "shap_available": false,
+  "attribution_method": "gradient_sign_heuristic_fallback",
+  "attribution_note": "top_positive_feature_codes and top_negative_feature_codes populated via __gradient_sign_heuristic__ prefix. Real SHAP not wired in trainer checkpoint export. Must wire SHAP before operator approval.",
+  "predictions_enriched": 2279,
+  "required_before_trading": true,
+  "waiveable_by_operator_for_paper": true,
+  "gate_status": "blocked_human_only",
+  "mutates_exchange": false
+}

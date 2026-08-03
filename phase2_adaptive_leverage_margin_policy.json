@@ -1,0 +1,57 @@
+{
+  "marker": "V2_ADAPTIVE_LEVERAGE_MARGIN_POLICY_PACKET_BRIDGED",
+  "generated_utc": "2026-07-11T23:02:18Z",
+  "patch_files": [
+    "v2/backend/app/services/allocator/simulation.py",
+    "v2/backend/app/cli/v2_a_plus_candidate_inventory.py",
+    "v2/backend/tests/unit/services/allocator/test_allocator_simulation.py",
+    "v2/backend/tests/unit/cli/test_v2_a_plus_candidate_inventory.py"
+  ],
+  "policy": {
+    "static_leverage": false,
+    "hardcoded_one_x": false,
+    "paper_only_recalculate_incomplete_existing_allocation": true,
+    "live_exchange_leverage_mutation": false,
+    "live_exchange_margin_mutation": false
+  },
+  "required_outputs_present": {
+    "recommended_notional_usd": true,
+    "allocated_margin_usd": true,
+    "recommended_leverage": true,
+    "recommended_margin_mode": true,
+    "risk_budget_usd": true,
+    "max_loss_usd": true,
+    "liquidation_buffer_usd": true,
+    "hedge_required": true
+  },
+  "paper_only_fixture": {
+    "allocator_decision": "PASS",
+    "gross_notional_usd": 80.0,
+    "target_notional_usd": 80.0,
+    "recommended_notional_usd": 80.0,
+    "allocated_margin_usd": 26.66666667,
+    "risk_budget_usd": 12.79532967,
+    "recommended_leverage": 3.0,
+    "recommended_margin_mode": "cross_simulated",
+    "liquidation_buffer_usd": 26.06266667,
+    "max_loss_usd": 0.204,
+    "routes_to_live": false,
+    "places_real_order": false,
+    "test_order_submitted": false,
+    "leverage_mutated": false,
+    "margin_mutated": false
+  },
+  "runtime_snapshot": {
+    "inventory_rows_projected": 520,
+    "allowed_paper_rows_projected": 0,
+    "allowed_rows_with_notional_margin_risk_projected": 0,
+    "exact_runtime_note": "No current eligible paper rows in the Redis snapshot; sizing fixture proves the policy can exceed 1x when gates are clean."
+  },
+  "regression_fixtures": {
+    "test_allowed_existing_allocator_decision_missing_size_recalculates_paper_size": "passed",
+    "test_positive_edge_high_liquidity_increases_paper_leverage_above_1x": "passed_existing_adaptive_allocator_suite",
+    "test_weak_edge_keeps_paper_leverage_at_minimum": "passed_existing_adaptive_allocator_suite",
+    "test_high_loss_probability_shrinks_notional": "passed",
+    "test_allocated_margin_derives_from_scaled_notional_and_leverage": "passed"
+  }
+}

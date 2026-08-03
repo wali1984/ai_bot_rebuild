@@ -1,0 +1,22 @@
+fastapi==0.115.0
+pydantic==2.13.4
+pydantic-settings==2.5.2
+uvicorn==0.30.6
+SQLAlchemy==2.0.35
+alembic==1.13.3
+redis==5.0.8
+httpx==0.27.2
+structlog==24.4.0
+python-multipart==0.0.10
+websockets==15.0.1
+binance-sdk-derivatives-trading-usds-futures @ git+https://github.com/binance/binance-connector-python.git@22af475b45db45bb90ad730babcdd32b8db1424d#subdirectory=clients/derivatives_trading_usds_futures
+
+[dev]
+pytest==8.3.3
+pytest-asyncio==0.24.0
+hypothesis==6.112.1
+mypy==1.11.2
+ruff==0.6.8
+grimp==3.4.1
+testcontainers==4.8.1
+psycopg[binary]==3.2.1
