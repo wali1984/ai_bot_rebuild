@@ -71,6 +71,8 @@ function healthColor(health: string | null | undefined): string {
   switch ((health ?? '').toUpperCase()) {
     case 'OK':
       return '#26c281';
+    case 'OBSERVER':
+      return '#8bd6ff';
     case 'HELD':
       return '#8bd6ff';
     case 'NOT_PUBLISHING':

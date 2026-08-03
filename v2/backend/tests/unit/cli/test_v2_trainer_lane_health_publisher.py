@@ -11,6 +11,7 @@ from v2.backend.app.cli.v2_trainer_lane_health_publisher import (
     HEALTH_FAILED,
     HEALTH_HELD,
     HEALTH_NOT_PUBLISHING,
+    HEALTH_OBSERVER,
     HEALTH_OK,
     HEALTH_STALLED,
     HEALTH_STOPPED,
@@ -32,6 +33,7 @@ def _lane(**kwargs) -> dict:
         process=kwargs.pop("process", {}),
         artifact=kwargs.pop("artifact", {}),
         redis_key_present=kwargs.pop("redis_key_present", None),
+        observer_mode=kwargs.pop("observer_mode", False),
     )
 
 
@@ -54,6 +56,37 @@ def test_inactive_timer_driven_lane_is_held_not_stopped() -> None:
     spec = LaneSpec(lane_id="t", label="T", unit="t.service", timer_driven=True)
     lane = _lane(spec=spec, unit_properties={"ActiveState": "inactive", "SubState": "dead", "LoadState": "loaded"})
     assert lane["health"] == HEALTH_HELD
+    # Idle-between-firings is the designed state, not a fault the banner should
+    # escalate -- a genuinely overdue timer lane still STALLs via artifact age.
+    assert lane["severity"] == "ok"
+
+
+def test_declared_observer_with_stale_artifact_is_observer_not_stalled() -> None:
+    """A non-promotable observer's stale artifact is its designed steady state."""
+    spec = LaneSpec(lane_id="hybrid_online", label="Hybrid", unit="h.service", max_artifact_age_seconds=2700)
+    lane = _lane(
+        spec=spec,
+        artifact={"last_artifact_age_seconds": 700_000, "last_artifact_path": "old.npz"},
+        observer_mode=True,
+    )
+    assert lane["health"] == HEALTH_OBSERVER
+    assert lane["severity"] == "ok"
+    assert "non-promotable" in lane["reason"]
+
+
+def test_declared_observer_missing_redis_key_is_observer_not_not_publishing() -> None:
+    spec = LaneSpec(lane_id="hybrid_online", label="Hybrid", unit="h.service", redis_key="v2:trainer:hybrid_cuda:status")
+    lane = _lane(spec=spec, redis_key_present=False, observer_mode=True)
+    assert lane["health"] == HEALTH_OBSERVER
+
+
+def test_observer_mode_does_not_mask_a_genuinely_failed_unit() -> None:
+    """The benign observer verdict must never hide a real unit failure."""
+    lane = _lane(
+        unit_properties={"ActiveState": "failed", "Result": "exit-code", "ExecMainStatus": "1", "LoadState": "loaded"},
+        observer_mode=True,
+    )
+    assert lane["health"] == HEALTH_FAILED
 
 
 def test_missing_unit_reports_stopped() -> None:
@@ -153,6 +186,20 @@ def test_idle_gpu_alert_requires_a_claimed_running_cycle() -> None:
     # Not claiming a cycle => zero allocation is expected, not a fault.
     assert _idle_gpu_alert(_running_cycle(cycle_in_progress=False)) is None
     assert _idle_gpu_alert(_running_cycle(status_present=False)) is None
+
+
+def test_idle_gpu_alert_silent_for_declared_non_promotable_observer() -> None:
+    # A non-promotable observer with no runtime wired allocates no GPU by design;
+    # that is its designed steady state, not a claimed-but-idle training cycle.
+    assert (
+        _idle_gpu_alert(_running_cycle(non_promotable=True, runtime_wired=False))
+        is None
+    )
+    # But a lane that IS wired to train yet shows zero GPU is still a real fault.
+    assert (
+        _idle_gpu_alert(_running_cycle(non_promotable=False, runtime_wired=True))
+        is not None
+    )
 
 
 def test_idle_gpu_alert_stays_silent_without_counter_evidence() -> None:

@@ -58,6 +58,10 @@ HEALTH_STOPPED = "STOPPED"
 HEALTH_STALLED = "STALLED"
 HEALTH_NOT_PUBLISHING = "NOT_PUBLISHING"
 HEALTH_HELD = "HELD"
+# A lane running a deliberate, self-declared non-promotable observer cycle: it
+# emits no promotable checkpoint and allocates no GPU BY DESIGN, so its stale
+# artifact / zero-GPU counters are the designed steady state, not a fault.
+HEALTH_OBSERVER = "OBSERVER"
 HEALTH_OK = "OK"
 HEALTH_UNKNOWN = "UNKNOWN"
 
@@ -66,7 +70,11 @@ SEVERITY_BY_HEALTH = {
     HEALTH_STOPPED: "error",
     HEALTH_STALLED: "error",
     HEALTH_NOT_PUBLISHING: "warn",
-    HEALTH_HELD: "warn",
+    # A lane that is idle between timer firings, or deliberately parked, is
+    # operating as expected -- a genuinely overdue timer lane still escalates to
+    # STALLED via the artifact-age check below, so HELD itself is not a fault.
+    HEALTH_HELD: "ok",
+    HEALTH_OBSERVER: "ok",
     HEALTH_UNKNOWN: "warn",
     HEALTH_OK: "ok",
 }
@@ -279,8 +287,18 @@ def evaluate_lane(
     process: dict[str, Any],
     artifact: dict[str, Any],
     redis_key_present: bool | None,
+    observer_mode: bool = False,
 ) -> dict[str, Any]:
-    """Derive one lane's health verdict from independently checkable evidence."""
+    """Derive one lane's health verdict from independently checkable evidence.
+
+    ``observer_mode`` is set only when the lane's own signed status file declares
+    it a non-promotable observer with no training runtime wired.  In that state
+    the lane emits no promotable checkpoint and allocates no GPU by design, so
+    the artifact-staleness and missing-telemetry demotions below are suppressed
+    in favour of the benign OBSERVER verdict.  A genuine failure (unit failed /
+    stopped) still outranks it, and the moment the lane's status stops declaring
+    the observer state the normal STALLED/NOT_PUBLISHING checks apply again.
+    """
     active_state = unit_properties.get("ActiveState")
     sub_state = unit_properties.get("SubState")
     result = unit_properties.get("Result")
@@ -306,10 +324,25 @@ def evaluate_lane(
         else:
             health, reason = HEALTH_STOPPED, f"Unit {spec.unit} is inactive."
 
+    # A lane whose own signed status declares it a non-promotable observer with
+    # no training runtime wired is in its designed steady state: no promotable
+    # checkpoint, no GPU allocation. Report that honestly as OBSERVER rather than
+    # letting the staleness / missing-telemetry checks flag the designed state as
+    # a fault. A failed/stopped unit still outranks this.
+    if observer_mode and health in {HEALTH_OK, HEALTH_HELD, HEALTH_UNKNOWN}:
+        health = HEALTH_OBSERVER
+        reason = (
+            f"Unit {spec.unit} is running a deliberate non-promotable research "
+            "observer cycle with no training runtime wired: it emits no "
+            "promotable checkpoint and allocates no GPU by design, and will "
+            "leave this state only once authenticated training samples arrive."
+        )
+
     # Artifact staleness outranks a merely-"active" unit: a resident process
     # that has produced nothing for hours is stalled, not healthy. It also
     # outranks UNKNOWN -- a stale artifact is positive evidence of a stall even
-    # when systemd evidence is unavailable.
+    # when systemd evidence is unavailable. (Skipped for a declared observer,
+    # whose stale artifact is the designed steady state.)
     age = artifact.get("last_artifact_age_seconds")
     threshold = spec.max_artifact_age_seconds
     if threshold is not None and health in {HEALTH_OK, HEALTH_HELD, HEALTH_UNKNOWN}:
@@ -330,7 +363,8 @@ def evaluate_lane(
                 )
 
     # A lane whose declared Redis evidence key is absent cannot populate the UI
-    # blocks that read it, even when its unit is nominally healthy.
+    # blocks that read it, even when its unit is nominally healthy. (A declared
+    # observer emits no telemetry by design, so this is not counted against it.)
     if spec.redis_key and redis_key_present is False and health == HEALTH_OK:
         health = HEALTH_NOT_PUBLISHING
         reason = (
@@ -413,6 +447,12 @@ def _idle_gpu_alert(research: Mapping[str, Any]) -> dict[str, Any] | None:
     """
     if research.get("status_present") is not True:
         return None
+    # A deliberate non-promotable observer with no training runtime wired
+    # allocates no device memory BY DESIGN -- that is its designed steady state,
+    # not a lane that claimed to train and then didn't. Only a lane that is
+    # supposed to be training (runtime wired) yet shows zero GPU is a fault.
+    if research.get("non_promotable") is True and research.get("runtime_wired") is not True:
+        return None
     if research.get("cycle_in_progress") is not True:
         return None
     peak = research.get("peak_memory_allocated_bytes")
@@ -442,6 +482,16 @@ def build_lane_health(
     redis_client: Any | None = None,
     specs: Sequence[LaneSpec] = LANE_SPECS,
 ) -> dict[str, Any]:
+    # Resolve the resident research lane's real state up front: it is the signal
+    # that tells the hybrid/online lane apart from a genuine stall -- a declared
+    # non-promotable observer with no runtime wired is healthy-idle by design.
+    research = _research_lane_runtime()
+    observer_declared = (
+        research.get("status_present") is True
+        and research.get("non_promotable") is True
+        and research.get("runtime_wired") is not True
+    )
+
     lanes: list[dict[str, Any]] = []
     for spec in specs:
         unit_properties = _systemctl_show(spec.unit) if spec.unit else {}
@@ -460,6 +510,7 @@ def build_lane_health(
                 process=process,
                 artifact=artifact,
                 redis_key_present=redis_key_present,
+                observer_mode=observer_declared and spec.lane_id == "hybrid_online",
             )
         )
 
@@ -475,7 +526,6 @@ def build_lane_health(
         for lane in lanes
         if lane["severity"] != "ok"
     ]
-    research = _research_lane_runtime()
     idle_gpu = _idle_gpu_alert(research)
     if idle_gpu is not None:
         alerts.append(idle_gpu)
