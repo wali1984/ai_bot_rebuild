@@ -1097,7 +1097,10 @@ def _read_continuous_offline_report() -> dict[str, Any] | None:
     try:
         import time as _time  # noqa: PLC0415
 
-        repo_root = Path(__file__).resolve().parents[5]
+        # The offline trainer writes its report into the LIVE repo tree, not the
+        # immutable deployment worktree -- so resolve via V2_REPO_ROOT (the repo)
+        # and fall back to parents[5] only for a non-deployed dev run.
+        repo_root = Path(os.environ.get("V2_REPO_ROOT") or Path(__file__).resolve().parents[5])
         p = repo_root / "claude_worklog" / "trainer_atlas" / "continuous_offline_last_report.json"
         if not p.is_file():
             return None
