@@ -3,7 +3,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from v2.backend.app.cli.v2_moralis_provider_loop import _loop_log_report, run_once
+from v2.backend.app.cli.v2_moralis_provider_loop import (
+    _ensure_bootstrap_state,
+    _loop_log_report,
+    run_once,
+)
 from v2.backend.app.cli.v2_moralis_token_map_bootstrap import build_phase0_state
 from v2.backend.app.services.smart_money_wallets.models import MoralisResponse
 
@@ -379,6 +383,55 @@ def test_moralis_loop_no_watchlist_publishes_gray_and_makes_no_requests(monkeypa
     assert cu_status["ledger_available"] is True
     assert cu_status["status_key"] == "v2:provider:moralis:cu_budget_status"
     assert status["durable_cu_budget_status_published"] is True
+
+
+def test_moralis_bootstrap_recovery_restores_missing_redis_maps(monkeypatch) -> None:
+    redis_client = FakeRedis()
+
+    def fake_publish_token_map(redis_client_arg):
+        assert redis_client_arg is redis_client
+        redis_client_arg.set(
+            "v2:moralis:token_map_status",
+            json.dumps({"token_map_count": 3}),
+            ex=3600,
+        )
+        return {"token_map_count": 3}
+
+    def fake_read_wallet_watchlist(redis_client_arg):
+        assert redis_client_arg is redis_client
+        return []
+
+    def fake_refresh_candidate_wallet_watchlist(redis_client_arg):
+        assert redis_client_arg is redis_client
+        redis_client_arg.set(
+            "v2:moralis:wallet_watchlist_status",
+            json.dumps({"wallet_watchlist_count": 2}),
+            ex=3600,
+        )
+        return {"refresh_succeeded": True, "wallet_watchlist_count": 2}
+
+    monkeypatch.setattr(
+        "v2.backend.app.cli.v2_moralis_provider_loop.publish_token_map",
+        fake_publish_token_map,
+    )
+    monkeypatch.setattr(
+        "v2.backend.app.cli.v2_moralis_provider_loop.read_wallet_watchlist",
+        fake_read_wallet_watchlist,
+    )
+    monkeypatch.setattr(
+        "v2.backend.app.cli.v2_moralis_provider_loop.refresh_candidate_wallet_watchlist",
+        fake_refresh_candidate_wallet_watchlist,
+    )
+
+    status = _ensure_bootstrap_state(redis_client)
+
+    assert status["status"] == "RECOVERY_APPLIED"
+    assert status["token_map_recovery_attempted"] is True
+    assert status["token_map_recovery_succeeded"] is True
+    assert status["wallet_watchlist_recovery_attempted"] is True
+    assert status["wallet_watchlist_recovery_succeeded"] is True
+    assert status["core_system_blocked"] is False
+    assert status["raw_key_exposed"] is False
 
 
 def test_moralis_loop_operator_lists_still_schedule_without_every_symbol_minute() -> None:

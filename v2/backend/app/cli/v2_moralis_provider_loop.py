@@ -33,6 +33,7 @@ from app.services.smart_money_wallets.rate_limit import (
     MoralisRateLimiter,
 )
 from app.services.smart_money_wallets.token_contract_mapper import (
+    publish_token_map,
     read_metadata_validation_tokens,
     read_pollable_tokens,
 )
@@ -40,6 +41,7 @@ from app.services.smart_money_wallets.wallet_watchlist import (
     read_wallet_watchlist,
     refresh_candidate_wallet_watchlist,
 )
+from app.cli.v2_moralis_token_metadata_validate import validate_token_map
 
 SCHEDULER_STATUS_KEY = MORALIS_SCHEDULER_STATUS_KEY
 LEGACY_ROTATION_CURSOR_KEY = "v2:provider:moralis:rotation_cursor:{chain}"
@@ -428,6 +430,16 @@ def run_once(
     scheduler_interval_seconds: float = 300.0,
     now_utc: datetime | None = None,
 ) -> dict[str, Any]:
+    bootstrap_recovery = (
+        _ensure_bootstrap_state(redis_client)
+        if maintain_candidate_watchlist
+        else {
+            "schema_version": "moralis_bootstrap_recovery_v1",
+            "status": "NOT_REQUESTED",
+            "core_system_blocked": False,
+            "raw_key_exposed": False,
+        }
+    )
     watchlist_refresh = (
         refresh_candidate_wallet_watchlist(redis_client)
         if maintain_candidate_watchlist
@@ -939,7 +951,6 @@ def run_once(
         redis_client is not None
         and not published_symbols
         and scheduler_lease_acquired
-        and scheduler_run_suppressed_reason is None
     ):
         publish_moralis_feature_payload(
             redis_client,
@@ -953,6 +964,7 @@ def run_once(
             stale_after=3600,
             compute_unit_status=client.limiter.as_dict(),
         )
+    metadata_validation_report = _validate_cached_metadata(redis_client)
     scheduler_lease_released = True
     if redis_client is not None and scheduler_lease_token is not None:
         scheduler_lease_released = _release_scheduler_lease(
@@ -1040,6 +1052,8 @@ def run_once(
             if isinstance(watchlist_refresh, Mapping)
             else 0
         ),
+        "bootstrap_recovery": bootstrap_recovery,
+        "metadata_validation_report": metadata_validation_report,
         "bootstrap_status": bootstrap["status"],
         "symbol": symbol,
         "timeframe": timeframe,
@@ -2166,6 +2180,82 @@ def _canonical_token_transfer_owner(plan: Mapping[str, Any]) -> bool:
         and _status_int(row.get("target_count")) > 0
         for row in endpoints
     )
+
+
+def _ensure_bootstrap_state(redis_client: Any | None) -> dict[str, Any]:
+    """Restore local Redis bootstrap state from reviewed repository sources.
+
+    Redis is a cache, while the token map and wallet-watchlist authorities are
+    reviewed repository files.  If Redis loses those keys, the provider loop can
+    keep running with API auth READY but no feature path.  This recovery never
+    calls Moralis, never changes CU ledger state, and never grants trainer
+    authority; it only republishes the prerequisite local control-plane rows.
+    """
+
+    status = {
+        "schema_version": "moralis_bootstrap_recovery_v1",
+        "token_map_recovery_attempted": False,
+        "token_map_recovery_succeeded": False,
+        "wallet_watchlist_recovery_attempted": False,
+        "wallet_watchlist_recovery_succeeded": False,
+        "core_system_blocked": False,
+        "raw_key_exposed": False,
+    }
+    if redis_client is None:
+        status["status"] = "REDIS_UNAVAILABLE"
+        return status
+    try:
+        if _token_map_count(redis_client) <= 0:
+            status["token_map_recovery_attempted"] = True
+            token_status = publish_token_map(redis_client)
+            status["token_map_recovery_succeeded"] = (
+                int(token_status.get("token_map_count") or 0) > 0
+            )
+            status["token_map_count"] = int(token_status.get("token_map_count") or 0)
+    except Exception as exc:
+        status["token_map_recovery_error"] = type(exc).__name__
+    try:
+        if not read_wallet_watchlist(redis_client):
+            status["wallet_watchlist_recovery_attempted"] = True
+            watch_status = refresh_candidate_wallet_watchlist(redis_client)
+            status["wallet_watchlist_recovery_succeeded"] = (
+                bool(watch_status.get("refresh_succeeded") is True)
+                and int(watch_status.get("wallet_watchlist_count") or 0) > 0
+            )
+            status["wallet_watchlist_count"] = int(
+                watch_status.get("wallet_watchlist_count") or 0
+            )
+    except Exception as exc:
+        status["wallet_watchlist_recovery_error"] = type(exc).__name__
+    status["status"] = (
+        "RECOVERY_APPLIED"
+        if status["token_map_recovery_succeeded"]
+        or status["wallet_watchlist_recovery_succeeded"]
+        else "NO_RECOVERY_NEEDED_OR_FAILED"
+    )
+    return status
+
+
+def _validate_cached_metadata(redis_client: Any | None) -> dict[str, Any]:
+    """Promote token-map rows only from already cached canonical metadata."""
+
+    if redis_client is None:
+        return {"status": "REDIS_UNAVAILABLE"}
+    try:
+        report = validate_token_map(redis_client)
+    except Exception as exc:
+        return {
+            "status": "CACHE_METADATA_VALIDATION_FAILED",
+            "error_class": type(exc).__name__,
+        }
+    return {
+        "status": "CACHE_METADATA_VALIDATION_ATTEMPTED",
+        "verified_count": int(report.get("verified_count") or 0),
+        "pollable_count": int(report.get("pollable_count") or 0),
+        "mismatch_count": int(report.get("mismatch_count") or 0),
+        "unsupported_count": int(report.get("unsupported_count") or 0),
+        "metadata_cache_pending_count": int(report.get("cache_pending_count") or 0),
+    }
 
 
 def _resolve_bootstrap_inputs(
