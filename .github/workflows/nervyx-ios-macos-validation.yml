@@ -21,7 +21,9 @@ permissions:
 jobs:
   native-apple:
     name: iOS/watchOS simulator build evidence
-    runs-on: macos-15
+    # macos-15 stopped matching any hosted runner (2026-09-18: instant startup
+    # failure, zero steps, no runner assigned); track the current image.
+    runs-on: macos-latest
     timeout-minutes: 45
     env:
       IOS_PROJECT: v2/mobile/AIBotV2.xcodeproj
